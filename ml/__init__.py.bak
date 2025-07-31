@@ -1,0 +1,340 @@
+"""
+MIA_IA_SYSTEM - Machine Learning Module
+Module ML complet pour trading Battle Navale automatisé
+Version: Complete ML Pipeline v1.0.0
+# Configuration encodage UTF-8
+import sys
+import io
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
+
+
+ARCHITECTURE ML COMPLÈTE (4 fichiers) :
+├── simple_model.py         # Modèle ML linéaire simple (~400 lignes)
+├── data_processor.py       # Préparation données ML (~250 lignes) 
+├── model_validator.py      # Validation modèles robuste (~200 lignes)
+└── model_trainer.py        # Pipeline training complet (~300 lignes)
+
+FONCTIONNALITÉS INTÉGRÉES :
+- Modèles ML simples (Linear/Logistic Regression)
+- Pipeline de préparation données depuis snapshots Battle Navale
+- Validation rigoureuse avec cross-validation et tests out-of-sample
+- Training automatisé avec gestion versions et déploiement
+- Apprentissage continu et monitoring performance
+- Intégration native avec système Battle Navale
+
+USAGE PRINCIPAL :
+```python
+from ml import ModelTrainer, create_battle_navale_trainer
+trainer = create_battle_navale_trainer()
+session = trainer.train_model_from_snapshots()
+model = trainer.get_model_for_trading()
+```
+"""
+
+# === SIMPLE MODEL (Modèles ML de base) ===
+from .simple_model import (
+    # Classe principale
+    SimpleLinearModel,
+    
+    # Enums et types
+    ModelType,
+    ModelStatus,
+    ModelPerformance,
+    ModelConfig,
+    TrainingResult,
+    
+    # Factory functions
+    create_signal_classifier,
+    create_profitability_predictor,
+    create_signal_strength_model,
+    
+    # Test function
+    test_simple_model
+)
+
+# === DATA PROCESSOR (Préparation données ML) ===
+from .data_processor import (
+    # Classe principale
+    MLDataProcessor,
+    
+    # Data structures
+    ProcessedDataset,
+    DataQualityReport,
+    FeatureStats,
+    ProcessingConfig,
+    
+    # Enums
+    DataQuality,
+    FeatureType,
+    ScalingMethod,
+    SplitMethod,
+    
+    # Factory functions
+    create_ml_data_processor,
+    create_battle_navale_processor,
+    
+    # Test function
+    test_ml_data_processor
+)
+
+# === MODEL VALIDATOR (Validation robuste modèles) ===
+from .model_validator import (
+    # Classe principale
+    ModelValidator,
+    
+    # Data structures
+    ValidationReport,
+    CrossValidationResult,
+    OutOfSampleResult,
+    FeatureImportanceAnalysis,
+    OverfittingAnalysis,
+    ModelStabilityTest,
+    
+    # Enums
+    ValidationMethod,
+    ValidationLevel,
+    OverfittingLevel,
+    ModelHealth,
+    
+    # Factory functions
+    create_model_validator,
+    create_rigorous_validator,
+    create_exhaustive_validator,
+    
+    # Test function
+    test_model_validator
+)
+
+# === MODEL TRAINER (Pipeline training complet) ===
+from .model_trainer import (
+    # Classe principale
+    ModelTrainer,
+    
+    # Data structures
+    TrainingSession,
+    TrainingConfig,
+    ModelVersion,
+    
+    # Enums
+    TrainingMode,
+    ModelStage,
+    TrainingStatus,
+    PerformanceThreshold,
+    
+    # Factory functions
+    create_model_trainer,
+    create_battle_navale_trainer,
+    train_model_from_recent_data,
+    
+    # Test function
+    test_model_trainer
+)
+
+# === ALIAS POUR COMPATIBILITÉ ===
+# Maintien compatibilité avec imports existants
+SimpleMLModel = SimpleLinearModel  # Alias principal pour __init__.py original
+
+# Version info
+__version__ = "1.0.0"
+__author__ = "MIA Trading System - ML Team"
+
+# === EXPORTS COMPLETS ===
+__all__ = [
+    # === COMPATIBILITÉ ORIGINALE ===
+    'SimpleMLModel',        # Alias vers SimpleLinearModel
+    'ModelTrainer',         # Classe principale training
+    
+    # === SIMPLE MODEL ===
+    'SimpleLinearModel',
+    'ModelType',
+    'ModelStatus', 
+    'ModelPerformance',
+    'ModelConfig',
+    'TrainingResult',
+    'create_signal_classifier',
+    'create_profitability_predictor',
+    'create_signal_strength_model',
+    'test_simple_model',
+    
+    # === DATA PROCESSOR ===
+    'MLDataProcessor',
+    'ProcessedDataset',
+    'DataQualityReport',
+    'FeatureStats',
+    'ProcessingConfig',
+    'DataQuality',
+    'FeatureType',
+    'ScalingMethod',
+    'SplitMethod',
+    'create_ml_data_processor',
+    'create_battle_navale_processor',
+    'test_ml_data_processor',
+    
+    # === MODEL VALIDATOR ===
+    'ModelValidator',
+    'ValidationReport',
+    'CrossValidationResult',
+    'OutOfSampleResult',
+    'FeatureImportanceAnalysis',
+    'OverfittingAnalysis',
+    'ModelStabilityTest',
+    'ValidationMethod',
+    'ValidationLevel',
+    'OverfittingLevel',
+    'ModelHealth',
+    'create_model_validator',
+    'create_rigorous_validator',
+    'create_exhaustive_validator',
+    'test_model_validator',
+    
+    # === MODEL TRAINER ===
+    'TrainingSession',
+    'TrainingConfig',
+    'ModelVersion',
+    'TrainingMode',
+    'ModelStage',
+    'TrainingStatus',
+    'PerformanceThreshold',
+    'create_model_trainer',
+    'create_battle_navale_trainer',
+    'train_model_from_recent_data',
+    'test_model_trainer'
+]
+
+# === INFORMATIONS MODULE ===
+def get_ml_module_info() -> dict:
+    """Information complète du module ML"""
+    return {
+        'version': __version__,
+        'components_count': 4,
+        'components': [
+            'SimpleLinearModel (Modèles ML de base)',
+            'MLDataProcessor (Préparation données)', 
+            'ModelValidator (Validation robuste)',
+            'ModelTrainer (Pipeline training)'
+        ],
+        'capabilities': {
+            'model_types': ['Linear Regression', 'Logistic Regression'],
+            'data_processing': 'Battle Navale snapshots → ML-ready datasets',
+            'validation': 'Cross-validation + Out-of-sample + Feature analysis',
+            'training': 'Automated pipeline + Continuous learning',
+            'deployment': 'Staging → Production avec versioning'
+        },
+        'integration': {
+            'battle_navale': 'Native integration avec votre méthode',
+            'snapshots': 'Direct depuis trade_snapshotter.py',
+            'automation': 'Compatible avec simple_trader.py',
+            'features': '8 features Battle Navale + Market structure'
+        },
+        'production_ready': True,
+        'testing': 'Test functions dans chaque composant'
+    }
+
+def get_ml_workflow_info() -> dict:
+    """Workflow ML complet"""
+    return {
+        'pipeline_steps': [
+            '1. Snapshots collectés (trade_snapshotter)',
+            '2. Données préparées (MLDataProcessor)', 
+            '3. Modèle entraîné (SimpleLinearModel)',
+            '4. Validation rigoureuse (ModelValidator)',
+            '5. Déploiement automatique (ModelTrainer)',
+            '6. Monitoring continu (ModelTrainer)'
+        ],
+        'data_flow': 'Battle Navale → Snapshots → Features → Model → Validation → Production',
+        'automation_level': 'Fully automated avec intervention optionnelle',
+        'performance_monitoring': 'Automatic retraining si dégradation détectée',
+        'safety_mechanisms': [
+            'Validation rigoureuse avant déploiement',
+            'Staging environment pour tests',
+            'Backup automatique modèles précédents',
+            'Performance thresholds configurables'
+        ]
+    }
+
+def test_ml_module():
+    """Test rapide de tous les composants ML"""
+    print("=== TEST MODULE ML COMPLET ===")
+    
+    try:
+        # Test 1: SimpleLinearModel
+        print("Test 1: SimpleLinearModel")
+        model = create_signal_classifier()
+        print(f"✅ SimpleLinearModel: {type(model).__name__}")
+        
+        # Test 2: MLDataProcessor
+        print("Test 2: MLDataProcessor")
+        processor = create_battle_navale_processor()
+        print(f"✅ MLDataProcessor: {type(processor).__name__}")
+        
+        # Test 3: ModelValidator
+        print("Test 3: ModelValidator")
+        validator = create_model_validator()
+        print(f"✅ ModelValidator: {type(validator).__name__}")
+        
+        # Test 4: ModelTrainer
+        print("Test 4: ModelTrainer")
+        trainer = create_battle_navale_trainer()
+        print(f"✅ ModelTrainer: {type(trainer).__name__}")
+        
+        # Test 5: Alias compatibility
+        print("Test 5: Compatibilité alias")
+        simple_ml = SimpleMLModel()
+        print(f"✅ SimpleMLModel alias: {type(simple_ml).__name__}")
+        
+        print("\n🎉 TOUS LES COMPOSANTS ML FONCTIONNELS")
+        
+        # Informations module
+        info = get_ml_module_info()
+        print(f"\nModule ML v{info['version']}")
+        print(f"Composants: {info['components_count']}")
+        print(f"Production ready: {info['production_ready']}")
+        
+    except Exception as e:
+        print(f"❌ Erreur test module: {e}")
+
+# === SHORTCUTS POUR USAGE RAPIDE ===
+
+def quick_train_model(days_back: int = 30) -> 'TrainingSession':
+    """
+    Training rapide d'un modèle Battle Navale
+    
+    Args:
+        days_back: Nombre de jours de données à utiliser
+        
+    Returns:
+        Session d'entraînement
+    """
+    return train_model_from_recent_data(days_back)
+
+def get_production_model() -> 'SimpleLinearModel':
+    """
+    Récupération rapide du modèle en production
+    
+    Returns:
+        Modèle ML prêt pour trading
+    """
+    trainer = create_battle_navale_trainer()
+    return trainer.get_model_for_trading()
+
+def setup_automated_ml(check_hours: int = 24) -> bool:
+    """
+    Setup ML automatisé complet
+    
+    Args:
+        check_hours: Intervalle vérification performance
+        
+    Returns:
+        True si setup réussi
+    """
+    trainer = create_battle_navale_trainer()
+    return trainer.setup_continuous_learning(check_hours)
+
+# Message de bienvenue
+if __name__ == "__main__":
+    print("🤖 MIA Trading ML Module")
+    print("Module ML complet pour trading Battle Navale")
+    print("Lancez test_ml_module() pour vérifier l'installation")

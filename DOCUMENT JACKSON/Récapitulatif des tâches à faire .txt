@@ -1,0 +1,9 @@
+Récapitulatif des tâches à faire (checklist actionnable)
+À faire	Priorité	Où ?	Exemple/action à réaliser
+1. Charger des vraies données dans analytics.py	🚨 Haute	_load_trades_data, etc.	Remplacer le “return pd.DataFrame()” par lecture de fichiers
+2. Relier à DataCollector ou fichiers snapshots	🚨 Haute	_load_snapshots_data	Utiliser .export_ml_training_dataset()
+3. Valider et enrichir les calculs de performance/risk	Moyen	Méthodes d’analyse	Ajouter des métriques, corriger si besoin
+4. Intégrer dans un pipeline global ou batch	Moyen	Nouveau script principal	“collecte → analyse → rapport”
+5. Activer l’option plots/graphes	Faible	plot_performance, tests	Tester avec matplotlib/seaborn
+6. Automatiser la génération de rapport (script ou notebook)	Moyen	Notebook, batch, etc.	Générer tous les soirs/semaines
+7. (Optionnel) Brancher notification/reporting	Faible	Ajout webhook, email, Discord	Envoyer le rapport automatique

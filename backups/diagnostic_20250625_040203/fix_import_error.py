@@ -1,0 +1,31 @@
+# fix_import_error.py
+import os
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+
+# Corriger signal_generator.py
+file_path = r"D:\MIA_IA_system\strategies\signal_generator.py"
+with open(file_path, 'r', encoding='utf-8') as f:
+    content = f.read()
+
+# Remplacer l'import
+old_import = """from core.base_types import (
+    MarketData, TradingSignal, SignalType, SignalStrength,
+    MarketRegime, SystemState, StructureData
+)"""
+
+new_import = """from core.base_types import (
+    MarketData, TradingSignal, SignalType, SignalStrength,
+    MarketRegime, SystemState
+)
+from core.structure_data import StructureData"""
+
+content = content.replace(old_import, new_import)
+
+with open(file_path, 'w', encoding='utf-8') as f:
+    f.write(content)
+
+logger.info("Import corrigé dans signal_generator.py")

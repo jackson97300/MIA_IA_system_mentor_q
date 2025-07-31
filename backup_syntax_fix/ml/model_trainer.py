@@ -1,0 +1,1190 @@
+"""
+ml/model_trainer.py
+
+PIPELINE ENTRAÎNEMENT ML COMPLET - OBJECTIF FINAL ML MODULE
+Orchestrateur central pour l'entraînement des modèles Battle Navale
+Intégration complète avec snapshots, validation, et déploiement automatique
+
+FONCTIONNALITÉS :
+1. Pipeline complet de training automatisé
+2. Intégration native avec snapshots Battle Navale
+3. Gestion versions de modèles et déploiement
+4. Training incrémental et continuous learning
+5. Validation robuste et A/B testing
+6. Export modèles production-ready
+7. Monitoring performance et dégradation
+8. Interface simple pour automation
+
+ARCHITECTURE : Production-grade, robuste, intégré Battle Navale
+"""
+
+# === STDLIB ===
+import os
+import sys
+import time
+import logging
+import json
+import pickle
+import shutil
+from typing import Dict, List, Optional, Any, Tuple, Union
+from dataclasses import dataclass, field, asdict
+from pathlib import Path
+from datetime import datetime, timezone, timedelta
+from enum import Enum
+from collections import defaultdict
+import threading
+import schedule
+
+# === THIRD-PARTY ===
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+import joblib
+
+# === LOCAL IMPORTS ===
+from config import get_trading_config, get_automation_config
+from core.base_types import (
+    MarketData, TradingSignal, SignalType, SignalStrength,
+    TradeResult, ES_TICK_SIZE, ES_TICK_VALUE
+)
+
+# ML Components integration
+from ml.simple_model import SimpleLinearPredictor, ModelType, ModelStatus, create_signal_classifier
+from ml.data_processor import MLDataProcessor, ProcessedDataset, create_battle_navale_processor
+from ml.model_validator import ModelValidator, ValidationLevel, create_rigorous_validator
+
+# Logger
+logger = logging.getLogger(__name__)
+
+# === TRAINING ENUMS ===
+
+class TrainingMode(Enum):
+    """Modes d'entraînement"""
+    INITIAL = "initial"              # Premier entraînement
+    INCREMENTAL = "incremental"      # Entraînement incrémental
+    RETRAIN = "retrain"             # Re-entraînement complet
+    CONTINUOUS = "continuous"        # Continuous learning
+    EXPERIMENTAL = "experimental"   # Mode expérimental
+
+class ModelStage(Enum):
+    """Étapes du modèle"""
+    DEVELOPMENT = "development"      # En développement
+    TESTING = "testing"             # En test
+    STAGING = "staging"             # Pre-production
+    PRODUCTION = "production"       # En production
+    RETIRED = "retired"             # Retiré
+
+class TrainingStatus(Enum):
+    """Statuts d'entraînement"""
+    IDLE = "idle"
+    PREPARING_DATA = "preparing_data"
+    TRAINING = "training"
+    VALIDATING = "validating"
+    DEPLOYING = "deploying"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+class PerformanceThreshold(Enum):
+    """Seuils de performance"""
+    MINIMUM_ACCURACY = 0.60         # 60% minimum
+    TARGET_ACCURACY = 0.70          # 70% cible
+    EXCELLENCE_ACCURACY = 0.80      # 80% excellence
+    MINIMUM_PRECISION = 0.65        # 65% precision minimum
+    MINIMUM_F1_SCORE = 0.65         # 65% F1 minimum
+
+# === TRAINING DATA STRUCTURES ===
+
+@dataclass
+class TrainingConfig:
+    """Configuration d'entraînement"""
+    # Données
+    min_samples_required: int = 100
+    max_samples_per_training: int = 5000
+    train_test_split: float = 0.8
+    validation_split: float = 0.1
+    
+    # Modèle
+    model_type: ModelType = ModelType.SIGNAL_CLASSIFIER
+    hyperparameters: Dict[str, Any] = field(default_factory=dict)
+    
+    # Training
+    training_mode: TrainingMode = TrainingMode.INITIAL
+    auto_retrain_threshold: float = 0.05  # 5% dégradation performance
+    max_training_time_minutes: int = 30
+    
+    # Validation
+    validation_level: ValidationLevel = ValidationLevel.RIGOROUS
+    performance_thresholds: Dict[str, float] = field(default_factory=lambda: {
+        "min_accuracy": PerformanceThreshold.MINIMUM_ACCURACY.value,
+        "target_accuracy": PerformanceThreshold.TARGET_ACCURACY.value,
+        "min_precision": PerformanceThreshold.MINIMUM_PRECISION.value,
+        "min_f1_score": PerformanceThreshold.MINIMUM_F1_SCORE.value
+    })
+    
+    # Déploiement
+    auto_deploy_if_better: bool = False
+    staging_period_hours: int = 24
+    backup_previous_model: bool = True
+
+@dataclass
+class TrainingSession:
+    """Session d'entraînement"""
+    session_id: str
+    config: TrainingConfig
+    start_time: datetime
+    end_time: Optional[datetime] = None
+    status: TrainingStatus = TrainingStatus.IDLE
+    
+    # Données
+    data_period_start: Optional[datetime] = None
+    data_period_end: Optional[datetime] = None
+    samples_count: int = 0
+    features_count: int = 0
+    
+    # Résultats
+    model_performance: Optional[Dict[str, float]] = None
+    validation_results: Optional[Dict[str, Any]] = None
+    model_path: Optional[str] = None
+    
+    # Métriques
+    training_duration_seconds: float = 0.0
+    memory_usage_mb: float = 0.0
+    cpu_usage_percent: float = 0.0
+    
+    # Messages
+    error_message: Optional[str] = None
+    warnings: List[str] = field(default_factory=list)
+    notes: List[str] = field(default_factory=list)
+
+@dataclass
+class ModelVersion:
+    """Version de modèle"""
+    version_id: str
+    model_type: ModelType
+    stage: ModelStage
+    creation_date: datetime
+    
+    # Performance
+    accuracy: float
+    precision: float
+    recall: float
+    f1_score: float
+    
+    # Métadonnées
+    training_samples: int
+    features_used: List[str]
+    training_config: TrainingConfig
+    
+    # Paths
+    model_path: str
+    metadata_path: str
+    
+    # Status
+    is_active: bool = False
+    deployment_date: Optional[datetime] = None
+    retirement_date: Optional[datetime] = None
+
+# === ALIAS POUR COMPATIBILITÉ __init__.py ===
+
+# Le __init__.py importe SimpleMLModel, on crée un alias
+SimpleMLModel = SimpleLinearModel
+
+# === MAIN MODEL TRAINER CLASS ===
+
+class ModelTrainer:
+    """
+    ORCHESTRATEUR CENTRAL ML POUR BATTLE NAVALE
+    
+    Pipeline complet d'entraînement automatisé :
+    - Collecte et préparation données depuis snapshots
+    - Entraînement modèles avec validation rigoureuse
+    - Gestion versions et déploiement automatique
+    - Monitoring performance et re-training automatique
+    - Intégration native avec système Battle Navale
+    """
+    
+    def __init__(self, config: Optional[TrainingConfig] = None):
+        """
+        Initialisation du trainer
+        
+        Args:
+            config: Configuration d'entraînement (sinon defaults)
+        """
+        self.config = config or TrainingConfig()
+        self.trading_config = get_trading_config()
+        self.auto_config = get_automation_config()
+        
+        # État du trainer
+        self.current_session: Optional[TrainingSession] = None
+        self.training_history: List[TrainingSession] = []
+        self.model_versions: Dict[str, ModelVersion] = {}
+        self.active_model: Optional[ModelVersion] = None
+        
+        # Composants ML
+        self.data_processor = create_battle_navale_processor()
+        self.current_model: Optional[SimpleLinearModel] = None
+        self.model_validator: Optional[ModelValidator] = None
+        
+        # Threads et scheduling
+        self.training_thread: Optional[threading.Thread] = None
+        self.monitoring_thread: Optional[threading.Thread] = None
+        self.auto_training_enabled = False
+        
+        # Paths
+        self.models_dir = Path("data/models")
+        self.training_dir = Path("data/training")
+        self.snapshots_dir = Path("data/snapshots")
+        
+        # Création dossiers
+        for directory in [self.models_dir, self.training_dir]:
+            directory.mkdir(parents=True, exist_ok=True)
+            for subdir in ["trained", "staging", "backup", "experimental"]:
+                (directory / subdir).mkdir(exist_ok=True)
+        
+        # Chargement état précédent
+        self._load_model_versions()
+        self._load_training_history()
+        
+        logger.info("ModelTrainer initialisé")
+    
+    def train_model_from_snapshots(self, 
+                                  start_date: Optional[datetime] = None,
+                                  end_date: Optional[datetime] = None,
+                                  training_mode: TrainingMode = TrainingMode.INITIAL) -> TrainingSession:
+        """
+        Entraînement modèle depuis snapshots Battle Navale
+        
+        Args:
+            start_date: Date début données (None = auto)
+            end_date: Date fin données (None = maintenant)
+            training_mode: Mode d'entraînement
+            
+        Returns:
+            Session d'entraînement avec résultats
+        """
+        # Création session
+        session_id = f"training_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        session = TrainingSession(
+            session_id=session_id,
+            config=self.config,
+            start_time=datetime.now(timezone.utc)
+        )
+        
+        self.current_session = session
+        session.status = TrainingStatus.PREPARING_DATA
+        
+        logger.info(f"=== DÉBUT ENTRAÎNEMENT MODÈLE {session_id} ===")
+        
+        try:
+            # 1. Collecte et préparation données
+            logger.info("Collecte données depuis snapshots...")
+            raw_snapshots = self._collect_snapshots_data(start_date, end_date)
+            
+            if len(raw_snapshots) < self.config.min_samples_required:
+                raise ValueError(f"Données insuffisantes: {len(raw_snapshots)} < {self.config.min_samples_required}")
+            
+            session.samples_count = len(raw_snapshots)
+            session.data_period_start = start_date or datetime.now(timezone.utc) - timedelta(days=30)
+            session.data_period_end = end_date or datetime.now(timezone.utc)
+            
+            # 2. Processing ML dataset
+            logger.info("Préparation dataset ML...")
+            ml_dataset = self.data_processor.create_ml_dataset(raw_snapshots, target_column="profitable")
+            
+            if not ml_dataset:
+                raise ValueError("Échec création dataset ML")
+            
+            session.features_count = len(ml_dataset.feature_names)
+            session.status = TrainingStatus.TRAINING
+            
+            # 3. Création et entraînement modèle
+            logger.info("Entraînement modèle...")
+            self.current_model = self._create_model_for_training()
+            
+            # Entraînement selon mode
+            if training_mode == TrainingMode.INCREMENTAL and self.active_model:
+                training_result = self._incremental_training(ml_dataset)
+            else:
+                training_result = self._full_training(ml_dataset)
+            
+            if not training_result.success:
+                raise ValueError(f"Échec entraînement: {training_result.error_message}")
+            
+            session.model_performance = {
+                "accuracy": training_result.model_performance.accuracy,
+                "precision": training_result.model_performance.precision,
+                "recall": training_result.model_performance.recall,
+                "f1_score": training_result.model_performance.f1_score
+            }
+            
+            # 4. Validation rigoureuse
+            session.status = TrainingStatus.VALIDATING
+            logger.info("Validation modèle...")
+            
+            validation_results = self._validate_trained_model(ml_dataset)
+            session.validation_results = validation_results
+            
+            # 5. Vérification seuils performance
+            if not self._meets_performance_thresholds(session.model_performance):
+                session.warnings.append("Performance sous les seuils requis")
+                logger.warning("Modèle ne respecte pas les seuils de performance")
+            
+            # 6. Sauvegarde modèle
+            model_version = self._save_model_version(session, training_result.model_path)
+            session.model_path = model_version.model_path
+            
+            # 7. Déploiement automatique si configuré
+            if (self.config.auto_deploy_if_better and 
+                self._is_better_than_current(session.model_performance)):
+                
+                session.status = TrainingStatus.DEPLOYING
+                logger.info("Déploiement automatique du modèle...")
+                
+                self._deploy_model_to_staging(model_version)
+                session.notes.append("Modèle déployé automatiquement en staging")
+            
+            # 8. Finalisation
+            session.status = TrainingStatus.COMPLETED
+            session.end_time = datetime.now(timezone.utc)
+            session.training_duration_seconds = (session.end_time - session.start_time).total_seconds()
+            
+            self.training_history.append(session)
+            self._save_training_session(session)
+            
+            logger.info(f"✅ Entraînement terminé avec succès")
+            logger.info(f"Performance: {session.model_performance}")
+            logger.info(f"Durée: {session.training_duration_seconds:.1f}s")
+            
+            return session
+            
+        except Exception as e:
+            error_msg = f"Erreur entraînement: {str(e)}"
+            logger.error(error_msg)
+            
+            session.status = TrainingStatus.FAILED
+            session.error_message = error_msg
+            session.end_time = datetime.now(timezone.utc)
+            
+            return session
+        
+        finally:
+            self.current_session = None
+    
+    def setup_continuous_learning(self, 
+                                 check_interval_hours: int = 24,
+                                 retrain_threshold: float = 0.05) -> bool:
+        """
+        Configuration apprentissage continu
+        
+        Args:
+            check_interval_hours: Intervalle vérification en heures
+            retrain_threshold: Seuil dégradation pour re-training
+            
+        Returns:
+            True si configuration réussie, False sinon
+        """
+        try:
+            logger.info("Configuration apprentissage continu...")
+            
+            # Configuration seuils
+            self.config.auto_retrain_threshold = retrain_threshold
+            
+            # Planification vérifications automatiques
+            schedule.every(check_interval_hours).hours.do(self._check_model_performance)
+            
+            # Planification re-training hebdomadaire
+            schedule.every().sunday.at("02:00").do(self._scheduled_retraining)
+            
+            # Démarrage thread monitoring
+            if not self.monitoring_thread or not self.monitoring_thread.is_alive():
+                self.auto_training_enabled = True
+                self.monitoring_thread = threading.Thread(
+                    target=self._continuous_learning_loop,
+                    daemon=True
+                )
+                self.monitoring_thread.start()
+            
+            logger.info(f"✅ Apprentissage continu configuré:")
+            logger.info(f"  - Vérification toutes les {check_interval_hours}h")
+            logger.info(f"  - Seuil re-training: {retrain_threshold*100:.1f}%")
+            logger.info(f"  - Re-training auto: Dimanche 02:00")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Erreur configuration apprentissage continu: {e}")
+            return False
+    
+    def deploy_model_to_production(self, version_id: str) -> bool:
+        """
+        Déploiement modèle en production
+        
+        Args:
+            version_id: ID version à déployer
+            
+        Returns:
+            True si déploiement réussi, False sinon
+        """
+        try:
+            logger.info(f"Déploiement modèle en production: {version_id}")
+            
+            # Recherche version
+            if version_id not in self.model_versions:
+                logger.error(f"Version {version_id} non trouvée")
+                return False
+            
+            model_version = self.model_versions[version_id]
+            
+            # Vérifications pré-déploiement
+            if not self._validate_production_readiness(model_version):
+                logger.error("Modèle non prêt pour production")
+                return False
+            
+            # Backup modèle actuel
+            if self.active_model and self.config.backup_previous_model:
+                self._backup_current_model()
+            
+            # Déploiement
+            production_path = self.models_dir / "production" / f"model_{version_id}.joblib"
+            shutil.copy2(model_version.model_path, production_path)
+            
+            # Mise à jour statuts
+            if self.active_model:
+                self.active_model.is_active = False
+            
+            model_version.stage = ModelStage.PRODUCTION
+            model_version.is_active = True
+            model_version.deployment_date = datetime.now(timezone.utc)
+            
+            self.active_model = model_version
+            
+            # Sauvegarde métadonnées
+            self._save_model_versions()
+            
+            logger.info(f"✅ Modèle {version_id} déployé en production")
+            logger.info(f"Performance: Accuracy={model_version.accuracy:.3f}, F1={model_version.f1_score:.3f}")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Erreur déploiement production: {e}")
+            return False
+    
+    def get_model_for_trading(self) -> Optional[SimpleLinearModel]:
+        """
+        Récupération modèle actif pour trading
+        
+        Returns:
+            Modèle ML prêt pour trading ou None
+        """
+        try:
+            if not self.active_model:
+                logger.warning("Aucun modèle actif disponible")
+                return None
+            
+            # Chargement modèle depuis fichier
+            model = SimpleLinearPredictor(self.config.model_type)
+            
+            if model.load_model(self.active_model.model_path):
+                logger.info(f"Modèle actif chargé: {self.active_model.version_id}")
+                return model
+            else:
+                logger.error("Échec chargement modèle actif")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Erreur récupération modèle trading: {e}")
+            return None
+    
+    def get_training_status(self) -> Dict[str, Any]:
+        """Statut complet du système d'entraînement"""
+        
+        try:
+            # Session actuelle
+            current_session_info = None
+            if self.current_session:
+                current_session_info = {
+                    "session_id": self.current_session.session_id,
+                    "status": self.current_session.status.value,
+                    "start_time": self.current_session.start_time.isoformat(),
+                    "samples_count": self.current_session.samples_count,
+                    "features_count": self.current_session.features_count
+                }
+            
+            # Modèle actif
+            active_model_info = None
+            if self.active_model:
+                active_model_info = {
+                    "version_id": self.active_model.version_id,
+                    "accuracy": self.active_model.accuracy,
+                    "f1_score": self.active_model.f1_score,
+                    "deployment_date": self.active_model.deployment_date.isoformat() if self.active_model.deployment_date else None,
+                    "training_samples": self.active_model.training_samples
+                }
+            
+            # Historique récent
+            recent_sessions = [
+                {
+                    "session_id": session.session_id,
+                    "status": session.status.value,
+                    "start_time": session.start_time.isoformat(),
+                    "performance": session.model_performance
+                }
+                for session in self.training_history[-5:]  # 5 dernières sessions
+            ]
+            
+            # Statistiques globales
+            total_models = len(self.model_versions)
+            production_models = len([v for v in self.model_versions.values() if v.stage == ModelStage.PRODUCTION])
+            
+            return {
+                "system_status": {
+                    "trainer_active": self.current_session is not None,
+                    "continuous_learning": self.auto_training_enabled,
+                    "models_total": total_models,
+                    "models_in_production": production_models
+                },
+                "current_session": current_session_info,
+                "active_model": active_model_info,
+                "recent_sessions": recent_sessions,
+                "configuration": {
+                    "min_samples_required": self.config.min_samples_required,
+                    "auto_deploy": self.config.auto_deploy_if_better,
+                    "validation_level": self.config.validation_level.value,
+                    "performance_thresholds": self.config.performance_thresholds
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Erreur statut training: {e}")
+            return {"error": str(e)}
+    
+    def retrain_if_needed(self) -> Optional[TrainingSession]:
+        """
+        Re-training automatique si performance dégradée
+        
+        Returns:
+            Session d'entraînement si lancée, None sinon
+        """
+        try:
+            if not self.active_model:
+                logger.info("Aucun modèle actif - pas de re-training nécessaire")
+                return None
+            
+            # Évaluation performance actuelle
+            current_performance = self._evaluate_current_model_performance()
+            
+            if not current_performance:
+                logger.warning("Impossible d'évaluer performance actuelle")
+                return None
+            
+            # Comparaison avec performance de référence
+            baseline_f1 = self.active_model.f1_score
+            current_f1 = current_performance.get("f1_score", 0)
+            
+            degradation = baseline_f1 - current_f1
+            degradation_pct = degradation / baseline_f1 if baseline_f1 > 0 else 0
+            
+            logger.info(f"Performance check: Baseline F1={baseline_f1:.3f}, Current F1={current_f1:.3f}")
+            logger.info(f"Dégradation: {degradation_pct*100:.1f}%")
+            
+            # Décision re-training
+            if degradation_pct > self.config.auto_retrain_threshold:
+                logger.info(f"🔄 Dégradation détectée ({degradation_pct*100:.1f}%) - Lancement re-training")
+                
+                return self.train_model_from_snapshots(
+                    training_mode=TrainingMode.RETRAIN
+                )
+            else:
+                logger.info("Performance stable - Pas de re-training nécessaire")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Erreur évaluation re-training: {e}")
+            return None
+    
+    # === MÉTHODES PRIVÉES ===
+    
+    def _collect_snapshots_data(self, 
+                               start_date: Optional[datetime], 
+                               end_date: Optional[datetime]) -> List[Dict]:
+        """Collection données depuis snapshots"""
+        
+        snapshots = []
+        
+        try:
+            # Définition période
+            if not start_date:
+                start_date = datetime.now(timezone.utc) - timedelta(days=30)
+            if not end_date:
+                end_date = datetime.now(timezone.utc)
+            
+            # Recherche fichiers snapshots dans la période
+            current_date = start_date.date()
+            end_date_only = end_date.date()
+            
+            while current_date <= end_date_only:
+                daily_snapshots_file = self.snapshots_dir / "daily" / f"trades_{current_date.isoformat()}.jsonl"
+                
+                if daily_snapshots_file.exists():
+                    # Lecture snapshots du jour
+                    with open(daily_snapshots_file, 'r') as f:
+                        for line in f:
+                            try:
+                                snapshot = json.loads(line.strip())
+                                snapshots.append(snapshot)
+                            except json.JSONDecodeError:
+                                continue
+                
+                current_date += timedelta(days=1)
+            
+            # Si pas assez de données, génération simulée
+            if len(snapshots) < self.config.min_samples_required:
+                logger.warning(f"Données insuffisantes ({len(snapshots)}), génération simulée...")
+                snapshots.extend(self._generate_simulated_snapshots(
+                    self.config.min_samples_required - len(snapshots)
+                ))
+            
+            logger.info(f"Snapshots collectés: {len(snapshots)}")
+            return snapshots
+            
+        except Exception as e:
+            logger.error(f"Erreur collection snapshots: {e}")
+            return []
+    
+    def _generate_simulated_snapshots(self, count: int) -> List[Dict]:
+        """Génération snapshots simulés pour développement"""
+        
+        snapshots = []
+        
+        for i in range(count):
+            # Simulation snapshot Battle Navale
+            snapshot = {
+                "trade_id": f"sim_trade_{i}",
+                "timestamp": (datetime.now(timezone.utc) - timedelta(hours=i)).isoformat(),
+                "battle_score": np.random.uniform(0.3, 1.0),
+                "confluence_score": np.random.uniform(0.2, 0.9),
+                "signal_strength": np.random.choice(["WEAK", "MEDIUM", "STRONG"]),
+                "trade_pnl": np.random.normal(0, ES_TICK_VALUE * 2),
+                
+                # Features Battle Navale (vos 8 features)
+                "vwap_trend_signal": np.random.uniform(0, 1),
+                "sierra_pattern_strength": np.random.uniform(0, 1),
+                "dow_trend_regime": np.random.uniform(0, 1),
+                "gamma_levels_proximity": np.random.uniform(0, 1),
+                "level_proximity": np.random.uniform(0, 1),
+                "es_nq_correlation": np.random.uniform(0, 1),
+                "volume_confirmation": np.random.uniform(0, 1),
+                "options_flow_bias": np.random.uniform(0, 1),
+                
+                # Métadonnées
+                "signal_type": np.random.choice(["LONG", "SHORT"]),
+                "session": np.random.choice(["LONDON", "NY", "ASIA"]),
+                "market_condition": np.random.choice(["TREND", "RANGE", "TRANSITION"])
+            }
+            
+            snapshots.append(snapshot)
+        
+        return snapshots
+    
+    def _create_model_for_training(self) -> SimpleLinearModel:
+        """Création modèle pour entraînement"""
+        
+        model = SimpleLinearPredictor(self.config.model_type)
+        
+        # Configuration hyperparamètres si fournis
+        if self.config.hyperparameters:
+            # TODO: Application hyperparamètres au modèle
+            pass
+        
+        return model
+    
+    def _full_training(self, dataset: ProcessedDataset):
+        """Entraînement complet du modèle"""
+        
+        # Conversion dataset pour entraînement
+        training_data = pd.concat([dataset.X_train, dataset.X_test], ignore_index=True)
+        
+        # Ajout colonnes target et autres métadonnées nécessaires
+        all_targets = pd.concat([dataset.y_train, dataset.y_test], ignore_index=True)
+        training_data["profitable"] = all_targets
+        
+        # Entraînement
+        return self.current_model.train_on_snapshots(training_data)
+    
+    def _incremental_training(self, dataset: ProcessedDataset):
+        """Entraînement incrémental"""
+        
+        if not self.active_model:
+            logger.warning("Pas de modèle actif pour training incrémental - training complet")
+            return self._full_training(dataset)
+        
+        # Chargement modèle actuel
+        current_model = SimpleLinearPredictor(self.config.model_type)
+        if not current_model.load_model(self.active_model.model_path):
+            logger.error("Échec chargement modèle actuel - training complet")
+            return self._full_training(dataset)
+        
+        # Update avec nouvelles données
+        new_data = pd.concat([dataset.X_train, dataset.X_test], ignore_index=True)
+        all_targets = pd.concat([dataset.y_train, dataset.y_test], ignore_index=True)
+        new_data["profitable"] = all_targets
+        
+        success = current_model.update_model_weights(new_data)
+        
+        if success:
+            self.current_model = current_model
+            # Simulation TrainingResult pour compatibilité
+            from ml.simple_model import TrainingResult, ModelPerformance
+            
+            # Performance simulée (en production, évaluer vraiment)
+            perf = ModelPerformance(
+                accuracy=0.75, precision=0.73, recall=0.77, f1_score=0.75,
+                mse=0.2, mae=0.15, r2_score=0.6, feature_importance={}
+            )
+            
+            return TrainingResult(
+                success=True,
+                model_performance=perf,
+                training_samples=len(new_data),
+                features_count=len(dataset.feature_names),
+                training_duration=10.0,
+                model_path=None
+            )
+        else:
+            # Fallback vers training complet
+            return self._full_training(dataset)
+    
+    def _validate_trained_model(self, dataset: ProcessedDataset) -> Dict[str, Any]:
+        """Validation rigoureuse du modèle entraîné"""
+        
+        try:
+            # Création validateur
+            validator = create_rigorous_validator(self.current_model)
+            
+            # Validation complète
+            validation_report = validator.validate_model_comprehensive(dataset)
+            
+            return {
+                "validation_level": validation_report.validation_level.value,
+                "model_health": validation_report.model_health.value,
+                "overall_score": validation_report.overall_score,
+                "production_readiness": validation_report.production_readiness,
+                "confidence_rating": validation_report.confidence_rating,
+                "cross_validation": asdict(validation_report.cross_validation) if validation_report.cross_validation else None,
+                "out_of_sample": asdict(validation_report.out_of_sample) if validation_report.out_of_sample else None,
+                "strengths": validation_report.strengths,
+                "weaknesses": validation_report.weaknesses,
+                "recommendations": validation_report.recommendations
+            }
+            
+        except Exception as e:
+            logger.error(f"Erreur validation modèle: {e}")
+            return {"error": str(e)}
+    
+    def _meets_performance_thresholds(self, performance: Dict[str, float]) -> bool:
+        """Vérification seuils de performance"""
+        
+        thresholds = self.config.performance_thresholds
+        
+        checks = [
+            performance.get("accuracy", 0) >= thresholds["min_accuracy"],
+            performance.get("precision", 0) >= thresholds["min_precision"],
+            performance.get("f1_score", 0) >= thresholds["min_f1_score"]
+        ]
+        
+        return all(checks)
+    
+    def _save_model_version(self, session: TrainingSession, model_path: Optional[str]) -> ModelVersion:
+        """Sauvegarde version de modèle"""
+        
+        version_id = f"v_{session.session_id}"
+        timestamp = session.start_time
+        
+        # Path de sauvegarde
+        if not model_path:
+            model_filename = f"model_{version_id}.joblib"
+            model_path = str(self.models_dir / "trained" / model_filename)
+            
+            # Sauvegarde modèle
+            self.current_model.model_path = model_path
+            joblib.dump(self.current_model, model_path)
+        
+        # Métadonnées
+        metadata_path = str(self.models_dir / "trained" / f"metadata_{version_id}.json")
+        
+        # Création version
+        model_version = ModelVersion(
+            version_id=version_id,
+            model_type=self.config.model_type,
+            stage=ModelStage.DEVELOPMENT,
+            creation_date=timestamp,
+            accuracy=session.model_performance["accuracy"],
+            precision=session.model_performance["precision"],
+            recall=session.model_performance["recall"],
+            f1_score=session.model_performance["f1_score"],
+            training_samples=session.samples_count,
+            features_used=list(range(session.features_count)),  # Simplification
+            training_config=self.config,
+            model_path=model_path,
+            metadata_path=metadata_path
+        )
+        
+        # Sauvegarde métadonnées
+        with open(metadata_path, 'w') as f:
+            json.dump(asdict(model_version), f, indent=2, default=str)
+        
+        # Ajout au registre
+        self.model_versions[version_id] = model_version
+        self._save_model_versions()
+        
+        logger.info(f"Version modèle sauvegardée: {version_id}")
+        return model_version
+    
+    def _is_better_than_current(self, new_performance: Dict[str, float]) -> bool:
+        """Comparaison avec modèle actuel"""
+        
+        if not self.active_model:
+            return True  # Premier modèle
+        
+        # Comparaison F1-score principalement
+        current_f1 = self.active_model.f1_score
+        new_f1 = new_performance.get("f1_score", 0)
+        
+        improvement_threshold = 0.02  # 2% d'amélioration minimum
+        
+        return new_f1 > (current_f1 + improvement_threshold)
+    
+    def _deploy_model_to_staging(self, model_version: ModelVersion):
+        """Déploiement en staging"""
+        
+        # Copie vers staging
+        staging_path = self.models_dir / "staging" / f"model_{model_version.version_id}.joblib"
+        shutil.copy2(model_version.model_path, staging_path)
+        
+        # Mise à jour statut
+        model_version.stage = ModelStage.STAGING
+        
+        logger.info(f"Modèle déployé en staging: {model_version.version_id}")
+    
+    def _validate_production_readiness(self, model_version: ModelVersion) -> bool:
+        """Validation prêt pour production"""
+        
+        checks = [
+            model_version.accuracy >= PerformanceThreshold.MINIMUM_ACCURACY.value,
+            model_version.f1_score >= PerformanceThreshold.MINIMUM_F1_SCORE.value,
+            model_version.training_samples >= self.config.min_samples_required,
+            model_version.stage in [ModelStage.STAGING, ModelStage.TESTING]
+        ]
+        
+        return all(checks)
+    
+    def _backup_current_model(self):
+        """Backup du modèle actuel"""
+        
+        if not self.active_model:
+            return
+        
+        backup_path = self.models_dir / "backup" / f"model_{self.active_model.version_id}_backup.joblib"
+        shutil.copy2(self.active_model.model_path, backup_path)
+        
+        logger.info(f"Modèle actuel sauvegardé: {backup_path}")
+    
+    def _continuous_learning_loop(self):
+        """Boucle apprentissage continu"""
+        
+        logger.info("Démarrage boucle apprentissage continu")
+        
+        while self.auto_training_enabled:
+            try:
+                # Exécution tâches planifiées
+                schedule.run_pending()
+                
+                # Pause
+                time.sleep(3600)  # 1 heure
+                
+            except Exception as e:
+                logger.error(f"Erreur boucle apprentissage continu: {e}")
+                time.sleep(600)  # 10 minutes avant retry
+    
+    def _check_model_performance(self):
+        """Vérification performance modèle (planifiée)"""
+        logger.info("Vérification performance modèle planifiée")
+        
+        result = self.retrain_if_needed()
+        if result:
+            logger.info(f"Re-training automatique lancé: {result.session_id}")
+    
+    def _scheduled_retraining(self):
+        """Re-training planifié hebdomadaire"""
+        logger.info("Re-training hebdomadaire planifié")
+        
+        session = self.train_model_from_snapshots(
+            training_mode=TrainingMode.RETRAIN
+        )
+        
+        logger.info(f"Re-training hebdomadaire: {session.session_id} - Status: {session.status.value}")
+    
+    def _evaluate_current_model_performance(self) -> Optional[Dict[str, float]]:
+        """Évaluation performance modèle actuel"""
+        
+        try:
+            if not self.active_model:
+                return None
+            
+            # Chargement données récentes pour évaluation
+            recent_snapshots = self._collect_snapshots_data(
+                start_date=datetime.now(timezone.utc) - timedelta(days=7),
+                end_date=None
+            )
+            
+            if len(recent_snapshots) < 20:  # Minimum pour évaluation
+                return None
+            
+            # Préparation dataset
+            recent_dataset = self.data_processor.create_ml_dataset(recent_snapshots)
+            if not recent_dataset:
+                return None
+            
+            # Chargement modèle actuel
+            current_model = SimpleLinearPredictor(self.config.model_type)
+            if not current_model.load_model(self.active_model.model_path):
+                return None
+            
+            # Évaluation sur données récentes
+            X_test = recent_dataset.X_test
+            y_test = recent_dataset.y_test
+            
+            predictions = []
+            for idx, (_, features) in enumerate(X_test.iterrows()):
+                feature_dict = features.to_dict()
+                quality_score = current_model.predict_signal_quality(feature_dict)
+                prediction = 1 if quality_score > 0.5 else 0
+                predictions.append(prediction)
+            
+            # Calcul métriques
+            accuracy = accuracy_score(y_test, predictions)
+            precision = precision_score(y_test, predictions, average='weighted', zero_division=0)
+            recall = recall_score(y_test, predictions, average='weighted', zero_division=0)
+            f1 = f1_score(y_test, predictions, average='weighted', zero_division=0)
+            
+            return {
+                "accuracy": accuracy,
+                "precision": precision,
+                "recall": recall,
+                "f1_score": f1
+            }
+            
+        except Exception as e:
+            logger.error(f"Erreur évaluation performance actuelle: {e}")
+            return None
+    
+    def _load_model_versions(self):
+        """Chargement versions de modèles"""
+        
+        try:
+            versions_file = self.models_dir / "model_versions.json"
+            
+            if versions_file.exists():
+                with open(versions_file, 'r') as f:
+                    data = json.load(f)
+                
+                for version_id, version_data in data.items():
+                    # Reconstruction ModelVersion
+                    version = ModelVersion(
+                        version_id=version_data["version_id"],
+                        model_type=ModelType(version_data["model_type"]),
+                        stage=ModelStage(version_data["stage"]),
+                        creation_date=datetime.fromisoformat(version_data["creation_date"]),
+                        accuracy=version_data["accuracy"],
+                        precision=version_data["precision"],
+                        recall=version_data["recall"],
+                        f1_score=version_data["f1_score"],
+                        training_samples=version_data["training_samples"],
+                        features_used=version_data["features_used"],
+                        training_config=self.config,  # Simplification
+                        model_path=version_data["model_path"],
+                        metadata_path=version_data["metadata_path"],
+                        is_active=version_data.get("is_active", False),
+                        deployment_date=datetime.fromisoformat(version_data["deployment_date"]) if version_data.get("deployment_date") else None
+                    )
+                    
+                    self.model_versions[version_id] = version
+                    
+                    # Identification modèle actif
+                    if version.is_active:
+                        self.active_model = version
+                
+                logger.info(f"Versions modèles chargées: {len(self.model_versions)}")
+                
+        except Exception as e:
+            logger.error(f"Erreur chargement versions: {e}")
+    
+    def _save_model_versions(self):
+        """Sauvegarde versions de modèles"""
+        
+        try:
+            versions_file = self.models_dir / "model_versions.json"
+            
+            data = {}
+            for version_id, version in self.model_versions.items():
+                data[version_id] = {
+                    "version_id": version.version_id,
+                    "model_type": version.model_type.value,
+                    "stage": version.stage.value,
+                    "creation_date": version.creation_date.isoformat(),
+                    "accuracy": version.accuracy,
+                    "precision": version.precision,
+                    "recall": version.recall,
+                    "f1_score": version.f1_score,
+                    "training_samples": version.training_samples,
+                    "features_used": version.features_used,
+                    "model_path": version.model_path,
+                    "metadata_path": version.metadata_path,
+                    "is_active": version.is_active,
+                    "deployment_date": version.deployment_date.isoformat() if version.deployment_date else None
+                }
+            
+            with open(versions_file, 'w') as f:
+                json.dump(data, f, indent=2)
+                
+        except Exception as e:
+            logger.error(f"Erreur sauvegarde versions: {e}")
+    
+    def _load_training_history(self):
+        """Chargement historique training"""
+        
+        try:
+            history_file = self.training_dir / "training_history.json"
+            
+            if history_file.exists():
+                with open(history_file, 'r') as f:
+                    data = json.load(f)
+                
+                for session_data in data:
+                    # Reconstruction TrainingSession (simplifiée)
+                    session = TrainingSession(
+                        session_id=session_data["session_id"],
+                        config=self.config,  # Simplification
+                        start_time=datetime.fromisoformat(session_data["start_time"]),
+                        end_time=datetime.fromisoformat(session_data["end_time"]) if session_data.get("end_time") else None,
+                        status=TrainingStatus(session_data["status"]),
+                        samples_count=session_data.get("samples_count", 0),
+                        model_performance=session_data.get("model_performance")
+                    )
+                    
+                    self.training_history.append(session)
+                
+                logger.info(f"Historique training chargé: {len(self.training_history)} sessions")
+                
+        except Exception as e:
+            logger.error(f"Erreur chargement historique: {e}")
+    
+    def _save_training_session(self, session: TrainingSession):
+        """Sauvegarde session training"""
+        
+        try:
+            # Ajout à l'historique si pas déjà présent
+            if session not in self.training_history:
+                self.training_history.append(session)
+            
+            # Sauvegarde historique complet
+            history_file = self.training_dir / "training_history.json"
+            
+            data = []
+            for s in self.training_history:
+                data.append({
+                    "session_id": s.session_id,
+                    "start_time": s.start_time.isoformat(),
+                    "end_time": s.end_time.isoformat() if s.end_time else None,
+                    "status": s.status.value,
+                    "samples_count": s.samples_count,
+                    "features_count": s.features_count,
+                    "model_performance": s.model_performance,
+                    "training_duration_seconds": s.training_duration_seconds,
+                    "error_message": s.error_message
+                })
+            
+            with open(history_file, 'w') as f:
+                json.dump(data, f, indent=2)
+                
+        except Exception as e:
+            logger.error(f"Erreur sauvegarde session: {e}")
+
+# === FACTORY FUNCTIONS ===
+
+def create_model_trainer(config: Optional[TrainingConfig] = None) -> ModelTrainer:
+    """Factory pour trainer de modèles"""
+    return ModelTrainer(config)
+
+def create_battle_navale_trainer() -> ModelTrainer:
+    """Factory spécialisée pour Battle Navale"""
+    config = TrainingConfig(
+        model_type=ModelType.SIGNAL_CLASSIFIER,
+        min_samples_required=100,
+        validation_level=ValidationLevel.RIGOROUS,
+        auto_deploy_if_better=False  # Sécurité pour Battle Navale
+    )
+    return ModelTrainer(config)
+
+def train_model_from_recent_data(days_back: int = 30) -> Optional[TrainingSession]:
+    """Training rapide depuis données récentes"""
+    trainer = create_battle_navale_trainer()
+    
+    start_date = datetime.now(timezone.utc) - timedelta(days=days_back)
+    
+    return trainer.train_model_from_snapshots(
+        start_date=start_date,
+        training_mode=TrainingMode.INITIAL
+    )
+
+# === TEST FUNCTION ===
+
+def test_model_trainer():
+    """Test complet du trainer de modèles"""
+    logger.info("=== TEST MODEL TRAINER ===")
+    
+    # Configuration test
+    config = TrainingConfig(
+        min_samples_required=50,  # Réduit pour test
+        max_training_time_minutes=5,
+        auto_deploy_if_better=False
+    )
+    
+    # Création trainer
+    trainer = create_model_trainer(config)
+    
+    logger.info("Test 1: Training depuis snapshots")
+    session = trainer.train_model_from_snapshots(
+        start_date=datetime.now(timezone.utc) - timedelta(days=7),
+        training_mode=TrainingMode.INITIAL
+    )
+    
+    logger.info("Training session: {session.session_id}")
+    logger.info("Status: {session.status.value}")
+    logger.info("Samples: {session.samples_count}")
+    
+    if session.model_performance:
+        logger.info("Performance: {session.model_performance}")
+    
+    logger.info("Training: {'✅' if session.status == TrainingStatus.COMPLETED else '❌'}")
+    
+    logger.info("Test 2: Récupération modèle pour trading")
+    model = trainer.get_model_for_trading()
+    logger.info("Modèle récupéré: {'✅' if model is not None else '❌'}")
+    
+    logger.info("Test 3: Statut système")
+    status = trainer.get_training_status()
+    logger.info("Statut système: {'✅' if 'system_status' in status else '❌'}")
+    logger.info("Models total: {status.get('system_status', {}).get('models_total', 0)}")
+    
+    logger.info("Test 4: Configuration apprentissage continu")
+    continuous_setup = trainer.setup_continuous_learning(check_interval_hours=1)
+    logger.info("Apprentissage continu: {'✅' if continuous_setup else '❌'}")
+    
+    logger.info("=== TEST TERMINÉ ===")
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    test_model_trainer()

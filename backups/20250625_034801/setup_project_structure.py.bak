@@ -1,0 +1,337 @@
+"""
+Script création structure projet MIA_IA_SYSTEM
+"""
+
+import os
+from pathlib import Path
+
+def create_project_structure():
+    """Créer structure complète du projet"""
+    
+    # Base path
+    base_path = Path(r"D:\MIA_IA_system")
+    
+    # Structure complète avec fichiers
+    project_structure = {
+        # Root level
+        "": [
+            "main.py",
+            "requirements.txt",
+            "README.md",
+            ".gitignore"
+        ],
+        
+        # Config
+        "config": [
+            "__init__.py",
+            "trading_config.py",
+            "sierra_config.py"
+        ],
+        
+        # Core
+        "core": [
+            "__init__.py",
+            "base_types.py",
+            "ibkr_connector.py",
+            "sierra_connector.py",
+            "battle_navale.py",
+            "patterns_detector.py"
+        ],
+        
+        # Features
+        "features": [
+            "__init__.py",
+            "feature_calculator.py",
+            "market_regime.py",
+            "confluence_analyzer.py"
+        ],
+        
+        # Strategies
+        "strategies": [
+            "__init__.py",
+            "trend_strategy.py",
+            "range_strategy.py",
+            "strategy_selector.py"
+        ],
+        
+        # ML
+        "ml": [
+            "__init__.py",
+            "simple_model.py",
+            "model_trainer.py"
+        ],
+        
+        # Performance
+        "performance": [
+            "__init__.py",
+            "trade_logger.py",
+            "performance_analyzer.py",
+            "adaptive_optimizer.py"
+        ],
+        
+        # Execution
+        "execution": [
+            "__init__.py",
+            "order_manager.py",
+            "risk_manager.py"
+        ],
+        
+        # Tests
+        "tests": [
+            "__init__.py",
+            "test_imports.py",
+            "test_features.py",
+            "test_strategies.py"
+        ],
+        
+        # Scripts
+        "scripts": [
+            "__init__.py",
+            "validate_code.py",
+            "run_backtest.py"
+        ],
+        
+        # Data
+        "data": [
+            "logs/.gitkeep",
+            "models/.gitkeep",
+            "backtest/.gitkeep"
+        ]
+    }
+    
+    print(f"🚀 Création structure projet: {base_path}")
+    print("=" * 50)
+    
+    # Créer base directory
+    base_path.mkdir(parents=True, exist_ok=True)
+    print(f"✅ Dossier racine créé: {base_path}")
+    
+    # Créer tous les dossiers et fichiers
+    for folder, files in project_structure.items():
+        
+        # Créer le dossier
+        if folder:  # Si pas root
+            folder_path = base_path / folder
+            folder_path.mkdir(parents=True, exist_ok=True)
+            print(f"📁 Dossier créé: {folder}/")
+        else:
+            folder_path = base_path
+        
+        # Créer les fichiers
+        for file_name in files:
+            file_path = folder_path / file_name
+            
+            # Créer sous-dossiers si nécessaire (pour .gitkeep)
+            if "/" in file_name:
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Créer fichier avec contenu approprié
+            if not file_path.exists():
+                create_file_with_content(file_path, folder)
+                print(f"  📄 {file_name}")
+    
+    print("=" * 50)
+    print("🎯 STRUCTURE PROJET CRÉÉE AVEC SUCCÈS!")
+    print(f"📍 Location: {base_path}")
+    print("\n📋 Prochaines étapes:")
+    print("1. cd D:\\MIA_IA_system")
+    print("2. python -m venv venv")
+    print("3. venv\\Scripts\\activate")
+    print("4. pip install -r requirements.txt")
+
+def create_file_with_content(file_path: Path, folder: str):
+    """Créer fichier avec contenu approprié"""
+    
+    file_name = file_path.name
+    
+    # Contenu selon type de fichier
+    if file_name == "__init__.py":
+        content = get_init_content(folder)
+    elif file_name == "requirements.txt":
+        content = get_requirements_content()
+    elif file_name == "README.md":
+        content = get_readme_content()
+    elif file_name == ".gitignore":
+        content = get_gitignore_content()
+    elif file_name.endswith(".gitkeep"):
+        content = "# Keep this directory in git\n"
+    else:
+        content = get_placeholder_content(file_name, folder)
+    
+    # Écrire le fichier
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+
+def get_init_content(folder: str) -> str:
+    """Contenu des fichiers __init__.py"""
+    
+    if folder == "config":
+        return ('"""\nConfiguration module\n"""\n'
+                'from .trading_config import TradingConfig, get_trading_config\n'
+                'from .sierra_config import SierraConfig, get_sierra_config\n\n'
+                "__all__ = ['TradingConfig', 'get_trading_config', 'SierraConfig', 'get_sierra_config']\n")
+    
+    elif folder == "core":
+        return ('"""\nCore trading module\n"""\n'
+                'from .base_types import (\n'
+                '    MarketRegime, SignalType, TradingSignal, TradeResult,\n'
+                '    MarketData, OrderFlowData, TradingFeatures,\n'
+                '    ES_TICK_SIZE, ES_TICK_VALUE, MES_TICK_VALUE\n'
+                ')\n\n'
+                "__all__ = [\n"
+                "    'MarketRegime', 'SignalType', 'TradingSignal', 'TradeResult',\n"
+                "    'MarketData', 'OrderFlowData', 'TradingFeatures',\n"
+                "    'ES_TICK_SIZE', 'ES_TICK_VALUE', 'MES_TICK_VALUE'\n"
+                "]\n")
+    
+    elif folder == "features":
+        return ('"""\nFeatures calculation module\n"""\n'
+                'from .feature_calculator import FeatureCalculator\n'
+                'from .market_regime import RegimeDetector\n'
+                'from .confluence_analyzer import ConfluenceAnalyzer\n\n'
+                "__all__ = ['FeatureCalculator', 'RegimeDetector', 'ConfluenceAnalyzer']\n")
+    
+    elif folder == "strategies":
+        return ('"""\nTrading strategies module\n"""\n'
+                'from .trend_strategy import TrendStrategy\n'
+                'from .range_strategy import RangeStrategy\n'
+                'from .strategy_selector import StrategySelector\n\n'
+                "__all__ = ['TrendStrategy', 'RangeStrategy', 'StrategySelector']\n")
+    
+    elif folder == "ml":
+        return ('"""\nMachine learning module\n"""\n'
+                'from .simple_model import SimpleMLModel\n'
+                'from .model_trainer import ModelTrainer\n\n'
+                "__all__ = ['SimpleMLModel', 'ModelTrainer']\n")
+    
+    elif folder == "performance":
+        return ('"""\nPerformance analysis module\n"""\n'
+                'from .trade_logger import TradeLogger\n'
+                'from .performance_analyzer import PerformanceAnalyzer\n'
+                'from .adaptive_optimizer import AdaptiveOptimizer\n\n'
+                "__all__ = ['TradeLogger', 'PerformanceAnalyzer', 'AdaptiveOptimizer']\n")
+    
+    elif folder == "execution":
+        return ('"""\nOrder execution module\n"""\n'
+                'from .order_manager import OrderManager\n'
+                'from .risk_manager import RiskManager\n\n'
+                "__all__ = ['OrderManager', 'RiskManager']\n")
+    
+    else:
+        return f'"""\n{folder.title()} module\n"""\n'
+
+def get_requirements_content() -> str:
+    """Contenu requirements.txt"""
+    return ("# === CORE DEPENDENCIES ===\n"
+            "pandas==2.1.4\n"
+            "numpy==1.24.3\n"
+            "ib-insync==0.9.86\n\n"
+            "# === ML ===\n"
+            "scikit-learn==1.3.2\n"
+            "xgboost==2.0.3\n\n"
+            "# === API & NETWORKING ===\n"
+            "requests==2.31.0\n"
+            "websocket-client==1.6.4\n\n"
+            "# === TESTING ===\n"
+            "pytest==7.4.4\n"
+            "pytest-cov==4.1.0\n\n"
+            "# === DEVELOPMENT ===\n"
+            "black==23.12.1\n"
+            "flake8==6.1.0\n"
+            "mypy==1.7.1\n\n"
+            "# === UTILITIES ===\n"
+            "python-dotenv==1.0.0\n"
+            "pyyaml==6.0.1\n")
+
+def get_readme_content() -> str:
+    """Contenu README.md"""
+    return ("# MIA_IA_SYSTEM\n\n"
+            "Système de trading automatisé ES Futures avec IA\n\n"
+            "## Features\n\n"
+            "- Bataille Navale: Méthode signature\n"
+            "- Dual Mode: TREND vs RANGE\n"
+            "- ML Integration: SAC + PPO\n"
+            "- Performance Analysis: Auto-amélioration\n"
+            "- Sierra Chart: Integration complète\n\n"
+            "## Installation\n\n"
+            "cd D:\\MIA_IA_system\n"
+            "python -m venv venv\n"
+            "venv\\Scripts\\activate\n"
+            "pip install -r requirements.txt\n\n"
+            "## Usage\n\n"
+            "python main.py\n\n"
+            "## Performance Target\n\n"
+            "65%+ win rate, 1.5:1 R:R, 500€/jour\n")
+
+def get_gitignore_content() -> str:
+    """Contenu .gitignore"""
+    return ("# Python\n"
+            "__pycache__/\n"
+            "*.py[cod]\n"
+            "*$py.class\n"
+            "*.so\n"
+            ".Python\n"
+            "build/\n"
+            "develop-eggs/\n"
+            "dist/\n"
+            "downloads/\n"
+            "eggs/\n"
+            ".eggs/\n"
+            "lib/\n"
+            "lib64/\n"
+            "parts/\n"
+            "sdist/\n"
+            "var/\n"
+            "wheels/\n"
+            "*.egg-info/\n"
+            ".installed.cfg\n"
+            "*.egg\n\n"
+            "# Virtual environment\n"
+            "venv/\n"
+            "env/\n"
+            "ENV/\n\n"
+            "# IDE\n"
+            ".vscode/\n"
+            ".idea/\n"
+            "*.swp\n"
+            "*.swo\n\n"
+            "# Data files\n"
+            "*.csv\n"
+            "*.json\n"
+            "*.pickle\n"
+            "*.pkl\n"
+            "*.h5\n\n"
+            "# Logs\n"
+            "*.log\n"
+            "logs/\n"
+            "data/logs/\n\n"
+            "# Models\n"
+            "*.model\n"
+            "*.joblib\n"
+            "data/models/\n\n"
+            "# Config secrets\n"
+            "config/secrets.py\n"
+            "config/api_keys.py\n\n"
+            "# OS\n"
+            ".DS_Store\n"
+            "Thumbs.db\n\n"
+            "# Temporary\n"
+            "*.tmp\n"
+            "*.temp\n")
+
+def get_placeholder_content(file_name: str, folder: str) -> str:
+    """Contenu placeholder pour autres fichiers"""
+    return (f'"""\n'
+            f'{file_name} - {folder} module\n'
+            f'TODO: Implement this module\n'
+            f'"""\n\n'
+            f'# TODO: Add implementation here\n\n'
+            f'def main():\n'
+            f'    """Main function"""\n'
+            f'    print(f"TODO: Implement {file_name}")\n'
+            f'    pass\n\n'
+            f'if __name__ == "__main__":\n'
+            f'    main()\n')
+
+if __name__ == "__main__":
+    create_project_structure()

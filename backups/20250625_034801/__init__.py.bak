@@ -1,0 +1,108 @@
+"""
+MIA_IA_SYSTEM - Système de Trading Automatisé
+🧠 Bot de trading avec méthode Bataille Navale + Intelligence artificielle
+Version: 3.0.0 avec SignalGenerator
+
+POINT D'ENTRÉE PRINCIPAL :
+from strategies import get_signal_now, analyze_trading_opportunity
+
+USAGE RAPIDE :
+```python
+from strategies import get_signal_now
+from core.base_types import MarketData
+
+# Générer signal en 1 ligne
+signal = get_signal_now(market_data)
+if signal.decision == SignalDecision.EXECUTE_LONG:
+    execute_trade(signal)
+```
+
+ARCHITECTURE COMPLÈTE :
+- core/ : Types de base + Bataille Navale
+- features/ : Calcul features + Confluence
+- strategies/ : Orchestration signaux (SignalGenerator)
+- execution/ : Exécution trades
+- monitoring/ : Surveillance système
+"""
+
+# 🧠 CERVEAU CENTRAL - Import direct du système principal
+from strategies import (
+    SignalGenerator, FinalSignal, SignalDecision,
+    create_signal_generator, generate_trading_signal,
+    get_signal_now, analyze_trading_opportunity
+)
+
+# Core components
+from core import (
+    MarketData, TradingSignal, SignalType, MarketRegime,
+    ES_TICK_SIZE, ES_TICK_VALUE
+)
+
+# Features
+from features import (
+    FeatureCalculator, ConfluenceAnalyzer, MarketRegimeDetector
+)
+
+# Version globale
+__version__ = "3.0.0"
+__author__ = "MIA Trading System"
+
+# Exports globaux - Point d'entrée système
+__all__ = [
+    # 🎯 POINT D'ENTRÉE PRINCIPAL (usage simplifié)
+    'get_signal_now',
+    'analyze_trading_opportunity',
+    
+    # 🧠 Système complet (usage avancé)
+    'SignalGenerator',
+    'FinalSignal',
+    'SignalDecision', 
+    'create_signal_generator',
+    'generate_trading_signal',
+    
+    # Core essentials
+    'MarketData',
+    'TradingSignal',
+    'SignalType',
+    'MarketRegime',
+    
+    # Constants
+    'ES_TICK_SIZE',
+    'ES_TICK_VALUE',
+    
+    # Version
+    '__version__'
+]
+
+def quick_start_example():
+    """
+    🚀 EXEMPLE QUICK START
+    
+    Montre comment utiliser le système en quelques lignes
+    """
+    print("🎯 MIA_IA_SYSTEM - Quick Start Example")
+    print("=" * 40)
+    print()
+    print("# 1. Import principal")
+    print("from strategies import get_signal_now")
+    print("from core.base_types import MarketData")
+    print()
+    print("# 2. Créer données marché") 
+    print("market_data = MarketData(")
+    print("    timestamp=pd.Timestamp.now(),")
+    print("    symbol='ES', open=4500, high=4505,")
+    print("    low=4495, close=4502, volume=1000")
+    print(")")
+    print()
+    print("# 3. Générer signal (1 ligne !)")
+    print("signal = get_signal_now(market_data)")
+    print()
+    print("# 4. Décision trading")
+    print("if signal.decision == SignalDecision.EXECUTE_LONG:")
+    print("    print(f'🚀 LONG signal: {signal.confidence:.3f}')")
+    print("    # execute_trade(signal)")
+    print()
+    print("✅ Votre bot est prêt !")
+
+if __name__ == "__main__":
+    quick_start_example()

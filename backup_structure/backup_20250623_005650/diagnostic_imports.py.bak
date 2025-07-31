@@ -1,0 +1,607 @@
+"""
+MIA_IA_SYSTEM - Diagnostic Imports
+Analyse et correction automatique des imports manquants/incorrects
+Version: Production Ready
+
+FONCTIONS :
+1. Scan tous fichiers Python projet
+2. Extraction classes/fonctions/variables exportées
+3. Analyse imports dans __init__.py
+4. Détection imports manquants/incorrects
+5. Correction automatique optionnelle
+"""
+
+import os
+import ast
+import re
+import sys
+from pathlib import Path
+from typing import Dict, List, Set, Tuple, Optional, Any
+from dataclasses import dataclass
+from collections import defaultdict
+
+@dataclass
+class ModuleInfo:
+    """Information sur un module"""
+    file_path: Path
+    classes: Set[str]
+    functions: Set[str]
+    variables: Set[str]
+    imports: Set[str]
+    exports: Set[str]  # __all__ if exists
+
+@dataclass
+class ImportIssue:
+    """Problème d'import détecté"""
+    file_path: Path
+    line_number: int
+    issue_type: str  # 'missing', 'incorrect', 'not_exported'
+    import_statement: str
+    module: str
+    name: str
+    suggestion: Optional[str] = None
+
+class ImportDiagnostic:
+    """Diagnostic complet des imports"""
+    
+    def __init__(self, project_root: str = "."):
+        self.project_root = Path(project_root)
+        self.modules: Dict[str, ModuleInfo] = {}
+        self.issues: List[ImportIssue] = []
+        
+    def scan_project(self):
+        """Scan complet du projet"""
+        print("🔍 SCANNING PROJECT...")
+        
+        # Scan tous les fichiers Python
+        for py_file in self.project_root.rglob("*.py"):
+            if self._should_skip_file(py_file):
+                continue
+                
+            try:
+                module_info = self._analyze_file(py_file)
+                module_path = self._get_module_path(py_file)
+                self.modules[module_path] = module_info
+                print(f"   📄 {module_path}")
+            except Exception as e:
+                print(f"   ❌ Error analyzing {py_file}: {e}")
+    
+    def _should_skip_file(self, file_path: Path) -> bool:
+        """Fichiers à ignorer"""
+        skip_patterns = [
+            "__pycache__",
+            ".git",
+            ".pytest_cache",
+            "venv",
+            "env",
+            ".tox"
+        ]
+        
+        return any(pattern in str(file_path) for pattern in skip_patterns)
+    
+    def _get_module_path(self, file_path: Path) -> str:
+        """Convertit path fichier en module path"""
+        rel_path = file_path.relative_to(self.project_root)
+        
+        # Remove .py extension
+        if rel_path.suffix == ".py":
+            rel_path = rel_path.with_suffix("")
+        
+        # Convert path separators to dots
+        module_path = str(rel_path).replace(os.sep, ".")
+        
+        # Handle __init__.py files
+        if module_path.endswith(".__init__"):
+            module_path = module_path[:-9]  # Remove .__init__
+        
+        return module_path
+    
+    def _analyze_file(self, file_path: Path) -> ModuleInfo:
+        """Analyse un fichier Python"""
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        try:
+            tree = ast.parse(content)
+        except SyntaxError as e:
+            print(f"   ⚠️ Syntax error in {file_path}: {e}")
+            return ModuleInfo(file_path, set(), set(), set(), set(), set())
+        
+        classes = set()
+        functions = set()
+        variables = set()
+        imports = set()
+        exports = set()
+        
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                classes.add(node.name)
+            elif isinstance(node, ast.FunctionDef):
+                functions.add(node.name)
+            elif isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        variables.add(target.id)
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    imports.add(alias.name)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    for alias in node.names:
+                        imports.add(f"{node.module}.{alias.name}")
+        
+        # Extract __all__ if exists
+        all_pattern = r'__all__\s*=\s*\[(.*?)\]'
+        all_match = re.search(all_pattern, content, re.DOTALL)
+        if all_match:
+            all_content = all_match.group(1)
+            # Extract strings from __all__
+            string_pattern = r'["\']([^"\']+)["\']'
+            exports = set(re.findall(string_pattern, all_content))
+        
+        return ModuleInfo(file_path, classes, functions, variables, imports, exports)
+    
+    def analyze_imports(self):
+        """Analyse tous les imports et détecte les problèmes"""
+        print("\n🔍 ANALYZING IMPORTS...")
+        
+        for module_path, module_info in self.modules.items():
+            self._analyze_module_imports(module_path, module_info)
+    
+    def _analyze_module_imports(self, module_path: str, module_info: ModuleInfo):
+        """Analyse imports d'un module spécifique"""
+        
+        # Lire le fichier ligne par ligne pour analyser les imports
+        try:
+            with open(module_info.file_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+        except Exception:
+            return
+        
+        for line_num, line in enumerate(lines, 1):
+            line = line.strip()
+            
+            # Skip comments and empty lines
+            if not line or line.startswith('#'):
+                continue
+            
+            # Analyze import statements
+            if line.startswith('from ') and ' import ' in line:
+                self._analyze_from_import(module_path, line_num, line)
+            elif line.startswith('import '):
+                self._analyze_import(module_path, line_num, line)
+    
+    def _analyze_from_import(self, module_path: str, line_num: int, line: str):
+        """Analyse 'from module import name' statement"""
+        
+        # Parse from import
+        match = re.match(r'from\s+([\w.]+)\s+import\s+(.+)', line)
+        if not match:
+            return
+        
+        from_module = match.group(1)
+        import_names = match.group(2)
+        
+        # Handle parentheses imports
+        if '(' in import_names:
+            return  # Skip multi-line imports for now
+        
+        # Parse imported names
+        names = [name.strip() for name in import_names.split(',')]
+        
+        for name in names:
+            # Clean name (remove 'as alias')
+            if ' as ' in name:
+                name = name.split(' as ')[0].strip()
+            
+            # Check if module exists and if name is available
+            self._check_import_availability(module_path, line_num, line, from_module, name)
+    
+    def _analyze_import(self, module_path: str, line_num: int, line: str):
+        """Analyse 'import module' statement"""
+        
+        # Parse import
+        match = re.match(r'import\s+([\w.]+)', line)
+        if not match:
+            return
+        
+        import_module = match.group(1)
+        
+        # Check if module exists
+        if import_module not in self.modules:
+            # Check if it's a built-in or external module
+            if not self._is_builtin_module(import_module):
+                self.issues.append(ImportIssue(
+                    file_path=Path(module_path),
+                    line_number=line_num,
+                    issue_type='missing',
+                    import_statement=line,
+                    module=import_module,
+                    name='',
+                    suggestion=f"Module '{import_module}' not found"
+                ))
+    
+    def _check_import_availability(self, module_path: str, line_num: int, line: str, 
+                                 from_module: str, name: str):
+        """Vérifie si l'import est disponible"""
+        
+        # Convert relative imports
+        if from_module.startswith('.'):
+            # Handle relative imports
+            base_module = '.'.join(module_path.split('.')[:-1])
+            if from_module == '.':
+                from_module = base_module
+            else:
+                from_module = base_module + from_module
+        
+        # Check if module exists
+        if from_module not in self.modules:
+            if not self._is_builtin_module(from_module):
+                self.issues.append(ImportIssue(
+                    file_path=Path(module_path),
+                    line_number=line_num,
+                    issue_type='missing',
+                    import_statement=line,
+                    module=from_module,
+                    name=name,
+                    suggestion=f"Module '{from_module}' not found"
+                ))
+            return
+        
+        target_module = self.modules[from_module]
+        
+        # Check if name is available in target module
+        all_available = (target_module.classes | target_module.functions | 
+                        target_module.variables)
+        
+        if name not in all_available:
+            # Try to find similar names
+            suggestion = self._find_similar_name(name, all_available)
+            
+            self.issues.append(ImportIssue(
+                file_path=Path(module_path),
+                line_number=line_num,
+                issue_type='incorrect',
+                import_statement=line,
+                module=from_module,
+                name=name,
+                suggestion=suggestion
+            ))
+    
+    def _is_builtin_module(self, module_name: str) -> bool:
+        """Vérifie si c'est un module built-in ou externe"""
+        builtin_modules = {
+            'os', 'sys', 'time', 'datetime', 'math', 'random', 'json', 
+            're', 'collections', 'typing', 'pathlib', 'logging',
+            'numpy', 'pandas', 'matplotlib', 'scipy'
+        }
+        
+        return module_name.split('.')[0] in builtin_modules
+    
+    def _find_similar_name(self, target: str, available: Set[str]) -> Optional[str]:
+        """Trouve un nom similaire"""
+        target_lower = target.lower()
+        
+        # Exact match (case insensitive)
+        for name in available:
+            if name.lower() == target_lower:
+                return name
+        
+        # Partial match
+        for name in available:
+            if target_lower in name.lower() or name.lower() in target_lower:
+                return name
+        
+        # Levenshtein distance (simple)
+        best_match = None
+        best_distance = float('inf')
+        
+        for name in available:
+            distance = self._levenshtein(target_lower, name.lower())
+            if distance < best_distance and distance <= 3:
+                best_distance = distance
+                best_match = name
+        
+        return best_match
+    
+    def _levenshtein(self, s1: str, s2: str) -> int:
+        """Calcul distance Levenshtein simple"""
+        if len(s1) < len(s2):
+            return self._levenshtein(s2, s1)
+        
+        if len(s2) == 0:
+            return len(s1)
+        
+        previous_row = list(range(len(s2) + 1))
+        for i, c1 in enumerate(s1):
+            current_row = [i + 1]
+            for j, c2 in enumerate(s2):
+                insertions = previous_row[j + 1] + 1
+                deletions = current_row[j] + 1
+                substitutions = previous_row[j] + (c1 != c2)
+                current_row.append(min(insertions, deletions, substitutions))
+            previous_row = current_row
+        
+        return previous_row[-1]
+    
+    def print_report(self):
+        """Affiche le rapport de diagnostic"""
+        print("\n" + "="*60)
+        print("📊 IMPORT DIAGNOSTIC REPORT")
+        print("="*60)
+        
+        # Modules found
+        print(f"\n📦 MODULES FOUND: {len(self.modules)}")
+        for module_path, module_info in sorted(self.modules.items()):
+            classes_count = len(module_info.classes)
+            functions_count = len(module_info.functions) 
+            variables_count = len(module_info.variables)
+            print(f"   • {module_path}: {classes_count}C, {functions_count}F, {variables_count}V")
+        
+        # Issues found
+        print(f"\n❌ ISSUES FOUND: {len(self.issues)}")
+        
+        if not self.issues:
+            print("   🎉 No import issues found!")
+            return
+        
+        # Group by issue type
+        by_type = defaultdict(list)
+        for issue in self.issues:
+            by_type[issue.issue_type].append(issue)
+        
+        for issue_type, issues in by_type.items():
+            print(f"\n🔍 {issue_type.upper()} IMPORTS ({len(issues)}):")
+            
+            for issue in issues:
+                print(f"   📄 {issue.file_path.name}:{issue.line_number}")
+                print(f"      ❌ {issue.import_statement}")
+                print(f"      🎯 '{issue.name}' not found in '{issue.module}'")
+                if issue.suggestion:
+                    print(f"      💡 Suggestion: {issue.suggestion}")
+                print()
+    
+    def get_available_names(self, module_path: str) -> Dict[str, Set[str]]:
+        """Retourne les noms disponibles dans un module"""
+        if module_path not in self.modules:
+            return {}
+        
+        module_info = self.modules[module_path]
+        return {
+            'classes': module_info.classes,
+            'functions': module_info.functions,
+            'variables': module_info.variables,
+            'all': module_info.classes | module_info.functions | module_info.variables
+        }
+    
+    def suggest_corrections(self):
+        """Suggère des corrections pour les imports"""
+        print("\n" + "="*60)
+        print("💡 SUGGESTED CORRECTIONS")
+        print("="*60)
+        
+        if not self.issues:
+            print("🎉 No corrections needed!")
+            return
+        
+        # Group by file
+        by_file = defaultdict(list)
+        for issue in self.issues:
+            by_file[issue.file_path].append(issue)
+        
+        for file_path, issues in by_file.items():
+            print(f"\n📄 {file_path.name}:")
+            
+            for issue in issues:
+                print(f"   Line {issue.line_number}: {issue.import_statement}")
+                
+                if issue.suggestion:
+                    if issue.issue_type == 'incorrect':
+                        # Suggest corrected import
+                        corrected = issue.import_statement.replace(issue.name, issue.suggestion)
+                        print(f"   ✅ Suggested: {corrected}")
+                    else:
+                        print(f"   💡 {issue.suggestion}")
+                else:
+                    # Show available names from module
+                    available = self.get_available_names(issue.module)
+                    if available.get('all'):
+                        print(f"   🔍 Available in '{issue.module}':")
+                        for name in sorted(available['all']):
+                            print(f"      • {name}")
+                
+                print()
+    
+    def auto_fix_imports(self, dry_run: bool = True):
+        """Correction automatique des imports"""
+        print(f"\n🔧 AUTO-FIX IMPORTS (DRY RUN: {dry_run})")
+        print("="*60)
+        
+        if not self.issues:
+            print("🎉 No fixes needed!")
+            return
+        
+        fixes_applied = 0
+        
+        # Group by file
+        by_file = defaultdict(list)
+        for issue in self.issues:
+            if issue.suggestion and issue.issue_type == 'incorrect':
+                by_file[issue.file_path].append(issue)
+        
+        for file_path, issues in by_file.items():
+            if not dry_run:
+                # Read file
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                
+                # Apply fixes (reverse order to preserve line numbers)
+                for issue in sorted(issues, key=lambda x: x.line_number, reverse=True):
+                    line_idx = issue.line_number - 1
+                    if line_idx < len(lines):
+                        old_line = lines[line_idx]
+                        new_line = old_line.replace(issue.name, issue.suggestion)
+                        lines[line_idx] = new_line
+                        fixes_applied += 1
+                        print(f"✅ Fixed {file_path.name}:{issue.line_number}")
+                        print(f"   Old: {old_line.strip()}")
+                        print(f"   New: {new_line.strip()}")
+                
+                # Write file back
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.writelines(lines)
+            else:
+                # Just show what would be fixed
+                for issue in issues:
+                    old_line = issue.import_statement
+                    new_line = old_line.replace(issue.name, issue.suggestion)
+                    print(f"📄 {file_path.name}:{issue.line_number}")
+                    print(f"   Would change: {old_line}")
+                    print(f"   To:          {new_line}")
+                    fixes_applied += 1
+        
+        print(f"\n🎯 {fixes_applied} fixes {'applied' if not dry_run else 'suggested'}")
+
+    def analyze_specific_issue(self, error_msg: str):
+        """Analyse une erreur spécifique d'import"""
+        print(f"\n🔍 ANALYZING SPECIFIC ERROR:")
+        print(f"   {error_msg}")
+        
+        # Parse error message
+        if "cannot import name" in error_msg:
+            # Extract module and name from error
+            pattern = r"cannot import name '(\w+)' from '([\w.]+)'"
+            match = re.search(pattern, error_msg)
+            
+            if match:
+                missing_name = match.group(1)
+                module_name = match.group(2)
+                
+                print(f"\n❌ Missing: '{missing_name}' from '{module_name}'")
+                
+                # Check what's actually available
+                if module_name in self.modules:
+                    available = self.get_available_names(module_name)
+                    print(f"\n🔍 Available in '{module_name}':")
+                    
+                    if available['classes']:
+                        print(f"   📦 Classes: {', '.join(sorted(available['classes']))}")
+                    if available['functions']:
+                        print(f"   🔧 Functions: {', '.join(sorted(available['functions']))}")
+                    if available['variables']:
+                        print(f"   📊 Variables: {', '.join(sorted(available['variables']))}")
+                    
+                    # Try to find similar names
+                    suggestion = self._find_similar_name(missing_name, available['all'])
+                    if suggestion:
+                        print(f"\n💡 Did you mean: '{suggestion}'?")
+                    
+                    # Show what exports are defined
+                    module_info = self.modules[module_name]
+                    if module_info.exports:
+                        print(f"\n📋 Explicitly exported (__all__): {', '.join(sorted(module_info.exports))}")
+                else:
+                    print(f"❌ Module '{module_name}' not found in project")
+
+def main():
+    """Main diagnostic function"""
+    
+    # Get project root
+    if len(sys.argv) > 1:
+        project_root = sys.argv[1]
+    else:
+        project_root = "."
+    
+    print("🚀 MIA_IA_SYSTEM - IMPORT DIAGNOSTIC")
+    print("="*60)
+    print(f"📂 Project root: {Path(project_root).absolute()}")
+    
+    # Create diagnostic
+    diagnostic = ImportDiagnostic(project_root)
+    
+    # Run analysis
+    diagnostic.scan_project()
+    diagnostic.analyze_imports()
+    
+    # Analyze specific error from user if provided
+    error_msg = "cannot import name 'BattleNavaleDetector' from 'core.battle_navale'"
+    diagnostic.analyze_specific_issue(error_msg)
+    
+    # Show results
+    diagnostic.print_report()
+    diagnostic.suggest_corrections()
+    
+    # Offer auto-fix
+    if diagnostic.issues:
+        print("\n" + "="*60)
+        print("🔧 AUTO-FIX OPTIONS")
+        print("="*60)
+        
+        # Show dry run first
+        diagnostic.auto_fix_imports(dry_run=True)
+        
+        # Ask for confirmation
+        response = input("\n❓ Apply auto-fixes? (y/N): ").strip().lower()
+        if response in ['y', 'yes']:
+            diagnostic.auto_fix_imports(dry_run=False)
+            print("✅ Auto-fixes applied!")
+        else:
+            print("ℹ️ No changes made")
+    
+    # Show specific analysis for common issues
+    print("\n" + "="*60)
+    print("🔍 SPECIFIC MODULE ANALYSIS")
+    print("="*60)
+    
+    # Check core.battle_navale specifically
+    if 'core.battle_navale' in diagnostic.modules:
+        available = diagnostic.get_available_names('core.battle_navale')
+        print("📦 core.battle_navale available:")
+        for category, names in available.items():
+            if names and category != 'all':
+                print(f"   {category.upper()}: {', '.join(sorted(names))}")
+    else:
+        print("❌ core.battle_navale module not found!")
+    
+    # Check features package
+    if 'features' in diagnostic.modules:
+        available = diagnostic.get_available_names('features')
+        print("\n📦 features package available:")
+        for category, names in available.items():
+            if names and category != 'all':
+                print(f"   {category.upper()}: {', '.join(sorted(names))}")
+    
+    # Check strategies package
+    if 'strategies' in diagnostic.modules:
+        available = diagnostic.get_available_names('strategies')
+        print("\n📦 strategies package available:")
+        for category, names in available.items():
+            if names and category != 'all':
+                print(f"   {category.upper()}: {', '.join(sorted(names))}")
+    
+    # Final summary with actionable steps
+    print("\n" + "="*60)
+    print("🎯 ACTIONABLE STEPS")
+    print("="*60)
+    
+    print("1. Check if 'BattleNavaleDetector' class exists in core/battle_navale.py")
+    print("2. Verify __all__ exports in each module")
+    print("3. Run this script with auto-fix to correct obvious issues")
+    print("4. Update __init__.py files to match actual available classes/functions")
+    
+    print(f"\n🎯 Diagnostic complete! Found {len(diagnostic.issues)} issues.")
+    
+    # Quick fix suggestions for the specific error
+    print("\n" + "="*60)
+    print("🚑 QUICK FIX FOR CURRENT ERROR")
+    print("="*60)
+    
+    print("Current error: cannot import name 'BattleNavaleDetector' from 'core.battle_navale'")
+    print("\nPossible solutions:")
+    print("1. Check if the class name is correct in battle_navale.py")
+    print("2. Add 'BattleNavaleDetector' to __all__ in battle_navale.py")
+    print("3. Update core/__init__.py to import the correct name")
+    print("4. Verify the class is actually defined and not commented out")
+
+if __name__ == "__main__":
+    main()
