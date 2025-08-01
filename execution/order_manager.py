@@ -269,6 +269,9 @@ class OrderManager:
         logger.info(f"  - Order Provider: {self.order_provider.value}")
         logger.info(f"  - Primary Broker: {self.primary_broker.value}")
 
+        # 💸 NOUVEAU: Initialiser Execution Quality Tracker
+        self.__init_execution_tracker()
+
         # Auto-connect selon le mode et configuration
         if self.mode == TradingMode.DATA_COLLECTION or self.order_provider == OrderProvider.SIMULATION:
             self._init_simulation_mode()
@@ -512,8 +515,12 @@ class OrderManager:
                     'order_id': None
                 }
 
+            # 💸 NOUVEAU: Track soumission d'ordre
+            order_id = self.track_order_submission(order_details)
+
             # Créer requête d'ordre
             order_request = self._create_order_request(order_details)
+            order_request.order_id = order_id  # Utiliser l'ID du tracker
 
             # Validation ordre
             validation_result = self._validate_order(order_request)
@@ -521,11 +528,10 @@ class OrderManager:
                 return {
                     'status': 'REJECTED',
                     'error_message': validation_result['error'],
-                    'order_id': None
+                    'order_id': order_id
                 }
 
-            # Générer ID ordre
-            order_id = self._generate_order_id()
+            # ID ordre déjà généré par tracker
 
             # Sauvegarder ordre
             with self.lock:
@@ -562,6 +568,15 @@ class OrderManager:
 
             # Vérifier kill switch après ordre
             await self._check_kill_switch()
+
+            # 💸 NOUVEAU: Track qualité d'exécution du fill
+            if result.status == OrderStatus.FILLED or result.status == OrderStatus.PARTIALLY_FILLED:
+                fill_data = {
+                    'fill_price': result.fill_price or 0.0,
+                    'fill_quantity': result.fill_quantity or 0,
+                    'fill_time': result.fill_time or time.time()
+                }
+                execution_metrics = self.track_order_fill(order_id, fill_data)
 
             # Log résultat
             logger.info(f"Ordre {order_id}: {result.status.value} - "
@@ -1104,6 +1119,385 @@ class OrderManager:
         with self.lock:
             self.kill_switch_triggered = False
             logger.info("Kill switch reset")
+
+    # ======================================================================
+    # 💸 EXECUTION QUALITY TRACKER - PRIORITÉ HAUTE
+    # Track slippage, fill quality, latence pour optimiser les coûts cachés
+    # ======================================================================
+    
+    def __init_execution_tracker(self):
+        """Initialise le tracker de qualité d'exécution"""
+        self.execution_metrics = {
+            'total_orders': 0,
+            'filled_orders': 0,
+            'partial_fills': 0,
+            'rejected_orders': 0,
+            'total_slippage_ticks': 0.0,
+            'total_latency_ms': 0.0,
+            'fill_times': deque(maxlen=1000),
+            'slippage_history': deque(maxlen=1000),
+            'latency_history': deque(maxlen=1000),
+            'daily_stats': defaultdict(lambda: {
+                'orders': 0, 'fills': 0, 'avg_slippage': 0.0, 'avg_latency': 0.0
+            })
+        }
+        
+        # Seuils de qualité d'exécution
+        self.quality_thresholds = {
+            'max_slippage_ticks': 0.75,      # Alerte si slippage > 0.75 ticks
+            'max_latency_ms': 500,           # Alerte si latence > 500ms
+            'min_fill_rate': 0.95,           # Alerte si fill rate < 95%
+            'max_partial_fills_pct': 0.10    # Alerte si > 10% partial fills
+        }
+        
+        logger.info("💸 Execution Quality Tracker initialisé")
+    
+    def track_order_submission(self, order_details: Dict) -> str:
+        """Track soumission d'ordre avec timestamp"""
+        order_id = order_details.get('trade_id', f"ORDER_{int(time.time())}")
+        submission_time = time.time()
+        
+        # Stocker pour mesurer la latence
+        if not hasattr(self, '_pending_orders'):
+            self._pending_orders = {}
+        
+        self._pending_orders[order_id] = {
+            'submission_time': submission_time,
+            'expected_price': order_details.get('price', 0.0),
+            'order_type': order_details.get('order_type', 'MKT'),
+            'side': order_details.get('side', 'BUY'),
+            'quantity': order_details.get('size', 1)
+        }
+        
+        self.execution_metrics['total_orders'] += 1
+        return order_id
+    
+    def track_order_fill(self, order_id: str, fill_data: Dict) -> Dict[str, Any]:
+        """
+        Track le fill d'un ordre et calcule les métriques de qualité
+        
+        Args:
+            order_id: ID de l'ordre
+            fill_data: {'fill_price': float, 'fill_quantity': int, 'fill_time': float}
+            
+        Returns:
+            Dict avec métriques calculées: slippage, latence, etc.
+        """
+        try:
+            if not hasattr(self, '_pending_orders'):
+                self._pending_orders = {}
+            
+            pending = self._pending_orders.get(order_id)
+            if not pending:
+                logger.warning(f"Ordre {order_id} non trouvé pour tracking")
+                return {}
+            
+            fill_time = fill_data.get('fill_time', time.time())
+            fill_price = fill_data.get('fill_price', 0.0)
+            fill_quantity = fill_data.get('fill_quantity', 0)
+            expected_price = pending['expected_price']
+            expected_quantity = pending['quantity']
+            
+            # Calcul latence
+            latency_ms = (fill_time - pending['submission_time']) * 1000
+            
+            # Calcul slippage (en ticks ES = 0.25 points)
+            if expected_price > 0:
+                price_diff = abs(fill_price - expected_price)
+                slippage_ticks = price_diff / 0.25  # ES tick size
+                
+                # Ajuster selon direction (slippage défavorable seulement)
+                if pending['side'] == 'BUY' and fill_price > expected_price:
+                    slippage_ticks = price_diff / 0.25
+                elif pending['side'] == 'SELL' and fill_price < expected_price:
+                    slippage_ticks = price_diff / 0.25
+                else:
+                    slippage_ticks = 0.0  # Fill favorable
+            else:
+                slippage_ticks = 0.0
+            
+            # Déterminer type de fill
+            is_partial = fill_quantity < expected_quantity
+            is_rejected = fill_quantity == 0
+            
+            # Métriques calculées
+            metrics = {
+                'order_id': order_id,
+                'latency_ms': latency_ms,
+                'slippage_ticks': slippage_ticks,
+                'slippage_cost_usd': slippage_ticks * 12.5,  # ES = $12.50/tick
+                'fill_quality': self._calculate_fill_quality(slippage_ticks, latency_ms, is_partial),
+                'is_partial': is_partial,
+                'is_rejected': is_rejected,
+                'fill_rate': fill_quantity / expected_quantity if expected_quantity > 0 else 0.0
+            }
+            
+            # Mettre à jour statistiques globales
+            self._update_execution_stats(metrics)
+            
+            # Alertes si qualité dégradée
+            self._check_execution_quality_alerts(metrics)
+            
+            # Nettoyer ordre traité
+            del self._pending_orders[order_id]
+            
+            logger.debug(f"💸 Ordre {order_id}: Latence {latency_ms:.0f}ms, "
+                        f"Slippage {slippage_ticks:.2f} ticks (${slippage_ticks * 12.5:.2f})")
+            
+            return metrics
+            
+        except Exception as e:
+            logger.error(f"Erreur tracking fill ordre {order_id}: {e}")
+            return {}
+    
+    def _calculate_fill_quality(self, slippage_ticks: float, latency_ms: float, is_partial: bool) -> float:
+        """Calcule un score de qualité de fill (0-1)"""
+        quality_score = 1.0
+        
+        # Pénalité slippage
+        if slippage_ticks > self.quality_thresholds['max_slippage_ticks']:
+            quality_score -= 0.3
+        elif slippage_ticks > 0.5:
+            quality_score -= 0.1
+        
+        # Pénalité latence
+        if latency_ms > self.quality_thresholds['max_latency_ms']:
+            quality_score -= 0.2
+        elif latency_ms > 200:
+            quality_score -= 0.1
+        
+        # Pénalité partial fill
+        if is_partial:
+            quality_score -= 0.3
+        
+        return max(0.0, quality_score)
+    
+    def _update_execution_stats(self, metrics: Dict):
+        """Met à jour les statistiques d'exécution"""
+        if metrics['is_rejected']:
+            self.execution_metrics['rejected_orders'] += 1
+        elif metrics['is_partial']:
+            self.execution_metrics['partial_fills'] += 1
+            self.execution_metrics['filled_orders'] += 1
+        else:
+            self.execution_metrics['filled_orders'] += 1
+        
+        # Historique pour calculs de moyennes
+        self.execution_metrics['slippage_history'].append(metrics['slippage_ticks'])
+        self.execution_metrics['latency_history'].append(metrics['latency_ms'])
+        
+        # Stats quotidiennes
+        today = datetime.now().strftime('%Y-%m-%d')
+        daily = self.execution_metrics['daily_stats'][today]
+        daily['orders'] += 1
+        if not metrics['is_rejected']:
+            daily['fills'] += 1
+            daily['avg_slippage'] = statistics.mean(list(self.execution_metrics['slippage_history'])[-100:])
+            daily['avg_latency'] = statistics.mean(list(self.execution_metrics['latency_history'])[-100:])
+    
+    def _check_execution_quality_alerts(self, metrics: Dict):
+        """Vérifie et génère des alertes de qualité d'exécution"""
+        alerts = []
+        
+        if metrics['slippage_ticks'] > self.quality_thresholds['max_slippage_ticks']:
+            alerts.append(f"⚠️ SLIPPAGE ÉLEVÉ: {metrics['slippage_ticks']:.2f} ticks "
+                         f"(${metrics['slippage_cost_usd']:.2f})")
+        
+        if metrics['latency_ms'] > self.quality_thresholds['max_latency_ms']:
+            alerts.append(f"⚠️ LATENCE ÉLEVÉE: {metrics['latency_ms']:.0f}ms")
+        
+        if metrics['is_partial']:
+            alerts.append(f"⚠️ FILL PARTIEL: {metrics['fill_rate']:.1%}")
+        
+        # Calculs de tendances
+        if len(self.execution_metrics['slippage_history']) >= 10:
+            recent_slippage = statistics.mean(list(self.execution_metrics['slippage_history'])[-10:])
+            if recent_slippage > self.quality_thresholds['max_slippage_ticks']:
+                alerts.append(f"🚨 TENDANCE SLIPPAGE: {recent_slippage:.2f} ticks (10 derniers ordres)")
+        
+        # Log des alertes
+        for alert in alerts:
+            logger.warning(alert)
+        
+        return alerts
+    
+    def get_execution_quality_report(self) -> Dict[str, Any]:
+        """Génère un rapport complet de qualité d'exécution"""
+        total_orders = self.execution_metrics['total_orders']
+        filled_orders = self.execution_metrics['filled_orders']
+        
+        if total_orders == 0:
+            return {'status': 'no_data', 'message': 'Aucun ordre traité'}
+        
+        # Calculs des moyennes
+        avg_slippage = statistics.mean(self.execution_metrics['slippage_history']) if self.execution_metrics['slippage_history'] else 0.0
+        avg_latency = statistics.mean(self.execution_metrics['latency_history']) if self.execution_metrics['latency_history'] else 0.0
+        
+        # Métriques principales
+        fill_rate = filled_orders / total_orders
+        partial_fill_rate = self.execution_metrics['partial_fills'] / total_orders
+        rejection_rate = self.execution_metrics['rejected_orders'] / total_orders
+        
+        # Coûts cachés estimés
+        total_slippage_cost = sum(self.execution_metrics['slippage_history']) * 12.5
+        avg_slippage_cost_per_trade = total_slippage_cost / len(self.execution_metrics['slippage_history']) if self.execution_metrics['slippage_history'] else 0.0
+        
+        # Évaluation de la qualité globale
+        quality_score = self._calculate_overall_execution_quality(fill_rate, avg_slippage, avg_latency, partial_fill_rate)
+        
+        report = {
+            'summary': {
+                'total_orders': total_orders,
+                'filled_orders': filled_orders,
+                'fill_rate': fill_rate,
+                'overall_quality_score': quality_score
+            },
+            'performance_metrics': {
+                'avg_slippage_ticks': avg_slippage,
+                'avg_latency_ms': avg_latency,
+                'partial_fill_rate': partial_fill_rate,
+                'rejection_rate': rejection_rate
+            },
+            'cost_analysis': {
+                'total_slippage_cost_usd': total_slippage_cost,
+                'avg_slippage_cost_per_trade': avg_slippage_cost_per_trade,
+                'estimated_daily_slippage_cost': avg_slippage_cost_per_trade * 20  # 20 trades/jour estimé
+            },
+            'quality_assessment': {
+                'slippage_grade': self._grade_metric(avg_slippage, self.quality_thresholds['max_slippage_ticks'], inverse=True),
+                'latency_grade': self._grade_metric(avg_latency, self.quality_thresholds['max_latency_ms'], inverse=True),
+                'fill_rate_grade': self._grade_metric(fill_rate, self.quality_thresholds['min_fill_rate']),
+                'overall_grade': self._calculate_overall_grade(quality_score)
+            },
+            'recommendations': self._generate_execution_recommendations(avg_slippage, avg_latency, fill_rate)
+        }
+        
+        return report
+    
+    def _calculate_overall_execution_quality(self, fill_rate: float, avg_slippage: float, 
+                                           avg_latency: float, partial_fill_rate: float) -> float:
+        """Calcule un score global de qualité d'exécution (0-1)"""
+        score = 0.0
+        
+        # Fill rate (40% du score)
+        if fill_rate >= self.quality_thresholds['min_fill_rate']:
+            score += 0.4
+        else:
+            score += 0.4 * (fill_rate / self.quality_thresholds['min_fill_rate'])
+        
+        # Slippage (30% du score)
+        if avg_slippage <= self.quality_thresholds['max_slippage_ticks']:
+            score += 0.3
+        else:
+            score += 0.3 * (self.quality_thresholds['max_slippage_ticks'] / avg_slippage)
+        
+        # Latence (20% du score)
+        if avg_latency <= self.quality_thresholds['max_latency_ms']:
+            score += 0.2
+        else:
+            score += 0.2 * (self.quality_thresholds['max_latency_ms'] / avg_latency)
+        
+        # Partial fills (10% du score)
+        if partial_fill_rate <= self.quality_thresholds['max_partial_fills_pct']:
+            score += 0.1
+        else:
+            score += 0.1 * (1 - partial_fill_rate)
+        
+        return min(1.0, score)
+    
+    def _grade_metric(self, value: float, threshold: float, inverse: bool = False) -> str:
+        """Convertit une métrique en grade A-F"""
+        if inverse:  # Pour slippage et latence (plus bas = mieux)
+            ratio = threshold / value if value > 0 else 1.0
+        else:  # Pour fill rate (plus haut = mieux)
+            ratio = value / threshold if threshold > 0 else 0.0
+        
+        if ratio >= 1.0:
+            return 'A'
+        elif ratio >= 0.9:
+            return 'B'
+        elif ratio >= 0.8:
+            return 'C'
+        elif ratio >= 0.7:
+            return 'D'
+        else:
+            return 'F'
+    
+    def _calculate_overall_grade(self, quality_score: float) -> str:
+        """Convertit le score global en grade"""
+        if quality_score >= 0.9:
+            return 'A'
+        elif quality_score >= 0.8:
+            return 'B'
+        elif quality_score >= 0.7:
+            return 'C'
+        elif quality_score >= 0.6:
+            return 'D'
+        else:
+            return 'F'
+    
+    def _generate_execution_recommendations(self, avg_slippage: float, avg_latency: float, 
+                                          fill_rate: float) -> List[str]:
+        """Génère des recommandations d'amélioration"""
+        recommendations = []
+        
+        if avg_slippage > self.quality_thresholds['max_slippage_ticks']:
+            recommendations.append("Utiliser ordres LIMIT pour réduire le slippage")
+            recommendations.append("Éviter les ordres pendant les périodes de volatilité élevée")
+        
+        if avg_latency > self.quality_thresholds['max_latency_ms']:
+            recommendations.append("Vérifier la connectivité réseau avec le broker")
+            recommendations.append("Considérer un serveur plus proche du broker")
+        
+        if fill_rate < self.quality_thresholds['min_fill_rate']:
+            recommendations.append("Réviser la stratégie de sizing des ordres")
+            recommendations.append("Utiliser des ordres adaptatifs si disponibles")
+        
+        if not recommendations:
+            recommendations.append("Excellente qualité d'exécution - continuer ainsi!")
+        
+        return recommendations
+    
+    def log_execution_quality_summary(self):
+        """Log un résumé de la qualité d'exécution"""
+        report = self.get_execution_quality_report()
+        
+        if report.get('status') == 'no_data':
+            logger.info("💸 Aucune donnée d'exécution disponible")
+            return
+        
+        logger.info("=" * 60)
+        logger.info("💸 RAPPORT QUALITÉ D'EXÉCUTION")
+        logger.info("=" * 60)
+        
+        summary = report['summary']
+        metrics = report['performance_metrics']
+        costs = report['cost_analysis']
+        grades = report['quality_assessment']
+        
+        logger.info(f"Ordres traités:           {summary['total_orders']}")
+        logger.info(f"Taux de fill:             {summary['fill_rate']:.1%}")
+        logger.info(f"Score qualité global:     {summary['overall_quality_score']:.2f}")
+        logger.info(f"Grade global:             {grades['overall_grade']}")
+        
+        logger.info(f"\nMÉTRIQUES DÉTAILLÉES:")
+        logger.info(f"Slippage moyen:           {metrics['avg_slippage_ticks']:.2f} ticks (Grade: {grades['slippage_grade']})")
+        logger.info(f"Latence moyenne:          {metrics['avg_latency_ms']:.0f}ms (Grade: {grades['latency_grade']})")
+        logger.info(f"Taux fills partiels:      {metrics['partial_fill_rate']:.1%}")
+        logger.info(f"Taux rejets:              {metrics['rejection_rate']:.1%}")
+        
+        logger.info(f"\nCOÛTS CACHÉS:")
+        logger.info(f"Coût slippage total:      ${costs['total_slippage_cost_usd']:.2f}")
+        logger.info(f"Coût moyen/trade:         ${costs['avg_slippage_cost_per_trade']:.2f}")
+        logger.info(f"Coût estimé quotidien:    ${costs['estimated_daily_slippage_cost']:.2f}")
+        
+        recommendations = report['recommendations']
+        if recommendations:
+            logger.info(f"\nRECOMMANDATIONS:")
+            for i, rec in enumerate(recommendations, 1):
+                logger.info(f"  {i}. {rec}")
+        
+        logger.info("=" * 60)
 
     def log_diagnostics(self):
         """Log diagnostics complets"""

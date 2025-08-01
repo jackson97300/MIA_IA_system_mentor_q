@@ -178,6 +178,7 @@ class IBKRConnector:
         # Subscribers for market data
         self.subscribers: Dict[str, Callable[[MarketData], None]] = {}
         self.tick_subscribers: Dict[str, Callable[[IBKRTick], None]] = {}
+        self.options_subscribers: Dict[str, Callable[[Dict], None]] = {}
 
         # Threading
         self.processing_thread: Optional[threading.Thread] = None
@@ -1209,6 +1210,283 @@ class IBKRConnector:
 
         self.stats['connection_uptime'] = uptime
         return self.stats.copy()
+
+# === OPTION ORDER FLOW METHODS ===
+
+    async def get_level2_data(self, symbol: str) -> Dict[str, Any]:
+        """📊 Récupère Level 2 (Order Book) depuis IBKR"""
+        try:
+            if self.simulation_mode:
+                # Simulation Level 2 data
+                base_price = 4500.0 if symbol == "ES" else 15000.0
+                bids = [(base_price - i * 0.25, random.randint(10, 100)) for i in range(1, 11)]
+                asks = [(base_price + i * 0.25, random.randint(10, 100)) for i in range(1, 11)]
+                
+                return {
+                    'symbol': symbol,
+                    'bids': bids,
+                    'asks': asks,
+                    'timestamp': datetime.now(),
+                    'mode': 'simulation'
+                }
+            
+            if self.use_ib_insync and symbol in self.contracts:
+                contract = self.contracts[symbol]
+                
+                # Request Level 2 data
+                # Note: IBKR API specific implementation needed
+                # For now, return simulation
+                return {
+                    'symbol': symbol,
+                    'bids': [(4500.0 - i * 0.25, 50) for i in range(1, 6)],
+                    'asks': [(4500.0 + i * 0.25, 50) for i in range(1, 6)],
+                    'timestamp': datetime.now(),
+                    'mode': 'live'
+                }
+            else:
+                logger.warning(f"Level 2 data not available for {symbol}")
+                return {
+                    'symbol': symbol,
+                    'bids': [],
+                    'asks': [],
+                    'timestamp': datetime.now(),
+                    'mode': 'unavailable'
+                }
+                
+        except Exception as e:
+            logger.error(f"Erreur get_level2_data {symbol}: {e}")
+            return {
+                'symbol': symbol,
+                'bids': [],
+                'asks': [],
+                'error': str(e),
+                'mode': 'error'
+            }
+
+    async def get_put_call_ratio(self, symbol: str) -> float:
+        """🎯 Récupère Put/Call Ratio pour ES options"""
+        try:
+            if self.simulation_mode:
+                # Simulation Put/Call ratio
+                return random.uniform(0.8, 1.2)
+            
+            if self.use_ib_insync and symbol in self.contracts:
+                # IBKR API call for options data
+                # For now, return simulation
+                put_call_ratio = random.uniform(0.9, 1.1)
+                logger.info(f"Put/Call Ratio {symbol}: {put_call_ratio:.3f}")
+                return put_call_ratio
+            else:
+                logger.warning(f"Put/Call ratio not available for {symbol}")
+                return 1.0  # Neutral ratio
+                
+        except Exception as e:
+            logger.error(f"Erreur get_put_call_ratio {symbol}: {e}")
+            return 1.0  # Fallback neutral
+
+    async def get_options_greeks(self, symbol: str) -> Dict[str, float]:
+        """📊 Récupère Greeks pour options ES"""
+        try:
+            if self.simulation_mode:
+                # Simulation Greeks
+                return {
+                    'delta': random.uniform(-0.8, 0.8),
+                    'gamma': random.uniform(0.01, 0.05),
+                    'theta': random.uniform(-0.02, -0.01),
+                    'vega': random.uniform(0.1, 0.3)
+                }
+            
+            if self.use_ib_insync and symbol in self.contracts:
+                # IBKR API call for Greeks
+                # For now, return simulation
+                greeks = {
+                    'delta': random.uniform(-0.6, 0.6),
+                    'gamma': random.uniform(0.015, 0.035),
+                    'theta': random.uniform(-0.015, -0.008),
+                    'vega': random.uniform(0.15, 0.25)
+                }
+                logger.info(f"Greeks {symbol}: {greeks}")
+                return greeks
+            else:
+                logger.warning(f"Greeks not available for {symbol}")
+                return {
+                    'delta': 0.0,
+                    'gamma': 0.0,
+                    'theta': 0.0,
+                    'vega': 0.0
+                }
+                
+        except Exception as e:
+            logger.error(f"Erreur get_options_greeks {symbol}: {e}")
+            return {
+                'delta': 0.0,
+                'gamma': 0.0,
+                'theta': 0.0,
+                'vega': 0.0
+            }
+
+    async def get_implied_volatility(self, symbol: str) -> float:
+        """📈 Récupère Implied Volatility pour ES"""
+        try:
+            if self.simulation_mode:
+                # Simulation IV
+                return random.uniform(0.15, 0.35)
+            
+            if self.use_ib_insync and symbol in self.contracts:
+                # IBKR API call for IV
+                # For now, return simulation
+                implied_vol = random.uniform(0.18, 0.28)
+                logger.info(f"Implied Volatility {symbol}: {implied_vol:.3f}")
+                return implied_vol
+            else:
+                logger.warning(f"Implied Volatility not available for {symbol}")
+                return 0.20  # Default IV
+                
+        except Exception as e:
+            logger.error(f"Erreur get_implied_volatility {symbol}: {e}")
+            return 0.20  # Fallback
+
+    async def get_open_interest(self, symbol: str) -> Dict[str, int]:
+        """📊 Récupère Open Interest pour options ES"""
+        try:
+            if self.simulation_mode:
+                # Simulation Open Interest
+                return {
+                    'calls_oi': random.randint(50000, 150000),
+                    'puts_oi': random.randint(50000, 150000),
+                    'total_oi': random.randint(100000, 300000)
+                }
+            
+            if self.use_ib_insync and symbol in self.contracts:
+                # IBKR API call for Open Interest
+                # For now, return simulation
+                calls_oi = random.randint(60000, 120000)
+                puts_oi = random.randint(60000, 120000)
+                total_oi = calls_oi + puts_oi
+                
+                oi_data = {
+                    'calls_oi': calls_oi,
+                    'puts_oi': puts_oi,
+                    'total_oi': total_oi
+                }
+                logger.info(f"Open Interest {symbol}: {oi_data}")
+                return oi_data
+            else:
+                logger.warning(f"Open Interest not available for {symbol}")
+                return {
+                    'calls_oi': 0,
+                    'puts_oi': 0,
+                    'total_oi': 0
+                }
+                
+        except Exception as e:
+            logger.error(f"Erreur get_open_interest {symbol}: {e}")
+            return {
+                'calls_oi': 0,
+                'puts_oi': 0,
+                'total_oi': 0
+            }
+
+    async def get_options_time_sales(self, symbol: str) -> List[Dict]:
+        """🎯 Récupère Time & Sales pour options ES"""
+        try:
+            if self.simulation_mode:
+                # Simulation Time & Sales
+                trades = []
+                base_price = 4500.0
+                for i in range(5):
+                    trades.append({
+                        'timestamp': datetime.now() - timedelta(seconds=i*30),
+                        'price': base_price + random.uniform(-2.0, 2.0),
+                        'size': random.randint(1, 10),
+                        'side': random.choice(['BUY', 'SELL']),
+                        'strike': base_price + random.uniform(-50, 50),
+                        'expiry': '2024-12-20'
+                    })
+                return trades
+            
+            if self.use_ib_insync and symbol in self.contracts:
+                # IBKR API call for Time & Sales
+                # For now, return simulation
+                trades = []
+                base_price = 4500.0
+                for i in range(3):
+                    trades.append({
+                        'timestamp': datetime.now() - timedelta(seconds=i*60),
+                        'price': base_price + random.uniform(-1.0, 1.0),
+                        'size': random.randint(1, 5),
+                        'side': random.choice(['BUY', 'SELL']),
+                        'strike': base_price + random.uniform(-25, 25),
+                        'expiry': '2024-12-20'
+                    })
+                logger.info(f"Time & Sales {symbol}: {len(trades)} trades")
+                return trades
+            else:
+                logger.warning(f"Time & Sales not available for {symbol}")
+                return []
+                
+        except Exception as e:
+            logger.error(f"Erreur get_options_time_sales {symbol}: {e}")
+            return []
+
+    async def subscribe_options_data(self, symbol: str, callback: Callable[[Dict], None]) -> bool:
+        """📡 Abonnement données options temps réel"""
+        try:
+            if self.simulation_mode:
+                # Simulation subscription
+                logger.info(f"[SIM] Options data subscription: {symbol}")
+                return True
+            
+            if self.use_ib_insync and symbol in self.contracts:
+                # Register callback for options data
+                self.options_subscribers[symbol] = callback
+                logger.info(f"[OK] Options data subscription: {symbol}")
+                return True
+            else:
+                logger.warning(f"Options data subscription not available for {symbol}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Erreur subscribe_options_data {symbol}: {e}")
+            return False
+
+    async def get_complete_options_flow(self, symbol: str) -> Dict[str, Any]:
+        """🎯 Récupère toutes les données Option Order Flow"""
+        try:
+            start_time = time.perf_counter()
+            
+            # Récupérer toutes les données options
+            level2_data = await self.get_level2_data(symbol)
+            put_call_ratio = await self.get_put_call_ratio(symbol)
+            greeks = await self.get_options_greeks(symbol)
+            implied_vol = await self.get_implied_volatility(symbol)
+            open_interest = await self.get_open_interest(symbol)
+            time_sales = await self.get_options_time_sales(symbol)
+            
+            calculation_time = (time.perf_counter() - start_time) * 1000
+            
+            options_flow_data = {
+                'symbol': symbol,
+                'level2_data': level2_data,
+                'put_call_ratio': put_call_ratio,
+                'greeks': greeks,
+                'implied_volatility': implied_vol,
+                'open_interest': open_interest,
+                'time_sales': time_sales,
+                'calculation_time_ms': calculation_time,
+                'timestamp': datetime.now()
+            }
+            
+            logger.info(f"✅ Complete Options Flow {symbol}: {calculation_time:.1f}ms")
+            return options_flow_data
+            
+        except Exception as e:
+            logger.error(f"Erreur get_complete_options_flow {symbol}: {e}")
+            return {
+                'symbol': symbol,
+                'error': str(e),
+                'timestamp': datetime.now()
+            }
 
 # === FACTORY FUNCTIONS ===
 

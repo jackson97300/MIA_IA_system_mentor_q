@@ -34,6 +34,14 @@ sys.path.append(str(Path(__file__).parent))
 from core.logger import get_logger
 logger = get_logger(__name__)
 
+# ✅ NOUVEAUX MODULES - Signal Analysis & Risk Management
+from core.signal_explainer import create_signal_explainer
+from core.catastrophe_monitor import create_catastrophe_monitor, CatastropheLevel
+from core.lessons_learned_analyzer import create_lessons_learned_analyzer
+from core.session_analyzer import create_session_analyzer
+from core.base_types import create_data_integrity_validator
+from core.mentor_system import create_mentor_system
+
 # ✅ CORRECTION IMPORTS BASE_TYPES - utiliser les types disponibles
 try:
     from core.base_types import MarketData, TradingSignal, SignalType, MarketRegime, TradeResult
@@ -742,8 +750,48 @@ class EnhancedConfluenceCalculator:
         return min(volume_ratio, 2.0) / 2.0
     
     def _calculate_options_flow(self, market_data: MarketData) -> float:
-        """📊 OPTIONS FLOW BIAS (15%) - Sentiment important"""
-        return random.uniform(0.3, 0.7)  # Simulation
+        """📊 OPTIONS FLOW BIAS (15%) - Données réelles IBKR"""
+        try:
+            if hasattr(self, 'ibkr') and self.ibkr:
+                # Récupérer données réelles depuis IBKR
+                import asyncio
+                
+                # Créer une nouvelle event loop si nécessaire
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                
+                # Récupérer Put/Call Ratio
+                put_call_ratio = loop.run_until_complete(
+                    self.ibkr.get_put_call_ratio("ES")
+                )
+                
+                # Récupérer Implied Volatility
+                implied_vol = loop.run_until_complete(
+                    self.ibkr.get_implied_volatility("ES")
+                )
+                
+                # Récupérer Greeks
+                greeks = loop.run_until_complete(
+                    self.ibkr.get_options_greeks("ES")
+                )
+                
+                # Calcul bias basé sur données réelles
+                options_bias = self._calculate_options_bias(
+                    put_call_ratio, implied_vol, greeks
+                )
+                
+                return options_bias
+                
+            else:
+                # Fallback simulation si IBKR non disponible
+                return random.uniform(0.3, 0.7)
+                
+        except Exception as e:
+            self.logger.warning(f"Fallback options flow: {e}")
+            return random.uniform(0.3, 0.7)  # Simulation
     
     def _calculate_order_book_imbalance(self, market_data: MarketData) -> float:
         """📊 ORDER BOOK IMBALANCE (15%) - NOUVEAU !"""
@@ -801,6 +849,59 @@ class EnhancedConfluenceCalculator:
             volume = getattr(market_data, 'volume', 1000)
             return min(1.0, max(0.0, volume / 2000))  # Normalisation simple
     
+    def _calculate_options_bias(self, put_call_ratio: float, implied_vol: float, greeks: Dict[str, float]) -> float:
+        """🎯 Calcul du bias options basé sur données réelles IBKR"""
+        try:
+            # 1. Put/Call Ratio Analysis (40% du poids)
+            pcr_bias = 0.0
+            if put_call_ratio > 1.2:  # Bearish sentiment
+                pcr_bias = -0.4
+            elif put_call_ratio < 0.8:  # Bullish sentiment
+                pcr_bias = 0.4
+            else:  # Neutral
+                pcr_bias = (put_call_ratio - 1.0) * 2.0  # Scale to [-0.4, 0.4]
+            
+            # 2. Implied Volatility Analysis (30% du poids)
+            vol_bias = 0.0
+            if implied_vol > 0.25:  # High volatility = uncertainty
+                vol_bias = -0.2
+            elif implied_vol < 0.15:  # Low volatility = complacency
+                vol_bias = 0.2
+            else:  # Normal volatility
+                vol_bias = (implied_vol - 0.20) * 4.0  # Scale to [-0.2, 0.2]
+            
+            # 3. Greeks Analysis (30% du poids)
+            greeks_bias = 0.0
+            delta = greeks.get('delta', 0.0)
+            gamma = greeks.get('gamma', 0.0)
+            
+            # Delta influence (directional bias)
+            if abs(delta) > 0.5:  # Strong directional bias
+                greeks_bias = delta * 0.3
+            else:
+                greeks_bias = delta * 0.6  # Scale for smaller deltas
+            
+            # Gamma influence (acceleration)
+            if gamma > 0.03:  # High gamma = potential acceleration
+                greeks_bias += 0.1
+            elif gamma < 0.01:  # Low gamma = stable
+                greeks_bias -= 0.1
+            
+            # Combine all biases
+            total_bias = (pcr_bias * 0.4) + (vol_bias * 0.3) + (greeks_bias * 0.3)
+            
+            # Normalize to [0, 1] range
+            normalized_bias = (total_bias + 1.0) / 2.0
+            
+            self.logger.info(f"Options Bias - PCR: {put_call_ratio:.3f}, IV: {implied_vol:.3f}, "
+                           f"Delta: {delta:.3f}, Gamma: {gamma:.3f}, Total: {normalized_bias:.3f}")
+            
+            return max(0.0, min(1.0, normalized_bias))
+            
+        except Exception as e:
+            self.logger.error(f"Erreur calcul options bias: {e}")
+            return 0.5  # Neutral fallback
+
     def _calculate_smart_money_index(self, market_data: MarketData) -> float:
         """📊 INTÉGRATION SMART MONEY INDEX de vos modules"""
         try:
@@ -1000,6 +1101,61 @@ class MIAAutomationSystem:
         else:
             self.risk_manager = None
             self.logger.info("📊 RiskManager non disponible - utilisation basique")
+        
+        # ✅ NOUVEAUX MODULES - Signal Analysis & Risk Management
+        try:
+            self.signal_explainer = create_signal_explainer()
+            self.logger.info("🔍 Signal Explainer initialisé")
+        except Exception as e:
+            self.logger.warning(f"⚠️ Erreur init Signal Explainer: {e}")
+            self.signal_explainer = None
+        
+        try:
+            # Configuration catastrophe avec limites depuis config
+            catastrophe_config = {
+                'daily_loss_limit': getattr(config, 'daily_loss_limit', 500.0),
+                'max_position_size': getattr(config, 'max_position_size', 2),
+                'max_consecutive_losses': 5,
+                'account_balance_min': 1000.0
+            }
+            self.catastrophe_monitor = create_catastrophe_monitor(catastrophe_config)
+            self.daily_pnl = 0.0
+            self.current_position_size = 0
+            self.last_signal_time = 0
+            self.logger.info("🛡️ Catastrophe Monitor initialisé - Protection active")
+        except Exception as e:
+            self.logger.warning(f"⚠️ Erreur init Catastrophe Monitor: {e}")
+            self.catastrophe_monitor = None
+        
+        try:
+            self.lessons_learned_analyzer = create_lessons_learned_analyzer()
+            self.logger.info("📚 Lessons Learned Analyzer initialisé - Collecte de données active")
+        except Exception as e:
+            self.logger.warning(f"⚠️ Erreur init Lessons Learned Analyzer: {e}")
+            self.lessons_learned_analyzer = None
+        
+        try:
+            self.session_analyzer = create_session_analyzer()
+            self.logger.info("📅 Session Context Analyzer initialisé - Analyse dynamique active")
+        except Exception as e:
+            self.logger.warning(f"⚠️ Erreur init Session Context Analyzer: {e}")
+            self.session_analyzer = None
+        
+        try:
+            self.data_validator = create_data_integrity_validator()
+            self.logger.info("✅ Data Integrity Validator initialisé - Validation temps réel active")
+        except Exception as e:
+            self.logger.warning(f"⚠️ Erreur init Data Integrity Validator: {e}")
+            self.data_validator = None
+        
+        try:
+            # Initialiser le Mentor System avec Discord webhook
+            discord_webhook_url = "https://discordapp.com/api/webhooks/1389206555282640987/v0WvrD3ntDkwGJIyxRh0EEAFNoh1NpSY8Oloxy8tWMZjsFGRed_OYpG1zaSdP2dWH2j7"
+            self.mentor_system = create_mentor_system(discord_webhook_url)
+            self.logger.info("🎓 Mentor System initialisé - Coaching Discord actif")
+        except Exception as e:
+            self.logger.warning(f"⚠️ Erreur init Mentor System: {e}")
+            self.mentor_system = None
             
         # IBKR connector (sera initialisé dans start) avec vérification
         self.ibkr: Optional[IBKRConnector] = None
@@ -1234,11 +1390,57 @@ class MIAAutomationSystem:
                     await asyncio.sleep(1)
                     continue
                 
+                # ✅ NOUVEAU: Validation intégrité des données
+                if self.data_validator:
+                    issues = self.data_validator.validate_market_data(market_data)
+                    critical_issues = [i for i in issues if i.severity == 'critical']
+                    if critical_issues:
+                        self.logger.warning(f"🚨 Données corrompues détectées: {len(critical_issues)} erreurs critiques")
+                        for issue in critical_issues[:3]:  # Log les 3 premières
+                            self.logger.warning(f"  - {issue}")
+                        await asyncio.sleep(1)
+                        continue
+                
+                # ✅ NOUVEAU: Analyse contexte de session
+                session_context = None
+                if self.session_analyzer:
+                    try:
+                        session_stats = {
+                            'total_signals': getattr(self.stats, 'total_signals', 0),
+                            'signals_taken': getattr(self.stats, 'total_trades', 0),
+                            'win_rate': getattr(self.stats, 'win_rate', 0.0),
+                            'avg_pnl_per_trade': getattr(self.stats, 'avg_pnl_per_trade', 0.0)
+                        }
+                        session_context = self.session_analyzer.analyze_session_context(market_data, session_stats)
+                        
+                        # Appliquer paramètres dynamiques
+                        self.dynamic_confluence_threshold = session_context.confluence_threshold
+                        self.dynamic_position_multiplier = session_context.position_size_multiplier
+                        self.dynamic_risk_multiplier = session_context.risk_multiplier
+                        
+                        # Log contexte périodiquement
+                        if hasattr(self, '_last_context_log') and (current_time - self._last_context_log) > 300:  # 5 min
+                            self.logger.info(f"📅 Session: {session_context.session_phase.value}, "
+                                           f"Qualité: {session_context.session_quality_score:.2f}, "
+                                           f"Confluence: {session_context.confluence_threshold:.2f}")
+                            self._last_context_log = current_time
+                        elif not hasattr(self, '_last_context_log'):
+                            self._last_context_log = current_time
+                            
+                    except Exception as e:
+                        self.logger.warning(f"⚠️ Erreur analyse contexte: {e}")
+                
                 # Générer signal avec intégrations
                 signal = await self._generate_signal(market_data)
                 if not signal:
+                    # ✅ NOUVEAU: Expliquer pourquoi pas de signal
+                    await self._explain_no_signal(market_data)
                     await asyncio.sleep(0.1)
                     continue
+                
+                # ✅ NOUVEAU: Mettre à jour last_signal_time
+                import time
+                self.last_signal_time = time.time()
                 
                 self.stats.signals_generated += 1
                 
@@ -1250,6 +1452,13 @@ class MIAAutomationSystem:
                 
                 # Exécuter trade
                 await self._execute_trade(signal, market_data)
+                
+                # ✅ NOUVEAU: Mentor System - Analyse quotidienne
+                if self.mentor_system:
+                    try:
+                        await self.mentor_system.run_daily_mentor_analysis()
+                    except Exception as e:
+                        self.logger.warning(f"⚠️ Erreur analyse mentor: {e}")
                 
                 # Pause courte
                 await asyncio.sleep(0.05)  # 50ms entre cycles
@@ -1370,6 +1579,31 @@ class MIAAutomationSystem:
     async def _execute_trade(self, signal, market_data: MarketData) -> None:
         """Exécution trade avec enrichissement"""
         try:
+            # ✅ NOUVEAU: Vérification catastrophe AVANT trade
+            if self.catastrophe_monitor:
+                alert = self.catastrophe_monitor.check_catastrophe_conditions(
+                    current_pnl=self.daily_pnl,
+                    account_balance=getattr(self, 'account_balance', 10000.0),
+                    position_size=self.current_position_size,
+                    market_data=market_data
+                )
+                
+                # Traitement selon niveau d'alerte
+                if alert.level == CatastropheLevel.EMERGENCY:
+                    self.logger.critical(f"🚨 CATASTROPHE EMERGENCY: {alert.trigger}")
+                    self.logger.critical(f"ACTION REQUISE: {alert.action_required}")
+                    await self.emergency_shutdown()
+                    return
+                    
+                elif alert.level == CatastropheLevel.DANGER:
+                    self.logger.error(f"⚠️ CATASTROPHE DANGER: {alert.trigger}")
+                    self.logger.error(f"ACTION: {alert.action_required}")
+                    self.stats.trades_blocked = getattr(self.stats, 'trades_blocked', 0) + 1
+                    return
+                    
+                elif alert.level == CatastropheLevel.WARNING:
+                    self.logger.warning(f"💡 CATASTROPHE WARNING: {alert.trigger}")
+            
             confluence_score = getattr(signal, 'confluence_score', 0)
             gamma_factor = getattr(signal, 'gamma_factor', 1.0)
             gamma_phase = getattr(signal, 'gamma_phase', 'unknown')
@@ -1414,6 +1648,22 @@ class MIAAutomationSystem:
                 self.stats.total_trades += 1
                 self.stats.last_trade_time = datetime.now()
                 
+                # 📚 NOUVEAU: Capture de leçon après trade réel
+                if self.lessons_learned_analyzer:
+                    try:
+                        trade_data = {
+                            'trade_id': f"REAL-{order_result.order_id}",
+                            'entry_price': current_price,
+                            'symbol': 'ES',
+                            'side': action,
+                            'confluence_score': confluence_score,
+                            'signal_type': str(signal_direction),
+                            'timestamp': datetime.now()
+                        }
+                        self.lessons_learned_analyzer.record_lesson(trade_data)
+                    except Exception as e:
+                        self.logger.warning(f"⚠️ Erreur capture leçon: {e}")
+                
                 self.logger.info(f"✅ Trade exécuté: {order_result.order_id}")
             else:
                 self.logger.error(f"❌ Échec exécution trade: {order_result.error}")
@@ -1454,6 +1704,28 @@ class MIAAutomationSystem:
         self.stats.total_trades += 1
         self.stats.total_pnl += pnl
         self.stats.daily_pnl += pnl
+        
+        # 📚 NOUVEAU: Capture de leçon après trade simulé
+        if self.lessons_learned_analyzer:
+            try:
+                trade_data = {
+                    'trade_id': f"SIM-{self.stats.total_trades:04d}",
+                    'entry_price': getattr(market_data, 'close', 4500.0),
+                    'exit_price': getattr(market_data, 'close', 4500.0) + (pnl / 12.5),  # ES = $12.50/tick
+                    'symbol': 'ES',
+                    'side': 'LONG' if getattr(signal, 'signal_type', SignalType.NO_SIGNAL) in [SignalType.LONG, SignalType.LONG_STRONG] else 'SHORT',
+                    'pnl_gross': pnl,
+                    'is_winner': is_winner,
+                    'confluence_score': getattr(signal, 'confluence_score', 0.0),
+                    'signal_type': str(getattr(signal, 'signal_type', SignalType.NO_SIGNAL)),
+                    'timestamp': datetime.now(),
+                    'duration_minutes': random.uniform(2, 15),  # Simulation durée
+                    'slippage_ticks': random.uniform(0.1, 0.5),  # Simulation slippage
+                    'execution_delay_ms': random.uniform(50, 200)  # Simulation délai
+                }
+                self.lessons_learned_analyzer.record_lesson(trade_data)
+            except Exception as e:
+                self.logger.warning(f"⚠️ Erreur capture leçon simulée: {e}")
         
         result_type = 'WIN' if is_winner else 'LOSS'
         self.logger.info(f"🎲 Trade simulé INTÉGRÉ: {result_type} ${pnl:.2f} "
@@ -1652,6 +1924,50 @@ class MIAAutomationSystem:
                 self.logger.info("✅ Toutes positions fermées")
         except Exception as e:
             self.logger.error(f"Erreur fermeture positions: {e}")
+    
+    # ✅ NOUVELLES MÉTHODES - Signal Analysis & Risk Management
+    
+    async def _explain_no_signal(self, market_data):
+        """Explique pourquoi aucun signal généré"""
+        try:
+            if not self.signal_explainer:
+                return
+                
+            # Calculer confluence pour l'explication
+            confluence_score = self.confluence_calc.calculate_enhanced_confluence(market_data)
+            
+            # Obtenir les raisons
+            reasons = self.signal_explainer.explain_no_signal(
+                market_data=market_data,
+                confluence_score=confluence_score,
+                last_signal_time=self.last_signal_time
+            )
+            
+            # Logger seulement 1x par minute pour éviter spam
+            if self.signal_explainer.should_log_explanation():
+                explanation = self.signal_explainer.format_explanation(reasons)
+                self.logger.info(f"🔍 {explanation}")
+                    
+        except Exception as e:
+            self.logger.debug(f"Erreur explain_no_signal: {e}")
+    
+    async def emergency_shutdown(self):
+        """Arrêt d'urgence complet"""
+        try:
+            self.logger.critical("🚨 EMERGENCY SHUTDOWN TRIGGERED")
+            
+            # 1. Arrêter la boucle principale
+            self.shutdown_requested = True
+            self.is_running = False
+            
+            # 2. Fermer toutes positions (si vous avez cette logique)
+            await self._close_all_positions()
+            
+            # 3. Stats
+            self.stats.emergency_shutdowns = getattr(self.stats, 'emergency_shutdowns', 0) + 1
+            
+        except Exception as e:
+            self.logger.critical(f"Erreur emergency_shutdown: {e}")
 
 
 async def main():

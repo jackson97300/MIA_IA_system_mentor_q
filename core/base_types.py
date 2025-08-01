@@ -17,6 +17,8 @@ from datetime import datetime, timezone
 import pandas as pd
 import numpy as np
 import time
+import statistics
+from collections import deque
 from core.logger import get_logger
 
 # Configure logging
@@ -48,6 +50,11 @@ __all__ = [
     'PERFORMANCE_TARGETS',
     'get_session_phase',
     'validate_market_data',
+    'DataIntegrityIssue',
+    'DataIntegrityValidator',
+    'create_data_integrity_validator',
+    'validate_market_data_quick',
+    'get_data_quality_score',
     'calculate_performance_metrics'
 ]
 
@@ -639,6 +646,389 @@ def calculate_performance_metrics(trades: List[TradeResult]) -> Dict[str, float]
         'profit_factor': profit_factor,
         'avg_duration': np.mean([t.duration_minutes for t in completed_trades if t.duration_minutes])
     }
+
+# ======================================================================
+# ✅ DATA INTEGRITY VALIDATOR - PRIORITÉ HAUTE
+# Validation temps réel des données pour qualité ML et fiabilité
+# ======================================================================
+
+from typing import List, Union
+import math
+
+class DataIntegrityIssue:
+    """Représente un problème d'intégrité de données"""
+    def __init__(self, severity: str, field: str, issue: str, value: Any = None):
+        self.severity = severity  # 'critical', 'warning', 'info'
+        self.field = field
+        self.issue = issue
+        self.value = value
+        self.timestamp = datetime.now()
+    
+    def __str__(self):
+        return f"[{self.severity.upper()}] {self.field}: {self.issue} (value: {self.value})"
+
+class DataIntegrityValidator:
+    """
+    ✅ DATA INTEGRITY VALIDATOR
+    
+    Valide la qualité et cohérence des données en temps réel pour :
+    - Prévenir corruption des données ML
+    - Détecter anomalies de marché
+    - Assurer cohérence des calculs
+    - Alerter sur données suspectes
+    """
+    
+    def __init__(self):
+        self.logger = get_logger(f"{__name__}.DataIntegrityValidator")
+        
+        # Seuils de validation
+        self.validation_rules = {
+            'price_rules': {
+                'min_price': 1.0,              # Prix minimum accepté
+                'max_price': 10000.0,          # Prix maximum accepté
+                'max_price_change_pct': 0.05,  # Max 5% changement entre ticks
+                'max_spread_ticks': 10.0,      # Max 10 ticks de spread
+                'min_tick_size': 0.25          # Tick size ES minimum
+            },
+            'volume_rules': {
+                'min_volume': 0,               # Volume minimum
+                'max_volume': 1000000,         # Volume maximum raisonnable
+                'max_volume_spike': 10.0       # Factor max spike vs moyenne
+            },
+            'time_rules': {
+                'max_timestamp_age_seconds': 300,  # Max 5 min d'âge
+                'max_timestamp_future_seconds': 10  # Max 10s dans le futur
+            },
+            'orderflow_rules': {
+                'max_delta_ratio': 5.0,        # Max ratio bid/ask volumes
+                'max_imbalance_ratio': 0.95     # Max 95% d'imbalance
+            }
+        }
+        
+        # Historique pour validation contextuelle
+        self.price_history = deque(maxlen=100)
+        self.volume_history = deque(maxlen=100)
+        self.validation_stats = {
+            'total_validations': 0,
+            'critical_issues': 0,
+            'warnings': 0,
+            'last_validation': None
+        }
+        
+        self.logger.info("✅ Data Integrity Validator initialisé")
+    
+    def validate_market_data(self, data: MarketData) -> List[DataIntegrityIssue]:
+        """
+        Valide l'intégrité d'un MarketData
+        
+        Returns:
+            Liste des problèmes détectés
+        """
+        issues = []
+        self.validation_stats['total_validations'] += 1
+        self.validation_stats['last_validation'] = datetime.now()
+        
+        try:
+            # Validation prix
+            issues.extend(self._validate_prices(data))
+            
+            # Validation volume
+            issues.extend(self._validate_volume(data))
+            
+            # Validation timestamp
+            issues.extend(self._validate_timestamp(data))
+            
+            # Validation spread
+            issues.extend(self._validate_spread(data))
+            
+            # Validation cohérence OHLC
+            issues.extend(self._validate_ohlc_consistency(data))
+            
+            # Validation contextuelle (vs historique)
+            issues.extend(self._validate_contextual(data))
+            
+            # Mettre à jour historiques
+            self._update_history(data)
+            
+            # Compter issues par sévérité
+            for issue in issues:
+                if issue.severity == 'critical':
+                    self.validation_stats['critical_issues'] += 1
+                elif issue.severity == 'warning':
+                    self.validation_stats['warnings'] += 1
+            
+            if issues:
+                self.logger.debug(f"✅ MarketData validé: {len(issues)} problèmes détectés")
+            
+            return issues
+            
+        except Exception as e:
+            self.logger.error(f"Erreur validation MarketData: {e}")
+            return [DataIntegrityIssue('critical', 'validation', f'Erreur interne: {e}')]
+    
+    def _validate_prices(self, data: MarketData) -> List[DataIntegrityIssue]:
+        """Valide les prix"""
+        issues = []
+        rules = self.validation_rules['price_rules']
+        
+        # Vérifier présence prix requis
+        if not hasattr(data, 'close') or data.close is None:
+            issues.append(DataIntegrityIssue('critical', 'close', 'Prix de clôture manquant'))
+            return issues
+        
+        # Range de prix raisonnable
+        if data.close < rules['min_price']:
+            issues.append(DataIntegrityIssue('critical', 'close', 
+                'Prix trop bas', data.close))
+        elif data.close > rules['max_price']:
+            issues.append(DataIntegrityIssue('critical', 'close', 
+                'Prix trop élevé', data.close))
+        
+        # Validation OHLC si disponible
+        ohlc_fields = ['open', 'high', 'low', 'close']
+        prices = []
+        for field in ohlc_fields:
+            if hasattr(data, field) and getattr(data, field) is not None:
+                price = getattr(data, field)
+                prices.append(price)
+                
+                # Range check pour chaque prix
+                if price < rules['min_price'] or price > rules['max_price']:
+                    issues.append(DataIntegrityIssue('critical', field, 
+                        f'Prix hors limites: {price}'))
+        
+        # Tick size validation
+        if prices:
+            for price in prices:
+                remainder = price % rules['min_tick_size']
+                if abs(remainder) > 0.001 and abs(remainder - rules['min_tick_size']) > 0.001:
+                    issues.append(DataIntegrityIssue('warning', 'tick_size', 
+                        f'Prix non aligné tick size: {price}'))
+        
+        return issues
+    
+    def _validate_volume(self, data: MarketData) -> List[DataIntegrityIssue]:
+        """Valide le volume"""
+        issues = []
+        rules = self.validation_rules['volume_rules']
+        
+        if hasattr(data, 'volume') and data.volume is not None:
+            # Range validation
+            if data.volume < rules['min_volume']:
+                issues.append(DataIntegrityIssue('warning', 'volume', 
+                    'Volume négatif', data.volume))
+            elif data.volume > rules['max_volume']:
+                issues.append(DataIntegrityIssue('warning', 'volume', 
+                    'Volume suspicieusement élevé', data.volume))
+            
+            # Spike detection vs historique
+            if len(self.volume_history) > 10:
+                avg_volume = statistics.mean(list(self.volume_history)[-10:])
+                if avg_volume > 0 and data.volume > (avg_volume * rules['max_volume_spike']):
+                    issues.append(DataIntegrityIssue('warning', 'volume', 
+                        f'Spike volume détecté: {data.volume} vs moy {avg_volume:.0f}'))
+        
+        return issues
+    
+    def _validate_timestamp(self, data: MarketData) -> List[DataIntegrityIssue]:
+        """Valide le timestamp"""
+        issues = []
+        rules = self.validation_rules['time_rules']
+        
+        if hasattr(data, 'timestamp') and data.timestamp is not None:
+            now = datetime.now()
+            
+            # Convertir timestamp si nécessaire
+            if isinstance(data.timestamp, pd.Timestamp):
+                timestamp = data.timestamp.to_pydatetime()
+            else:
+                timestamp = data.timestamp
+            
+            # Remove timezone for comparison if present
+            if timestamp.tzinfo:
+                timestamp = timestamp.replace(tzinfo=None)
+            
+            # Âge des données
+            age_seconds = (now - timestamp).total_seconds()
+            if age_seconds > rules['max_timestamp_age_seconds']:
+                issues.append(DataIntegrityIssue('warning', 'timestamp', 
+                    f'Données anciennes: {age_seconds:.0f}s'))
+            
+            # Données du futur
+            if age_seconds < -rules['max_timestamp_future_seconds']:
+                issues.append(DataIntegrityIssue('critical', 'timestamp', 
+                    f'Timestamp futur: {-age_seconds:.0f}s'))
+        
+        return issues
+    
+    def _validate_spread(self, data: MarketData) -> List[DataIntegrityIssue]:
+        """Valide le spread bid/ask"""
+        issues = []
+        rules = self.validation_rules['price_rules']
+        
+        if (hasattr(data, 'bid') and hasattr(data, 'ask') and 
+            data.bid is not None and data.ask is not None):
+            
+            # Spread négatif
+            if data.ask <= data.bid:
+                issues.append(DataIntegrityIssue('critical', 'spread', 
+                    f'Spread négatif: bid={data.bid}, ask={data.ask}'))
+            else:
+                # Spread trop large
+                spread_ticks = (data.ask - data.bid) / rules['min_tick_size']
+                if spread_ticks > rules['max_spread_ticks']:
+                    issues.append(DataIntegrityIssue('warning', 'spread', 
+                        f'Spread large: {spread_ticks:.1f} ticks'))
+        
+        return issues
+    
+    def _validate_ohlc_consistency(self, data: MarketData) -> List[DataIntegrityIssue]:
+        """Valide la cohérence OHLC"""
+        issues = []
+        
+        # Vérifier si tous les OHLC sont disponibles
+        ohlc_fields = ['open', 'high', 'low', 'close']
+        ohlc_values = {}
+        
+        for field in ohlc_fields:
+            if hasattr(data, field) and getattr(data, field) is not None:
+                ohlc_values[field] = getattr(data, field)
+        
+        if len(ohlc_values) >= 3:  # Au moins 3 valeurs pour validation
+            values = list(ohlc_values.values())
+            
+            # High doit être >= tous les autres
+            if 'high' in ohlc_values:
+                high = ohlc_values['high']
+                for field, value in ohlc_values.items():
+                    if field != 'high' and value > high:
+                        issues.append(DataIntegrityIssue('critical', 'ohlc', 
+                            f'{field} ({value}) > high ({high})'))
+            
+            # Low doit être <= tous les autres
+            if 'low' in ohlc_values:
+                low = ohlc_values['low']
+                for field, value in ohlc_values.items():
+                    if field != 'low' and value < low:
+                        issues.append(DataIntegrityIssue('critical', 'ohlc', 
+                            f'{field} ({value}) < low ({low})'))
+        
+        return issues
+    
+    def _validate_contextual(self, data: MarketData) -> List[DataIntegrityIssue]:
+        """Validation contextuelle vs historique"""
+        issues = []
+        rules = self.validation_rules['price_rules']
+        
+        if len(self.price_history) > 0 and hasattr(data, 'close') and data.close:
+            last_price = self.price_history[-1]
+            
+            # Changement de prix excessif
+            if last_price > 0:
+                price_change_pct = abs((data.close - last_price) / last_price)
+                if price_change_pct > rules['max_price_change_pct']:
+                    issues.append(DataIntegrityIssue('warning', 'price_change', 
+                        f'Changement prix important: {price_change_pct:.2%}'))
+        
+        return issues
+    
+    def validate_order_flow_data(self, data: OrderFlowData) -> List[DataIntegrityIssue]:
+        """Valide l'intégrité d'OrderFlowData"""
+        issues = []
+        rules = self.validation_rules['orderflow_rules']
+        
+        try:
+            # Validation volumes bid/ask
+            if hasattr(data, 'bid_volume') and hasattr(data, 'ask_volume'):
+                if data.bid_volume < 0 or data.ask_volume < 0:
+                    issues.append(DataIntegrityIssue('critical', 'volumes', 
+                        'Volume négatif détecté'))
+                
+                # Ratio d'imbalance excessif
+                total_volume = data.bid_volume + data.ask_volume
+                if total_volume > 0:
+                    imbalance = abs(data.bid_volume - data.ask_volume) / total_volume
+                    if imbalance > rules['max_imbalance_ratio']:
+                        issues.append(DataIntegrityIssue('warning', 'imbalance', 
+                            f'Imbalance extrême: {imbalance:.1%}'))
+            
+            # Validation delta cumulatif
+            if hasattr(data, 'cumulative_delta') and data.cumulative_delta is not None:
+                if abs(data.cumulative_delta) > 10000:  # Seuil arbitraire
+                    issues.append(DataIntegrityIssue('warning', 'cumulative_delta', 
+                        f'Delta cumulatif élevé: {data.cumulative_delta}'))
+            
+            return issues
+            
+        except Exception as e:
+            self.logger.error(f"Erreur validation OrderFlow: {e}")
+            return [DataIntegrityIssue('critical', 'validation', f'Erreur: {e}')]
+    
+    def _update_history(self, data: MarketData):
+        """Met à jour l'historique pour validations contextuelles"""
+        if hasattr(data, 'close') and data.close is not None:
+            self.price_history.append(data.close)
+        
+        if hasattr(data, 'volume') and data.volume is not None:
+            self.volume_history.append(data.volume)
+    
+    def get_validation_report(self) -> Dict[str, Any]:
+        """Génère un rapport de validation"""
+        return {
+            'stats': self.validation_stats.copy(),
+            'rules': self.validation_rules,
+            'history_size': {
+                'prices': len(self.price_history),
+                'volumes': len(self.volume_history)
+            },
+            'quality_score': self._calculate_data_quality_score()
+        }
+    
+    def _calculate_data_quality_score(self) -> float:
+        """Calcule un score de qualité des données (0-1)"""
+        total = self.validation_stats['total_validations']
+        if total == 0:
+            return 1.0
+        
+        critical = self.validation_stats['critical_issues']
+        warnings = self.validation_stats['warnings']
+        
+        # Score basé sur le taux d'erreurs
+        error_rate = (critical * 2 + warnings) / total  # Critical compte double
+        quality_score = max(0.0, 1.0 - error_rate)
+        
+        return quality_score
+
+# Factory function
+def create_data_integrity_validator() -> DataIntegrityValidator:
+    """Factory pour créer le Data Integrity Validator"""
+    return DataIntegrityValidator()
+
+# Fonctions utilitaires pour validation rapide
+def validate_market_data_quick(data: MarketData) -> bool:
+    """Validation rapide - retourne True si données valides"""
+    validator = create_data_integrity_validator()
+    issues = validator.validate_market_data(data)
+    critical_issues = [i for i in issues if i.severity == 'critical']
+    return len(critical_issues) == 0
+
+def get_data_quality_score(data_list: List[MarketData]) -> float:
+    """Calcule score qualité pour une liste de données"""
+    validator = create_data_integrity_validator()
+    total_issues = 0
+    total_critical = 0
+    
+    for data in data_list:
+        issues = validator.validate_market_data(data)
+        total_issues += len(issues)
+        total_critical += len([i for i in issues if i.severity == 'critical'])
+    
+    if len(data_list) == 0:
+        return 1.0
+    
+    # Score basé sur les erreurs critiques principalement
+    error_rate = total_critical / len(data_list)
+    return max(0.0, 1.0 - error_rate)
 
 # === TESTING ===
 

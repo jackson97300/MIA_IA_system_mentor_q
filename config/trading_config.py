@@ -80,6 +80,20 @@ def get_risk_config() -> Dict[str, float]:
         'daily_target': config.daily_profit_target
     }
 
+def get_feature_config() -> Dict[str, Any]:
+    """Configuration des features avancées"""
+    config = get_trading_config()
+    return {
+        'enable_mtf_confluence': config.enable_mtf_confluence,
+        'enable_smart_money': config.enable_smart_money,
+        'enable_ml_ensemble': config.enable_ml_ensemble,
+        'enable_gamma_cycles': config.enable_gamma_cycles,
+        'ml_confidence_threshold': config.ml_confidence_threshold,
+        'min_confidence': config.min_confidence,
+        'lookback_periods': config.lookback_periods,
+        'feature_lookback': config.feature_lookback
+    }
+
 # Test auto-validation
 if __name__ == "__main__":
     config = TradingConfig()

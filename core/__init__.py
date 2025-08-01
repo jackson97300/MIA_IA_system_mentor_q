@@ -80,6 +80,49 @@ except ImportError as e:
     logger.warning(f"Could not import structure_data: {e}")
     structure_imports = False
 
+# ✅ NOUVEAUX MODULES - Signal Analysis & Risk Management
+try:
+    from .signal_explainer import SignalExplainer, create_signal_explainer, ExplanationReason
+    signal_explainer_imports = True
+    logger.debug("[OK] signal_explainer importé avec succès")
+except ImportError as e:
+    logger.warning(f"Could not import signal_explainer: {e}")
+    signal_explainer_imports = False
+
+try:
+    from .catastrophe_monitor import CatastropheMonitor, create_catastrophe_monitor, CatastropheLevel, CatastropheAlert
+    catastrophe_monitor_imports = True
+    logger.debug("[OK] catastrophe_monitor importé avec succès")
+except ImportError as e:
+    logger.warning(f"Could not import catastrophe_monitor: {e}")
+    catastrophe_monitor_imports = False
+
+try:
+    from .lessons_learned_analyzer import LessonsLearnedAnalyzer, create_lessons_learned_analyzer, TradeLesson
+    lessons_learned_imports = True
+    logger.debug("[OK] lessons_learned_analyzer importé avec succès")
+except ImportError as e:
+    logger.warning(f"Could not import lessons_learned_analyzer: {e}")
+    lessons_learned_imports = False
+
+try:
+    from .session_analyzer import SessionContextAnalyzer, create_session_analyzer, SessionContext, SessionPhase, MarketRegime, VolatilityRegime
+    session_analyzer_imports = True
+    logger.debug("[OK] session_analyzer importé avec succès")
+except ImportError as e:
+    logger.warning(f"Could not import session_analyzer: {e}")
+    session_analyzer_imports = False
+
+try:
+    from .mentor_system import MentorSystem, create_mentor_system, MentorAdvice, DailyPerformance, MentorMessageType, MentorAdviceLevel
+    mentor_system_imports = True
+    logger.debug("[OK] mentor_system importé avec succès")
+except ImportError as e:
+    logger.warning(f"Could not import mentor_system: {e}")
+    mentor_system_imports = False
+
+# Data Integrity Validator est dans base_types.py, importé avec base_types
+
 # Import logger functions pour export
 try:
     from .logger import get_logger, setup_logging, get_logger_config
@@ -131,6 +174,22 @@ if sierra_imports:
 if structure_imports:
     __all__.extend(['StructureData', 'create_structure_data'])
 
+# ✅ NOUVEAUX MODULES - Signal Analysis & Risk Management
+if signal_explainer_imports:
+    __all__.extend(['SignalExplainer', 'create_signal_explainer', 'ExplanationReason'])
+
+if catastrophe_monitor_imports:
+    __all__.extend(['CatastropheMonitor', 'create_catastrophe_monitor', 'CatastropheLevel', 'CatastropheAlert'])
+
+if lessons_learned_imports:
+    __all__.extend(['LessonsLearnedAnalyzer', 'create_lessons_learned_analyzer', 'TradeLesson'])
+
+if session_analyzer_imports:
+    __all__.extend(['SessionContextAnalyzer', 'create_session_analyzer', 'SessionContext', 'SessionPhase', 'MarketRegime', 'VolatilityRegime'])
+
+if mentor_system_imports:
+    __all__.extend(['MentorSystem', 'create_mentor_system', 'MentorAdvice', 'DailyPerformance', 'MentorMessageType', 'MentorAdviceLevel'])
+
 # Log summary of imports
 successful_imports = []
 failed_imports = []
@@ -156,6 +215,22 @@ else: failed_imports.append("sierra_connector")
 
 if structure_imports: successful_imports.append("structure_data")
 else: failed_imports.append("structure_data")
+
+# ✅ NOUVEAUX MODULES - Signal Analysis & Risk Management  
+if signal_explainer_imports: successful_imports.append("signal_explainer")
+else: failed_imports.append("signal_explainer")
+
+if catastrophe_monitor_imports: successful_imports.append("catastrophe_monitor")
+else: failed_imports.append("catastrophe_monitor")
+
+if lessons_learned_imports: successful_imports.append("lessons_learned_analyzer")
+else: failed_imports.append("lessons_learned_analyzer")
+
+if session_analyzer_imports: successful_imports.append("session_analyzer")
+else: failed_imports.append("session_analyzer")
+
+if mentor_system_imports: successful_imports.append("mentor_system")
+else: failed_imports.append("mentor_system")
 
 if logger_imports: successful_imports.append("logger")
 else: failed_imports.append("logger")
@@ -192,6 +267,13 @@ def get_module_status():
         'ibkr_available': ibkr_imports,
         'sierra_available': sierra_imports,
         'structure_available': structure_imports,
+        # ✅ NOUVEAUX MODULES - Signal Analysis & Risk Management
+        'signal_explainer_available': signal_explainer_imports,
+        'catastrophe_monitor_available': catastrophe_monitor_imports,
+        'lessons_learned_analyzer_available': lessons_learned_imports,
+        'session_analyzer_available': session_analyzer_imports,
+        'mentor_system_available': mentor_system_imports,
+        'data_integrity_validator_available': base_imports,  # Dans base_types.py
         'circular_imports_prevention': trading_types_imports  # ✅ NOUVEAU
     }
 

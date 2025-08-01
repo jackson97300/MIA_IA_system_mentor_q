@@ -257,7 +257,7 @@ class FeatureCalculator:
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """Initialisation calculateur"""
-        self.config = config or get_feature_config().__dict__
+        self.config = config or get_feature_config()
 
         # Paramètres calcul
         self.lookback_periods = self.config.get('lookback_periods', 20)
