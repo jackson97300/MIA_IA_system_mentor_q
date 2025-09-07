@@ -1,95 +1,96 @@
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
+*.pyo
+*.pyd
 *.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environment
+.venv/
 venv/
-env/
-ENV/
+.env
+*.egg-info/
+.dist/
+build/
+dist/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
 
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
-
-# Data files
-*.csv
-*.json
-*.pickle
-*.pkl
-*.h5
-
-# Logs
-*.log
-logs/
-data/logs/
-
-# Models
-*.model
-*.joblib
-data/models/
-
-# Config secrets
-config/secrets.py
-config/api_keys.py
+*.code-workspace
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Temporary
+# Logs & rapports locaux
+logs/
+*.log
+reports/
+
+# Données Sierra & unifié (NE PAS pousser de données marché)
+chart_*_*.jsonl
+chart_*.jsonl
+mia_unified_*.jsonl
+mia_deduplicated_*.jsonl
+MIA_feed*.jsonl
+test_volume_profile_*.jsonl
+
+# Backups/archives lourds
+*BAKUP*/
+*_backup*/
+backups/
+backup_*/
+ultra_aggressive_backup/
+critical_fix_backup/
+empty_lines_fix_backup/
+encoding_fix_backup/
+syntax_fix_backup/
+specific_fix_backup/
+
+# Ancien système (legacy)
+ancien_system/
+
+# Données de marché sensibles
+*.csv
+anomalies.csv
+mia_monitor_log.csv
+
+# Fichiers temporaires
 *.tmp
 *.temp
-# Fichiers/dossiers de backup ou temporaires
 *.bak
-*.backup
-*.bak_utf8
-*.bak_import
-*.bak_force
-*.bak_final
-*.backup_import
-*.corrupted_backup
-*.final_backup
-*.test_backup
-*.thorough_backup
-*.backup_complete
-*.backup_indent
-*.backup_all_attrs
-*.encoding_backup
-*.import_backup
-*.simple_backup
-*.syntax_backup
+*.swp
+*.swo
 
-backup_*/
-backup_structure/
-backup_before_logging_update/
-backup_syntax_fix/
-backups/
-backup_discord/
-backup_discord_multi/
+# Fichiers de compilation
+*.exe
+*.obj
+*.o
+*.dll
+*.so
 
-# Fichiers/dossiers de data volumineux ou sensibles
-*.db
-*.jsonl
+# Packages Python
 *.whl
-.env*
-notepad .gitignore
+*.tar.gz
+*.zip
+
+# Fichiers de configuration locaux
+config/local_*.py
+config/*_local.py
+*.local
+
+# Fichiers de test avec données réelles
+test_*_real*.py
+test_*_live*.py
+
+# Fichiers de monitoring
+mia_monitor.py
+mia_monitor_*.py
+
+# Fichiers de données temporaires
+*.json
+!config/*.json
+!requirements.json

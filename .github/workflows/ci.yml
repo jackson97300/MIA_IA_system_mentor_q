@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-and-validate:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+          # Install minimal deps for testing
+          python -m pip install asyncio-mqtt
+          
+      - name: Verify Python version
+        run: |
+          python -V
+          python -c "import sys; print(f'Python {sys.version}')"
+          
+      - name: Run MenthorQ integration tests
+        run: |
+          echo "🧪 Running MenthorQ integration tests..."
+          python test_menthorq_integration.py
+          
+      - name: Run Sierra collector tests
+        run: |
+          echo "🔧 Testing Sierra collector..."
+          python -m launchers.collector --once --max-events 10
+          
+      - name: Check for legacy components
+        run: |
+          echo "🔍 Checking for legacy components..."
+          python -c "
+          import os
+          legacy_files = []
+          for root, dirs, files in os.walk('.'):
+              for file in files:
+                  if any(legacy in file.lower() for legacy in ['ibkr', 'polygon', 'tws', 'gateway']):
+                      legacy_files.append(os.path.join(root, file))
+          
+          if legacy_files:
+              print('⚠️ Legacy files found:')
+              for f in legacy_files[:10]:  # Limit output
+                  print(f'  - {f}')
+              print(f'Total: {len(legacy_files)} files')
+          else:
+              print('✅ No legacy files found in root')
+          "
+          
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-logs
+          path: |
+            logs/**
+            **/*.log
+            test_results/**
+          if-no-files-found: ignore
+          
+      - name: Upload error logs
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: error-logs
+          path: |
+            **/*.log
+            **/error*
+            **/traceback*
+          if-no-files-found: ignore
