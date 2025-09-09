@@ -103,10 +103,15 @@ Sierra Chart (C++) → JSONL Files → SierraTail → UnifiedWriter → mia_unif
 
 ## 🛡️ Sécurité
 
-### Mode Lecture Seule
+### Mode Lecture Seule (Par défaut)
 - **Trading automatique** : Désactivé
 - **Exécution d'ordres** : Désactivée
 - **Modifications** : Désactivées
+
+### Mode Trading (Sierra Chart)
+- **Ports DTC** : ES (11099), NQ (11100)
+- **Trading via DTC** : Activé dans Sierra Chart
+- **Symboles** : ESU25_FUT_CME, NQU25_FUT_CME
 
 ### Gestion des risques
 - **Limites quotidiennes** : Perte max configurable

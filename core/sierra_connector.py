@@ -1,1090 +1,479 @@
 #!/usr/bin/env python3
 """
-MIA_IA_SYSTEM - Sierra Chart Connector
-[SIGNAL] CONNECTEUR SIERRA CHART DTC PROTOCOL
-Version: Production Ready
-Performance: <30ms latency, protocole DTC natif, backup IBKR
+🔧 SIERRA CONNECTOR - MIA_IA_SYSTEM
+===================================
 
-RESPONSABILITÉS CRITIQUES :
-1. 🔗 PROTOCOLE DTC - Data and Trading Communications protocol Sierra Chart
-2. [STATS] STREAMING DATA - Market data temps réel, historical data access
-3. 💹 ORDER ROUTING - Trade execution via Sierra Chart gateway
-4. [UP] BACKUP SYSTEM - Fallback principal si IBKR indisponible
-5. [SYNC] SOCKET MANAGEMENT - TCP persistent connections, reconnection auto
-6. 📋 DTC MESSAGE HANDLING - Encoding/decoding messages binaires
+Point d'entrée Sierra Chart pour MIA :
+1. Lecture du fichier unifié JSONL (Charts 3/4/8/10) — pas de DTC pour la donnée
+2. Trading via Sierra (DTC uniquement pour l'ordre), conforme à la config (ports ES/NQ)
 
-INTÉGRATION SYSTÈME :
-- Backup primaire pour IBKR dans market_data_feed.py
-- Compatible avec tous les types base_types.py
-- Interface identique à IBKRConnector pour seamless switching
-- Accès data feed Sierra Chart + order routing
-
-PROTOCOLE DTC :
-- Messages binaires TCP socket
-- Authentication et session management
-- Market data subscription/streaming
-- Order placement et status tracking
-- Heartbeat et keepalive automatique
-
-WORKFLOW PRINCIPAL :
-Connection → DTC Auth → Market Data Stream → Order Management → Monitoring
+FONCTIONNALITÉS:
+- File tailer robuste avec rotation et backfill
+- Interface DTC pour trading ES/NQ avec paper mode
+- Intégration market_snapshot.apply_event
+- Bus simple pour listeners
+- Gestion multi-instance par symbole
 """
 
-import socket
-import struct
-import threading
 import time
-import queue
 import json
+import socket
+import threading
+from pathlib import Path
+from typing import Dict, Any, List, Callable, Optional
+from dataclasses import dataclass
 from core.logger import get_logger
-from typing import Dict, List, Optional, Any, Callable, Union, Tuple
-from dataclasses import dataclass, field
-from enum import Enum, IntEnum
-from datetime import datetime, timezone, timedelta
-from collections import defaultdict, deque
-import pandas as pd
-import numpy as np
-
-# Local imports
-from .base_types import (
-    MarketData, OrderFlowData, TradingSignal, TradeResult,
-    ES_TICK_SIZE, ES_TICK_VALUE, SignalType, MarketRegime
-)
+from config.sierra_trading_ports import get_sierra_trading_config
+from core.market_snapshot import get_market_snapshot_manager
 
 logger = get_logger(__name__)
 
-# === SIERRA CHART DTC ENUMS ===
-
-
-class SierraConnectionStatus(Enum):
-    """Statuts de connexion Sierra Chart"""
-    DISCONNECTED = "disconnected"
-    CONNECTING = "connecting"
-    CONNECTED = "connected"
-    AUTHENTICATED = "authenticated"
-    READY = "ready"
-    ERROR = "error"
-    RECONNECTING = "reconnecting"
-
-
-class DTCMessageType(IntEnum):
-    """Types de messages DTC Protocol"""
-    # Connection
-    LOGON_REQUEST = 1
-    LOGON_RESPONSE = 2
-    HEARTBEAT = 3
-    LOGOFF = 5
-
-    # Market Data
-    MARKET_DATA_REQUEST = 101
-    MARKET_DATA_REJECT = 103
-    MARKET_DATA_SNAPSHOT = 104
-    MARKET_DATA_UPDATE_TRADE = 107
-    MARKET_DATA_UPDATE_BID_ASK = 108
-
-    # Historical Data
-    HISTORICAL_PRICE_DATA_REQUEST = 114
-    HISTORICAL_PRICE_DATA_RESPONSE_HEADER = 115
-    HISTORICAL_PRICE_DATA_RECORD_RESPONSE = 116
-
-    # Orders
-    SUBMIT_NEW_SINGLE_ORDER = 208
-    ORDER_UPDATE = 209
-    OPEN_ORDERS_REQUEST = 218
-    OPEN_ORDERS_RESPONSE = 219
-    CANCEL_ORDER = 203
-
-
-class SierraOrderStatus(Enum):
-    """Statuts d'ordre Sierra Chart"""
-    PENDING = "pending"
-    SUBMITTED = "submitted"
-    FILLED = "filled"
-    CANCELLED = "cancelled"
-    REJECTED = "rejected"
-    PARTIALLY_FILLED = "partially_filled"
-
-
-class SierraDataType(Enum):
-    """Types de données Sierra Chart"""
-    REAL_TIME = "real_time"
-    HISTORICAL = "historical"
-    DELAYED = "delayed"
-
-# === DTC PROTOCOL STRUCTURES ===
-
+# === STRUCTURES DE DONNÉES ===
 
 @dataclass
-class DTCMessage:
-    """Message DTC générique"""
-    message_type: int
-    message_size: int
-    data: bytes = b''
-
-
-@dataclass
-class SierraContract:
-    """Contrat Sierra Chart"""
+class DTCConnection:
+    """Connexion DTC pour trading"""
+    host: str
+    port: int
     symbol: str
-    exchange: str = "CME"
-    security_type: str = "Future"
-    currency: str = "USD"
-
-    def to_symbol_id(self) -> str:
-        """Conversion vers symbol ID Sierra Chart"""
-        return f"{self.symbol}.{self.exchange}"
-
+    socket: Optional[Any] = None  # socket.socket causait problème
+    is_connected: bool = False
+    paper_mode: bool = False
+    last_heartbeat: float = 0.0
 
 @dataclass
-class SierraTick:
-    """Tick Sierra Chart"""
-    timestamp: datetime
-    symbol: str
-    tick_type: str
-    price: Optional[float] = None
-    volume: Optional[int] = None
-    bid_price: Optional[float] = None
-    ask_price: Optional[float] = None
-    bid_size: Optional[int] = None
-    ask_size: Optional[int] = None
+class FileTailer:
+    """Tailer de fichier JSONL robuste"""
+    file_path: Path
+    on_event: Callable
+    file_handle: Optional[Any] = None
+    file_position: int = 0
+    buffer: str = ""
+    is_running: bool = False
+    backfill_mb: int = 20
+    thread: Optional[threading.Thread] = None
 
-
-@dataclass
-class SierraOrder:
-    """Ordre Sierra Chart"""
-    order_id: str
-    symbol: str
-    action: str  # BUY, SELL
-    quantity: int
-    order_type: str  # Market, Limit, Stop
-    price: Optional[float] = None
-    stop_price: Optional[float] = None
-    status: SierraOrderStatus = SierraOrderStatus.PENDING
-    filled_quantity: int = 0
-    avg_fill_price: float = 0.0
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-
-# === DTC MESSAGE BUILDERS ===
-
-
-class DTCMessageBuilder:
-    """Builder pour messages DTC"""
-
-    @staticmethod
-    def build_logon_request(username: str = "", password: str = "",
-                            client_name: str = "MIA_IA_SYSTEM") -> bytes:
-        """Construction message LOGON_REQUEST"""
-        try:
-            # Message structure pour logon
-            message_type = DTCMessageType.LOGON_REQUEST
-
-            # Build message data (simplified DTC format)
-            client_name_bytes = client_name.encode('utf-8')[:60].ljust(60, b'\x00')
-            username_bytes = username.encode('utf-8')[:32].ljust(32, b'\x00')
-            password_bytes = password.encode('utf-8')[:32].ljust(32, b'\x00')
-
-            # DTC Header + Data
-            message_data = struct.pack(
-                '<H',  # Protocol version
-                8
-            ) + client_name_bytes + username_bytes + password_bytes
-
-            message_size = len(message_data) + 4  # +4 for header
-
-            # DTC Message header
-            header = struct.pack('<HH', message_size, message_type)
-
-            return header + message_data
-
-        except Exception as e:
-            logger.error(f"Erreur build logon request: {e}")
-            return b''
-
-    @staticmethod
-    def build_market_data_request(symbol: str, request_action: int = 1) -> bytes:
-        """Construction MARKET_DATA_REQUEST"""
-        try:
-            message_type = DTCMessageType.MARKET_DATA_REQUEST
-
-            # Symbol encoding
-            symbol_bytes = symbol.encode('utf-8')[:64].ljust(64, b'\x00')
-
-            # Message data
-            message_data = struct.pack(
-                '<B',  # Request action (1=subscribe, 2=unsubscribe)
-                request_action
-            ) + symbol_bytes
-
-            message_size = len(message_data) + 4
-            header = struct.pack('<HH', message_size, message_type)
-
-            return header + message_data
-
-        except Exception as e:
-            logger.error(f"Erreur build market data request: {e}")
-            return b''
-
-    @staticmethod
-    def build_heartbeat() -> bytes:
-        """Construction HEARTBEAT"""
-        try:
-            message_type = DTCMessageType.HEARTBEAT
-            message_size = 4  # Header only
-
-            return struct.pack('<HH', message_size, message_type)
-
-        except Exception as e:
-            logger.error(f"Erreur build heartbeat: {e}")
-            return b''
-
-    @staticmethod
-    def build_submit_order(order: SierraOrder) -> bytes:
-        """Construction SUBMIT_NEW_SINGLE_ORDER"""
-        try:
-            message_type = DTCMessageType.SUBMIT_NEW_SINGLE_ORDER
-
-            # Symbol encoding
-            symbol_bytes = order.symbol.encode('utf-8')[:64].ljust(64, b'\x00')
-            order_id_bytes = order.order_id.encode('utf-8')[:32].ljust(32, b'\x00')
-
-            # Order type mapping
-            order_type_code = 1  # Market
-            if order.order_type.upper() == "LIMIT":
-                order_type_code = 2
-            elif order.order_type.upper() == "STOP":
-                order_type_code = 3
-
-            # Buy/Sell mapping
-            buy_sell = 1 if order.action.upper() == "BUY" else 2
-
-            # Message data
-            message_data = (
-                symbol_bytes +
-                order_id_bytes +
-                struct.pack('<BBL', buy_sell, order_type_code, order.quantity)
-            )
-
-            # Add price fields if needed
-            if order.price:
-                message_data += struct.pack('<d', order.price)
-            else:
-                message_data += struct.pack('<d', 0.0)
-
-            if order.stop_price:
-                message_data += struct.pack('<d', order.stop_price)
-            else:
-                message_data += struct.pack('<d', 0.0)
-
-            message_size = len(message_data) + 4
-            header = struct.pack('<HH', message_size, message_type)
-
-            return header + message_data
-
-        except Exception as e:
-            logger.error(f"Erreur build submit order: {e}")
-            return b''
-
-# === DTC MESSAGE PARSER ===
-
-
-class DTCMessageParser:
-    """Parser pour messages DTC reçus"""
-
-    @staticmethod
-    def parse_header(data: bytes) -> Optional[DTCMessage]:
-        """Parse header DTC"""
-        try:
-            if len(data) < 4:
-                return None
-
-            message_size, message_type = struct.unpack('<HH', data[:4])
-
-            return DTCMessage(
-                message_type=message_type,
-                message_size=message_size,
-                data=data[4:] if len(data) > 4 else b''
-            )
-
-        except Exception as e:
-            logger.error(f"Erreur parse header: {e}")
-            return None
-
-    @staticmethod
-    def parse_logon_response(data: bytes) -> Dict[str, Any]:
-        """Parse LOGON_RESPONSE"""
-        try:
-            if len(data) < 4:
-                return {'success': False, 'reason': 'Invalid response'}
-
-            result, protocol_version = struct.unpack('<HH', data[:4])
-
-            return {
-                'success': result == 1,
-                'protocol_version': protocol_version,
-                'reason': 'Login successful' if result == 1 else 'Login failed'
-            }
-
-        except Exception as e:
-            logger.error(f"Erreur parse logon response: {e}")
-            return {'success': False, 'reason': str(e)}
-
-    @staticmethod
-    def parse_market_data_update(data: bytes) -> Optional[SierraTick]:
-        """Parse MARKET_DATA_UPDATE"""
-        try:
-            if len(data) < 80:  # Minimum data size
-                return None
-
-            # Extract symbol (first 64 bytes)
-            symbol_bytes = data[:64]
-            symbol = symbol_bytes.rstrip(b'\x00').decode('utf-8')
-
-            # Extract price and volume (simplified)
-            offset = 64
-            if len(data) >= offset + 16:
-                price, volume = struct.unpack('<dL', data[offset:offset+12])
-
-                return SierraTick(
-                    timestamp=datetime.now(timezone.utc),
-                    symbol=symbol,
-                    tick_type="TRADE",
-                    price=price,
-                    volume=volume
-                )
-
-            return None
-
-        except Exception as e:
-            logger.error(f"Erreur parse market data update: {e}")
-            return None
-
-# === MAIN SIERRA CHART CONNECTOR ===
-
+# === GESTIONNAIRE PRINCIPAL ===
 
 class SierraConnector:
-    """
-    CONNECTEUR SIERRA CHART MASTER
-
-    Responsabilités :
-    1. Connexion DTC protocol Sierra Chart
-    2. Streaming market data temps réel
-    3. Order execution et management
-    4. Backup system pour IBKR
-    5. Socket management robuste
-    6. Interface standardisée système
-    """
-
-    def __init__(self, config: Optional[Dict] = None):
-        """Initialisation connecteur Sierra Chart"""
-        self.config = config or {}
-
-        # Configuration connexion
-        self.host = self.config.get('sierra_host', '127.0.0.1')
-        self.port = self.config.get('sierra_port', 11099)  # Default DTC port
-        self.username = self.config.get('sierra_username', '')
-        self.password = self.config.get('sierra_password', '')
-        self.client_name = self.config.get('sierra_client_name', 'MIA_IA_SYSTEM')
-
-        # État connexion
-        self.connection_status = SierraConnectionStatus.DISCONNECTED
-        self.is_connected = False
-        self.is_authenticated = False
-        self.socket: Optional[socket.socket] = None
-        self.last_connection_attempt = None
-        self.reconnection_attempts = 0
-        self.max_reconnection_attempts = 5
-
-        # Data management
-        self.contracts: Dict[str, SierraContract] = {}
-        self.tick_buffer: queue.Queue = queue.Queue(maxsize=10000)
-        self.market_data_cache: Dict[str, MarketData] = {}
-        self.orders: Dict[str, SierraOrder] = {}
-        self.next_order_id = 1
-
-        # Message handling
-        self.message_builder = DTCMessageBuilder()
-        self.message_parser = DTCMessageParser()
-        self.message_buffer = b''
-
-        # Subscribers
-        self.subscribers: Dict[str, Callable[[MarketData], None]] = {}
-        self.tick_subscribers: Dict[str, Callable[[SierraTick], None]] = {}
-
-        # Threading
-        self.receive_thread: Optional[threading.Thread] = None
-        self.processing_thread: Optional[threading.Thread] = None
-        self.heartbeat_thread: Optional[threading.Thread] = None
+    """Point d'entrée Sierra Chart pour MIA"""
+    
+    def __init__(self, config=None):
+        self.config = config or get_sierra_trading_config()
+        self.market_snapshot_manager = get_market_snapshot_manager()
+        self.dtc_connections: Dict[str, DTCConnection] = {}
+        self.file_tailer: Optional[FileTailer] = None
         self.is_running = False
-
-        # Statistics
-        self.stats = {
-            'ticks_received': 0,
-            'orders_placed': 0,
-            'orders_filled': 0,
-            'messages_sent': 0,
-            'messages_received': 0,
-            'connection_uptime': 0,
-            'last_heartbeat': datetime.now(timezone.utc)
-        }
-
-        logger.info(f"SierraConnector initialisé: {self.host}:{self.port}")
-
-    # === CONNECTION MANAGEMENT ===
-
-    def connect(self) -> bool:
-        """
-        CONNEXION SIERRA CHART
-
-        Établit connexion DTC et authentification
-        """
+        self.event_callbacks: List[Callable] = []
+        
+        # Métriques
+        self._last_metrics_time = time.time()
+        self._events_count = 0
+        
+        logger.info("🔧 SierraConnector initialisé")
+    
+    def start(self) -> None:
+        """Lance le tail du fichier unifié + DTC lazy"""
+        if self.is_running:
+            logger.warning("SierraConnector déjà démarré")
+            return
+        
         try:
-            logger.info(f"Connexion Sierra Chart: {self.host}:{self.port}")
-            self.connection_status = SierraConnectionStatus.CONNECTING
-            self.last_connection_attempt = datetime.now(timezone.utc)
-
-            # Création socket TCP
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.settimeout(30)  # 30s timeout
-
-            # Connexion
-            self.socket.connect((self.host, self.port))
-            self.connection_status = SierraConnectionStatus.CONNECTED
-            self.is_connected = True
-
-            logger.info("[OK] Socket Sierra Chart connecté")
-
-            # Démarrage thread réception
-            self._start_receive_thread()
-
-            # Authentification DTC
-            if self._authenticate():
-                self.connection_status = SierraConnectionStatus.AUTHENTICATED
-                self.is_authenticated = True
-
-                # Démarrage threads processing
-                self._start_processing_threads()
-
-                # Initialisation contrats
-                self._initialize_contracts()
-
-                self.connection_status = SierraConnectionStatus.READY
-                self.reconnection_attempts = 0
-
-                logger.info("[OK] Connexion Sierra Chart authentifiée et prête")
-                return True
-
-            else:
-                logger.error("[ERROR] Échec authentification Sierra Chart")
-                self.disconnect()
-                return False
-
-        except Exception as e:
-            logger.error(f"Erreur connexion Sierra Chart: {e}")
-            self.connection_status = SierraConnectionStatus.ERROR
-            self.disconnect()
-            return False
-
-    def _authenticate(self) -> bool:
-        """Authentification DTC"""
-        try:
-            # Envoi LOGON_REQUEST
-            logon_message = self.message_builder.build_logon_request(
-                username=self.username,
-                password=self.password,
-                client_name=self.client_name
-            )
-
-            if not self._send_message(logon_message):
-                return False
-
-            # Attendre LOGON_RESPONSE
-            start_time = time.time()
-            timeout = 10  # 10s timeout
-
-            while time.time() - start_time < timeout:
-                if self.is_authenticated:
-                    return True
-                time.sleep(0.1)
-
-            logger.error("Timeout authentification Sierra Chart")
-            return False
-
-        except Exception as e:
-            logger.error(f"Erreur authentification: {e}")
-            return False
-
-    def disconnect(self):
-        """Déconnexion propre"""
-        try:
-            logger.info("Déconnexion Sierra Chart...")
-
-            self.is_running = False
-            self.is_connected = False
-            self.is_authenticated = False
-            self.connection_status = SierraConnectionStatus.DISCONNECTED
-
-            # Arrêt threads
-            self._stop_threads()
-
-            # Fermeture socket
-            if self.socket:
-                try:
-                    # Envoi LOGOFF si possible
-                    logoff_message = struct.pack('<HH', 4, DTCMessageType.LOGOFF)
-                    self.socket.send(logoff_message)
-                except Exception:
-                    pass
-
-                self.socket.close()
-                self.socket = None
-
-            logger.info("[OK] Déconnexion Sierra Chart terminée")
-
-        except Exception as e:
-            logger.error(f"Erreur déconnexion: {e}")
-
-    def _start_receive_thread(self):
-        """Démarrage thread réception messages"""
-        try:
+            # 1. Démarrer le file tailer
+            self._start_file_tailer()
+            
+            # 2. Établir connexions DTC (lazy)
+            self._initialize_dtc_connections()
+            
             self.is_running = True
-
-            self.receive_thread = threading.Thread(
-                target=self._receive_loop,
-                daemon=True,
-                name="SierraReceive"
-            )
-            self.receive_thread.start()
-
+            logger.info("✅ SierraConnector démarré avec succès")
+            
         except Exception as e:
-            logger.error(f"Erreur start receive thread: {e}")
-
-    def _start_processing_threads(self):
-        """Démarrage threads processing"""
+            logger.error(f"Erreur démarrage SierraConnector: {e}")
+            raise
+    
+    def stop(self) -> None:
+        """Arrête le connector"""
+        if not self.is_running:
+            return
+        
         try:
-            # Thread processing ticks
-            self.processing_thread = threading.Thread(
-                target=self._processing_loop,
-                daemon=True,
-                name="SierraProcessing"
-            )
-            self.processing_thread.start()
-
-            # Thread heartbeat
-            self.heartbeat_thread = threading.Thread(
-                target=self._heartbeat_loop,
-                daemon=True,
-                name="SierraHeartbeat"
-            )
-            self.heartbeat_thread.start()
-
-            logger.info("[OK] Threads Sierra Chart démarrés")
-
+            # 1. Arrêter file tailer
+            if self.file_tailer:
+                self.file_tailer.is_running = False
+                if self.file_tailer.thread:
+                    self.file_tailer.thread.join(timeout=5)
+                if self.file_tailer.file_handle:
+                    self.file_tailer.file_handle.close()
+            
+            # 2. Fermer connexions DTC
+            for connection in self.dtc_connections.values():
+                if connection.socket:
+                    connection.socket.close()
+            
+            self.is_running = False
+            logger.info("🛑 SierraConnector arrêté")
+            
         except Exception as e:
-            logger.error(f"Erreur start processing threads: {e}")
-
-    def _stop_threads(self):
-        """Arrêt tous threads"""
+            logger.error(f"Erreur arrêt SierraConnector: {e}")
+    
+    def add_event_callback(self, callback: Callable) -> None:
+        """Ajoute un callback pour les événements"""
+        self.event_callbacks.append(callback)
+        logger.debug(f"Callback ajouté: {callback.__name__}")
+    
+    def remove_event_callback(self, callback: Callable) -> None:
+        """Retire un callback"""
+        if callback in self.event_callbacks:
+            self.event_callbacks.remove(callback)
+            logger.debug(f"Callback retiré: {callback.__name__}")
+    
+    # === API DE TRADING ===
+    
+    def place_order(self, symbol: str, side: str, qty: int, order_type: str,
+                   limit_price: float = None, stop_price: float = None,
+                   time_in_force: str = 'DAY', bracket: Dict = None) -> str:
+        """API unifiée pour placer des ordres"""
+        
         try:
-            # Wait for threads to finish
-            threads = [self.receive_thread, self.processing_thread, self.heartbeat_thread]
-
-            for thread in threads:
-                if thread and thread.is_alive():
-                    thread.join(timeout=5)
-
+            # 1. Valider symbol & sizing (via session_manager)
+            # TODO: Intégrer avec session_manager pour validation
+            
+            # 2. Obtenir port DTC approprié
+            port = self.config.get_port_by_symbol(symbol)
+            
+            # 3. Créer connexion si nécessaire
+            connection = self._get_or_create_dtc_connection(symbol, port)
+            
+            # 4. Placer ordre
+            order_id = connection.place_order(
+                side, qty, order_type, limit_price, stop_price, time_in_force, bracket
+            )
+            
+            return order_id
+            
         except Exception as e:
-            logger.error(f"Erreur stop threads: {e}")
-
-    # === MESSAGE HANDLING ===
-
-    def _send_message(self, message: bytes) -> bool:
-        """Envoi message DTC"""
+            logger.error(f"Erreur placement ordre {symbol}: {e}")
+            raise
+    
+    def cancel(self, order_id: str) -> bool:
+        """Annule un ordre"""
+        # TODO: Implémenter annulation DTC
+        logger.warning(f"Annulation ordre {order_id} - non implémentée")
+        return False
+    
+    def flatten_all(self, symbol: str) -> int:
+        """Ferme toutes les positions d'un symbole"""
+        # TODO: Implémenter flatten DTC
+        logger.warning(f"Flatten {symbol} - non implémenté")
+        return 0
+    
+    def get_open_orders(self, symbol: str) -> List[Dict]:
+        """Retourne les ordres ouverts"""
+        # TODO: Implémenter requête ordres DTC
+        logger.warning(f"Requête ordres ouverts {symbol} - non implémentée")
+        return []
+    
+    # === MÉTHODES PRIVÉES ===
+    
+    def _start_file_tailer(self) -> None:
+        """Démarre le file tailer"""
+        # Trouver le fichier unifié le plus récent
+        unified_file = self._find_latest_unified_file()
+        if not unified_file:
+            raise FileNotFoundError("Aucun fichier mia_unified_*.jsonl trouvé")
+        
+        logger.info(f"Sierra tailing '{unified_file}' from {self.file_tailer.backfill_mb}MB backfill")
+        
+        # Créer le tailer
+        self.file_tailer = FileTailer(
+            file_path=unified_file,
+            on_event=self._on_unified_event,
+            backfill_mb=20
+        )
+        
+        # Démarrer le thread
+        self.file_tailer.thread = threading.Thread(target=self._file_tailer_worker, daemon=True)
+        self.file_tailer.thread.start()
+    
+    def _find_latest_unified_file(self) -> Optional[Path]:
+        """Trouve le fichier unifié le plus récent"""
+        base_dir = Path("D:/MIA_IA_system")
+        pattern = "mia_unified_*.jsonl"
+        
+        files = list(base_dir.glob(pattern))
+        if not files:
+            return None
+        
+        # Trier par date de modification
+        latest_file = max(files, key=lambda f: f.stat().st_mtime)
+        return latest_file
+    
+    def _file_tailer_worker(self) -> None:
+        """Worker thread pour le file tailer"""
         try:
-            if not self.socket or not self.is_connected:
-                return False
+            self.file_tailer.is_running = True
+            
+            # Ouvrir fichier et se positionner
+            self.file_tailer.file_handle = open(self.file_tailer.file_path, 'r', encoding='utf-8')
+            self._seek_last_bytes(self.file_tailer.backfill_mb)
+            
+            # Boucle de lecture
+            while self.file_tailer.is_running:
+                try:
+                    # Lire chunk de données
+                    chunk = self.file_tailer.file_handle.read(8192)
+                    if not chunk:
+                        time.sleep(0.1)
+                        continue
+                    
+                    # Ajouter au buffer
+                    self.file_tailer.buffer += chunk
+                    
+                    # Traiter lignes complètes
+                    while "\n" in self.file_tailer.buffer:
+                        line, self.file_tailer.buffer = self.file_tailer.buffer.split("\n", 1)
+                        if line.strip():
+                            self._process_line(line.strip())
+                
+                except Exception as e:
+                    logger.error(f"Erreur lecture fichier: {e}")
+                    self._handle_file_rotate()
+                    time.sleep(1)
+        
+        except Exception as e:
+            logger.error(f"Erreur file tailer worker: {e}")
+        finally:
+            if self.file_tailer.file_handle:
+                self.file_tailer.file_handle.close()
+    
+    def _seek_last_bytes(self, mb: int) -> None:
+        """Se positionne à N MB de la fin"""
+        file_size = self.file_tailer.file_path.stat().st_size
+        target_size = mb * 1024 * 1024
+        self.file_tailer.file_position = max(0, file_size - target_size)
+        
+        self.file_tailer.file_handle.seek(self.file_tailer.file_position)
+        logger.info(f"Backfill: {mb}MB depuis la fin (pos: {self.file_tailer.file_position})")
+    
+    def _process_line(self, line: str) -> None:
+        """Traite une ligne JSONL"""
+        try:
+            event = json.loads(line)
+            self.file_tailer.on_event(event)
+            self.file_tailer.file_position += len(line) + 1
+        except json.JSONDecodeError as e:
+            logger.warning(f"JSON mal formé ignoré: {line[:100]}...")
+        except Exception as e:
+            logger.error(f"Erreur traitement ligne: {e}")
+    
+    def _handle_file_rotate(self) -> None:
+        """Gère la rotation du fichier"""
+        logger.warning("Rotation fichier détectée - reprise à 0")
+        self.file_tailer.file_position = 0
+        self.file_tailer.file_handle.close()
+        time.sleep(1)
+        self.file_tailer.file_handle = open(self.file_tailer.file_path, 'r', encoding='utf-8')
+        self.file_tailer.file_handle.seek(0)
+    
+    def _on_unified_event(self, event: Dict[str, Any]) -> None:
+        """Callback pour événements du fichier unifié"""
+        try:
+            # 1. Appliquer au market snapshot
+            self.market_snapshot_manager.apply_event(event)
+            
+            # 2. Notifier autres listeners
+            for callback in self.event_callbacks:
+                try:
+                    callback(event)
+                except Exception as e:
+                    logger.error(f"Erreur callback: {e}")
+            
+            # 3. Métriques de débit
+            self._update_metrics(event)
+            
+        except Exception as e:
+            logger.error(f"Erreur traitement événement: {e}")
+    
+    def _update_metrics(self, event: Dict[str, Any]) -> None:
+        """Met à jour les métriques de débit"""
+        now = time.time()
+        self._events_count += 1
+        
+        if now - self._last_metrics_time >= 60:  # Toutes les minutes
+            events_per_min = self._events_count / ((now - self._last_metrics_time) / 60)
+            logger.debug(f"events={int(events_per_min)}/min | last_line_ts={event.get('ts', 'N/A')}")
+            
+            self._last_metrics_time = now
+            self._events_count = 0
+    
+    def _initialize_dtc_connections(self) -> None:
+        """Initialise les connexions DTC (lazy)"""
+        logger.info("DTC trading channel ready (ES@11099, NQ@11100)")
+        
+        # Les connexions seront créées à la demande
+        # via _get_or_create_dtc_connection()
+    
+    def _get_or_create_dtc_connection(self, symbol: str, port: int) -> DTCConnection:
+        """Obtient ou crée une connexion DTC"""
+        if symbol not in self.dtc_connections:
+            connection = DTCConnection(
+                host=self.config.host,
+                port=port,
+                symbol=symbol
+            )
+            self.dtc_connections[symbol] = connection
+        
+        connection = self.dtc_connections[symbol]
+        
+        # Connecter si pas encore fait
+        if not connection.is_connected and not connection.paper_mode:
+            connection.connect()
+        
+        return connection
 
-            self.socket.send(message)
-            self.stats['messages_sent'] += 1
+# === CONNEXION DTC ===
 
+class DTCConnection:
+    """Connexion DTC pour trading"""
+    
+    def __init__(self, host: str, port: int, symbol: str):
+        self.host = host
+        self.port = port
+        self.symbol = symbol
+        self.socket = None
+        self.is_connected = False
+        self.paper_mode = False
+        self.last_heartbeat = time.time()
+    
+    def connect(self) -> bool:
+        """Établit la connexion DTC"""
+        try:
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.settimeout(5.0)  # Timeout 5s
+            self.socket.connect((self.host, self.port))
+            self.is_connected = True
+            self.last_heartbeat = time.time()
+            logger.info(f"DTC connecté {self.symbol} @ {self.host}:{self.port}")
             return True
-
         except Exception as e:
-            logger.error(f"Erreur send message: {e}")
+            logger.warning(f"DTC non disponible {self.symbol}: {e} → PAPER MODE")
+            self.paper_mode = True
             return False
-
-    def _receive_loop(self):
-        """Loop réception messages DTC"""
-        logger.info("[SIGNAL] Sierra receive loop démarré")
-
-        while self.is_running and self.socket:
-            try:
-                # Réception données
-                data = self.socket.recv(4096)
-
-                if not data:
-                    logger.warning("Connexion Sierra Chart fermée par serveur")
-                    break
-
-                # Ajout au buffer
-                self.message_buffer += data
-
-                # Traitement messages complets
-                self._process_message_buffer()
-
-            except socket.timeout:
-                continue
-            except Exception as e:
-                logger.error(f"Erreur receive loop: {e}")
-                break
-
-        logger.info("[SIGNAL] Sierra receive loop terminé")
-
-    def _process_message_buffer(self):
-        """Traitement buffer messages"""
+    
+    def place_order(self, side: str, qty: int, order_type: str, 
+                   limit_price: float = None, stop_price: float = None,
+                   time_in_force: str = 'DAY', bracket: Dict = None) -> str:
+        """Place un ordre via DTC"""
+        
+        if self.paper_mode:
+            return self._place_paper_order(side, qty, order_type, limit_price, stop_price, time_in_force, bracket)
+        
+        # Construire message DTC
+        order_msg = self._build_dtc_order_message(side, qty, order_type, limit_price, stop_price, time_in_force, bracket)
+        
         try:
-            while len(self.message_buffer) >= 4:
-                # Parse header
-                message_size, message_type = struct.unpack('<HH', self.message_buffer[:4])
-
-                # Vérifier message complet
-                if len(self.message_buffer) < message_size:
-                    break
-
-                # Extraire message
-                message_data = self.message_buffer[4:message_size]
-                self.message_buffer = self.message_buffer[message_size:]
-
-                # Traitement message
-                self._handle_message(message_type, message_data)
-                self.stats['messages_received'] += 1
-
+            # Envoyer via socket
+            self.socket.send(order_msg.encode())
+            
+            # Log clair
+            price_str = f"L{limit_price}" if limit_price else f"S{stop_price}" if stop_price else "MKT"
+            logger.info(f"ORDER {self.symbol} {side} {qty} @{price_str} tif={time_in_force} via {self.port}")
+            
+            if bracket:
+                logger.info(f"BRACKET: SL={bracket.get('stop_loss')} TP={bracket.get('take_profit')}")
+            
+            return f"ORD_{int(time.time())}"
+            
         except Exception as e:
-            logger.error(f"Erreur process message buffer: {e}")
-
-    def _handle_message(self, message_type: int, data: bytes):
-        """Traitement message DTC individuel"""
-        try:
-            if message_type == DTCMessageType.LOGON_RESPONSE:
-                response = self.message_parser.parse_logon_response(data)
-                if response['success']:
-                    self.is_authenticated = True
-                    logger.info("[OK] Authentification Sierra Chart réussie")
-                else:
-                    logger.error(f"[ERROR] Authentification échouée: {response['reason']}")
-
-            elif message_type == DTCMessageType.HEARTBEAT:
-                # Respond to heartbeat
-                heartbeat_response = self.message_builder.build_heartbeat()
-                self._send_message(heartbeat_response)
-                self.stats['last_heartbeat'] = datetime.now(timezone.utc)
-
-            elif message_type in [DTCMessageType.MARKET_DATA_UPDATE_TRADE,
-                                  DTCMessageType.MARKET_DATA_UPDATE_BID_ASK]:
-                # Traitement données marché
-                tick = self.message_parser.parse_market_data_update(data)
-                if tick and not self.tick_buffer.full():
-                    self.tick_buffer.put_nowait(tick)
-                    self.stats['ticks_received'] += 1
-
-            elif message_type == DTCMessageType.ORDER_UPDATE:
-                # Traitement mise à jour ordre
-                self._handle_order_update(data)
-
-            else:
-                logger.debug(f"Message DTC non traité: {message_type}")
-
-        except Exception as e:
-            logger.error(f"Erreur handle message {message_type}: {e}")
-
-    def _handle_order_update(self, data: bytes):
-        """Traitement mise à jour ordre"""
-        try:
-            # Parsing simplifié order update
-            if len(data) >= 100:  # Minimum size
-                order_id_bytes = data[:32]
-                order_id = order_id_bytes.rstrip(b'\x00').decode('utf-8')
-
-                if order_id in self.orders:
-                    # Update order status (simplified)
-                    # Real implementation would parse full order status
-                    logger.info(f"Order update reçu: {order_id}")
-
-        except Exception as e:
-            logger.error(f"Erreur handle order update: {e}")
-
-    # === CONTRACT MANAGEMENT ===
-
-    def _initialize_contracts(self):
-        """Initialisation contrats Sierra Chart"""
-        try:
-            symbols = ['ES', 'NQ']
-
-            for symbol in symbols:
-                contract = SierraContract(
-                    symbol=symbol,
-                    exchange="CME",
-                    security_type="Future"
-                )
-
-                self.contracts[symbol] = contract
-                logger.info(f"Contrat Sierra Chart initialisé: {symbol}")
-
-            logger.info(f"[OK] {len(self.contracts)} contrats Sierra Chart initialisés")
-
-        except Exception as e:
-            logger.error(f"Erreur initialisation contrats: {e}")
-
-    # === MARKET DATA STREAMING ===
-
-    def subscribe_market_data(self, symbol: str, subscriber_name: str,
-                              callback: Callable[[MarketData], None]) -> bool:
-        """
-        SUBSCRIPTION MARKET DATA
-
-        Abonnement données marché Sierra Chart
-        """
-        try:
-            if not self.is_authenticated:
-                logger.error("Pas authentifié pour subscription market data")
-                return False
-
-            if symbol not in self.contracts:
-                logger.error(f"Contrat non trouvé: {symbol}")
-                return False
-
-            # Enregistrer callback
-            self.subscribers[f"{symbol}_{subscriber_name}"] = callback
-
-            # Envoi demande market data
-            contract = self.contracts[symbol]
-            symbol_id = contract.to_symbol_id()
-
-            market_data_request = self.message_builder.build_market_data_request(symbol_id, 1)
-
-            if self._send_message(market_data_request):
-                logger.info(f"[OK] Market data subscription Sierra Chart: {symbol}")
-                return True
-            else:
-                logger.error(f"[ERROR] Échec subscription market data: {symbol}")
-                return False
-
-        except Exception as e:
-            logger.error(f"Erreur subscribe market data {symbol}: {e}")
-            return False
-
-    def unsubscribe_market_data(self, symbol: str, subscriber_name: str) -> bool:
-        """Désabonnement market data"""
-        try:
-            key = f"{symbol}_{subscriber_name}"
-            if key in self.subscribers:
-                del self.subscribers[key]
-
-                # Envoi demande unsubscribe
-                if symbol in self.contracts:
-                    contract = self.contracts[symbol]
-                    symbol_id = contract.to_symbol_id()
-
-                    unsubscribe_request = self.message_builder.build_market_data_request(
-                        symbol_id, 2)
-                    self._send_message(unsubscribe_request)
-
-                logger.info(f"[OK] Unsubscribed Sierra Chart: {symbol}")
-                return True
-
-            return False
-
-        except Exception as e:
-            logger.error(f"Erreur unsubscribe {symbol}: {e}")
-            return False
-
-    # === ORDER MANAGEMENT ===
-
-    def place_order(self, symbol: str, action: str, quantity: int,
-                    order_type: str = "MARKET", price: Optional[float] = None,
-                    stop_price: Optional[float] = None) -> Optional[str]:
-        """
-        PLACEMENT ORDRE SIERRA CHART
-
-        Place ordre via DTC protocol
-        """
-        try:
-            if not self.is_authenticated:
-                logger.error("Pas authentifié pour placer ordre")
-                return None
-
-            if symbol not in self.contracts:
-                logger.error(f"Contrat non trouvé: {symbol}")
-                return None
-
-            # Validation paramètres
-            if action not in ["BUY", "SELL"]:
-                logger.error(f"Action invalide: {action}")
-                return None
-
-            if quantity <= 0:
-                logger.error(f"Quantité invalide: {quantity}")
-                return None
-
-            # Génération ID ordre
-            order_id = f"SC_{self.next_order_id:06d}"
-            self.next_order_id += 1
-
-            # Création ordre
-            sierra_order = SierraOrder(
-                order_id=order_id,
-                symbol=symbol,
-                action=action,
-                quantity=quantity,
-                order_type=order_type,
-                price=price,
-                stop_price=stop_price,
-                status=SierraOrderStatus.PENDING
-            )
-
-            # Construction message DTC
-            submit_message = self.message_builder.build_submit_order(sierra_order)
-
-            if self._send_message(submit_message):
-                self.orders[order_id] = sierra_order
-                self.stats['orders_placed'] += 1
-
-                logger.info(f"[OK] Ordre Sierra Chart placé: {order_id} {action} {quantity} {symbol}")
-                return order_id
-            else:
-                logger.error(f"[ERROR] Échec placement ordre Sierra Chart: {symbol}")
-                return None
-
-        except Exception as e:
-            logger.error(f"Erreur place order: {e}")
-            return None
-
-    def cancel_order(self, order_id: str) -> bool:
-        """Annulation ordre"""
-        try:
-            if order_id not in self.orders:
-                logger.error(f"Ordre non trouvé: {order_id}")
-                return False
-
-            # Construction message CANCEL_ORDER
-            message_type = DTCMessageType.CANCEL_ORDER
-            order_id_bytes = order_id.encode('utf-8')[:32].ljust(32, b'\x00')
-
-            message_data = order_id_bytes
-            message_size = len(message_data) + 4
-            header = struct.pack('<HH', message_size, message_type)
-
-            cancel_message = header + message_data
-
-            if self._send_message(cancel_message):
-                # Update status
-                self.orders[order_id].status = SierraOrderStatus.CANCELLED
-                logger.info(f"[OK] Ordre Sierra Chart annulé: {order_id}")
-                return True
-            else:
-                logger.error(f"[ERROR] Échec annulation ordre: {order_id}")
-                return False
-
-        except Exception as e:
-            logger.error(f"Erreur cancel order {order_id}: {e}")
-            return False
-
-    # === PROCESSING LOOPS ===
-
-    def _processing_loop(self):
-        """Loop traitement ticks"""
-        logger.info("[STATS] Sierra processing loop démarré")
-
-        while self.is_running:
-            try:
-                # Traitement ticks
-                tick = self.tick_buffer.get(timeout=1.0)
-                self._process_tick(tick)
-
-            except queue.Empty:
-                continue
-            except Exception as e:
-                logger.error(f"Erreur processing loop: {e}")
-                time.sleep(0.1)
-
-        logger.info("[STATS] Sierra processing loop terminé")
-
-    def _process_tick(self, tick: SierraTick):
-        """Traitement tick individuel"""
-        try:
-            # Conversion vers MarketData
-            market_data = self._convert_tick_to_market_data(tick)
-
-            if market_data:
-                # Cache update
-                self.market_data_cache[tick.symbol] = market_data
-
-                # Distribution subscribers
-                for key, callback in self.subscribers.items():
-                    if tick.symbol in key:
-                        try:
-                            callback(market_data)
-                        except Exception as e:
-                            logger.error(f"Erreur callback subscriber {key}: {e}")
-
-        except Exception as e:
-            logger.error(f"Erreur process tick: {e}")
-
-    def _convert_tick_to_market_data(self, tick: SierraTick) -> Optional[MarketData]:
-        """Conversion tick vers MarketData standardisé"""
-        try:
-            if not tick.price:
-                return None
-
-            # Conversion vers format système
-            market_data = MarketData(
-                timestamp=pd.Timestamp(tick.timestamp),
-                symbol=tick.symbol,
-                open=tick.price,
-                high=tick.price,
-                low=tick.price,
-                close=tick.price,
-                volume=tick.volume or 0,
-                bid=tick.bid_price or (tick.price - ES_TICK_SIZE),
-                ask=tick.ask_price or (tick.price + ES_TICK_SIZE)
-            )
-
-            return market_data
-
-        except Exception as e:
-            logger.error(f"Erreur conversion tick: {e}")
-            return None
-
-    def _heartbeat_loop(self):
-        """Loop heartbeat Sierra Chart"""
-        logger.info("💓 Sierra heartbeat démarré")
-
-        while self.is_running:
-            try:
-                # Vérification connexion
-                if not self.is_connected or not self.socket:
-                    logger.warning("Connexion Sierra Chart perdue")
-                    self._attempt_reconnection()
-                    break
-
-                # Envoi heartbeat
-                heartbeat_message = self.message_builder.build_heartbeat()
-                if not self._send_message(heartbeat_message):
-                    logger.warning("Échec envoi heartbeat")
-
-                time.sleep(30)  # Heartbeat every 30 seconds
-
-            except Exception as e:
-                logger.error(f"Erreur heartbeat: {e}")
-                time.sleep(10)
-
-        logger.info("💓 Sierra heartbeat terminé")
-
-    def _attempt_reconnection(self):
-        """Tentative reconnexion automatique"""
-        try:
-            if self.reconnection_attempts >= self.max_reconnection_attempts:
-                logger.error("Max reconnection attempts Sierra Chart atteint")
-                return
-
-            logger.info(
-                f"Tentative reconnexion Sierra Chart {
-                    self.reconnection_attempts + 1}/{
-                    self.max_reconnection_attempts}")
-
-            self.connection_status = SierraConnectionStatus.RECONNECTING
-            self.reconnection_attempts += 1
-
-            # Déconnexion propre
-            self.disconnect()
-
-            # Attendre avant reconnexion
-            time.sleep(5)
-
-            # Tentative reconnexion
-            if self.connect():
-                logger.info("[OK] Reconnexion Sierra Chart réussie")
-                self.reconnection_attempts = 0
-            else:
-                logger.error("[ERROR] Échec reconnexion Sierra Chart")
-
-        except Exception as e:
-            logger.error(f"Erreur attempt reconnection: {e}")
-
-    # === PUBLIC INTERFACE ===
-
-    def get_connection_status(self) -> Dict[str, Any]:
-        """Status connexion Sierra Chart"""
-        return {
-            'status': self.connection_status.value,
-            'is_connected': self.is_connected,
-            'is_authenticated': self.is_authenticated,
-            'protocol': 'DTC',
-            'last_connection_attempt': self.last_connection_attempt.isoformat() if self.last_connection_attempt else None,
-            'reconnection_attempts': self.reconnection_attempts,
-            'contracts_loaded': len(self.contracts),
-            'active_subscriptions': len(self.subscribers)
+            logger.error(f"Erreur envoi ordre {self.symbol}: {e}")
+            # Passer en paper mode si erreur
+            self.paper_mode = True
+            return self._place_paper_order(side, qty, order_type, limit_price, stop_price, time_in_force, bracket)
+    
+    def _place_paper_order(self, side: str, qty: int, order_type: str, 
+                          limit_price: float = None, stop_price: float = None,
+                          time_in_force: str = 'DAY', bracket: Dict = None) -> str:
+        """Simule un ordre en paper mode"""
+        order_id = f"PAPER_{int(time.time())}"
+        
+        # Log identique à la trame réelle
+        price_str = f"L{limit_price}" if limit_price else f"S{stop_price}" if stop_price else "MKT"
+        logger.info(f"ORDER {self.symbol} {side} {qty} @{price_str} tif={time_in_force} via {self.port} [PAPER]")
+        
+        if bracket:
+            logger.info(f"BRACKET {order_id}: SL={bracket.get('stop_loss')} TP={bracket.get('take_profit')} [PAPER]")
+        
+        return order_id
+    
+    def _build_dtc_order_message(self, side: str, qty: int, order_type: str,
+                                limit_price: float = None, stop_price: float = None,
+                                time_in_force: str = 'DAY', bracket: Dict = None) -> str:
+        """Construit le message DTC pour l'ordre"""
+        # TODO: Implémenter le format DTC réel
+        # Pour l'instant, format simplifié
+        msg = {
+            "action": "PLACE_ORDER",
+            "symbol": self.symbol,
+            "side": side,
+            "quantity": qty,
+            "order_type": order_type,
+            "limit_price": limit_price,
+            "stop_price": stop_price,
+            "time_in_force": time_in_force,
+            "bracket": bracket,
+            "timestamp": time.time()
         }
+        
+        return json.dumps(msg) + "\n"
+    
+    def send_heartbeat(self) -> bool:
+        """Envoie un heartbeat pour maintenir la connexion"""
+        if not self.is_connected or self.paper_mode:
+            return True
+        
+        try:
+            heartbeat_msg = json.dumps({"action": "HEARTBEAT", "timestamp": time.time()}) + "\n"
+            self.socket.send(heartbeat_msg.encode())
+            self.last_heartbeat = time.time()
+            return True
+        except Exception as e:
+            logger.warning(f"Heartbeat échoué {self.symbol}: {e}")
+            self.is_connected = False
+            return False
 
-    def get_orders(self) -> Dict[str, SierraOrder]:
-        """Ordres actifs Sierra Chart"""
-        return self.orders.copy()
+# === INSTANCE GLOBALE ===
 
-    def get_statistics(self) -> Dict[str, Any]:
-        """Statistiques Sierra Chart"""
-        uptime = 0
-        if self.last_connection_attempt and self.is_connected:
-            uptime = (datetime.now(timezone.utc) - self.last_connection_attempt).total_seconds()
+# Instance globale du connector
+sierra_connector = SierraConnector()
 
-        self.stats['connection_uptime'] = uptime
-        return self.stats.copy()
+def get_sierra_connector() -> SierraConnector:
+    """Retourne l'instance globale du connector"""
+    return sierra_connector
 
-# === FACTORY FUNCTIONS ===
+# === FONCTIONS UTILITAIRES ===
 
+def start_sierra_connector() -> SierraConnector:
+    """Démarre le connector Sierra et retourne l'instance"""
+    connector = get_sierra_connector()
+    connector.start()
+    return connector
 
-def create_sierra_connector(config: Optional[Dict] = None) -> SierraConnector:
-    """Factory function pour Sierra Chart connector"""
-    return SierraConnector(config)
+def stop_sierra_connector() -> None:
+    """Arrête le connector Sierra"""
+    connector = get_sierra_connector()
+    connector.stop()
 
-# === TESTING ===
-
-
-def test_sierra_connector():
-    """Test Sierra Chart connector"""
-    logger.info("[SIGNAL] TEST SIERRA CHART CONNECTOR")
-    print("=" * 40)
-
-    connector = create_sierra_connector()
-
-    # Test connexion
-    connected = connector.connect()
-    logger.info("Connexion: {connected}")
-
-    if connected:
-        # Test subscription
-        def test_callback(market_data: MarketData):
-            logger.info("[STATS] Sierra data: {market_data.symbol} @ {market_data.close}")
-
-        success = connector.subscribe_market_data("ES", "test", test_callback)
-        logger.info("Subscription: {success}")
-
-        # Test court
-        time.sleep(5)
-
-        # Test placement ordre
-        order_id = connector.place_order("ES", "BUY", 1, "MARKET")
-        logger.info("Ordre placé: {order_id}")
-
-        # Status
-        status = connector.get_connection_status()
-        logger.info("Status: {status['status']}")
-
-        # Déconnexion
-        connector.disconnect()
-        logger.info("Déconnexion")
-
-    logger.info("[TARGET] Sierra Chart connector test COMPLETED")
-    return True
-
+# === TESTS ===
 
 if __name__ == "__main__":
-    test_sierra_connector()
+    # Test de base
+    connector = SierraConnector()
+    
+    try:
+        connector.start()
+        time.sleep(10)  # Laisser tourner 10 secondes
+    except KeyboardInterrupt:
+        pass
+    finally:
+        connector.stop()

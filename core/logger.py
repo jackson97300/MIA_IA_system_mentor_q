@@ -21,7 +21,7 @@ import os
 import logging
 import logging.handlers
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 import json
 import threading
@@ -54,10 +54,10 @@ LOG_LEVELS = {
     'CRITICAL': logging.CRITICAL
 }
 
-# Formats de log
+# Formats de log avec UTC et process/thread
 FORMATS = {
-    'console': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    'file': '%(asctime)s - %(process)d - %(thread)d - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s',
+    'console': '%(asctime)s %(levelname)s [%(process)d/%(threadName)s] %(name)s: %(message)s',
+    'file': '%(asctime)s %(levelname)s [%(process)d/%(threadName)s] %(name)s: %(funcName)s:%(lineno)d - %(message)s',
     'json': '{"timestamp": "%(asctime)s", "level": "%(levelname)s", "logger": "%(name)s", "message": "%(message)s"}'
 }
 
@@ -227,7 +227,7 @@ class LoggerManager:
         
         if handler_key not in self.handlers:
             # Nom fichier basé sur date et logger
-            today = datetime.now().strftime('%Y%m%d')
+            today = datetime.now(timezone.utc).strftime('%Y%m%d')
             log_file = self.log_dir / f"{logger_name}_{today}.log"
             
             # Handler avec rotation
@@ -361,7 +361,7 @@ if __name__ == "__main__" or not hasattr(sys.modules[__name__], '_initialized'):
     
     # Log de démarrage
     logger = get_logger('core.logger')
-    logger.info("Core Logger System initialized with UTF-8 support")
+    logger.info("🚀 Core Logger System initialized with UTF-8 support")
 
 # === TEST SI EXÉCUTÉ DIRECTEMENT ===
 

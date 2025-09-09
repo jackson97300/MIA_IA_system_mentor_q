@@ -10,7 +10,7 @@ CORRECTION APPLIQUÉE:
 - Import circulaire StructureData supprimé
 """
 
-from typing import Dict, List, Optional, Union, Tuple, Any
+from typing import Dict, List, Optional, Union, Tuple, Any, Literal
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
 from datetime import datetime, timezone
@@ -24,8 +24,144 @@ from core.logger import get_logger
 # Configure logging
 logger = get_logger(__name__)
 
-# Export principal - SANS StructureData qui sera géré dans __init__.py
+# === TYPES UNIFIÉS POUR MIA_UNIFIED ===
+
+def parse_ts(x: str | datetime) -> datetime:
+    """Parse timestamp avec support UTC"""
+    if isinstance(x, datetime):
+        return x if x.tzinfo else x.replace(tzinfo=timezone.utc)
+    # accepte "...Z" ou ISO avec tz
+    if isinstance(x, str) and x.endswith("Z"):
+        x = x[:-1] + "+00:00"
+    return datetime.fromisoformat(x).astimezone(timezone.utc)
+
+GraphId = Literal[3, 4, 8, 10]
+
+@dataclass
+class UnifiedBaseEvent:
+    """Base commune pour tous les événements unifiés"""
+    graph: GraphId
+    sym: str
+    ts: datetime
+    type: str = ""
+    ingest_ts: Optional[datetime] = None
+
+    @classmethod
+    def _fix_ts(cls, ts, ingest_ts=None):
+        return parse_ts(ts), (parse_ts(ingest_ts) if ingest_ts else None)
+
+# ---- CHART 3/4: prix/vol, VWAP, VP/VVA/VAP, DOM, trades, quotes ----
+
+@dataclass
+class BasedataEvent(UnifiedBaseEvent):
+    o: float = 0.0; h: float = 0.0; l: float = 0.0; c: float = 0.0
+    v: int = 0
+    bidvol: Optional[int] = None
+    askvol: Optional[int] = None
+    oi: Optional[int] = None
+    type: Literal["basedata"] = "basedata"
+
+@dataclass
+class VWAPEvent(UnifiedBaseEvent):
+    v: float = 0.0
+    up1: Optional[float] = None; dn1: Optional[float] = None
+    up2: Optional[float] = None; dn2: Optional[float] = None
+    src: Optional[str] = None  # "study", "calc"
+    type: Literal["vwap"] = "vwap"
+
+@dataclass
+class VVAEvent(UnifiedBaseEvent):
+    vah: float = 0.0; val: float = 0.0; vpoc: float = 0.0
+    pvah: Optional[float] = None; pval: Optional[float] = None; ppoc: Optional[float] = None
+    id_curr: Optional[str] = None; id_prev: Optional[str] = None
+    type: Literal["vva"] = "vva"
+
+@dataclass
+class VAPEvent(UnifiedBaseEvent):
+    bar: Optional[int] = None; k: Optional[int] = None
+    price: float = 0.0; vol: int = 0
+    type: Literal["vap"] = "vap"
+
+@dataclass
+class DepthEvent(UnifiedBaseEvent):
+    side: Literal["BID", "ASK"] = "BID"
+    lvl: int = 1
+    price: float = 0.0; size: int = 0
+    type: Literal["depth"] = "depth"
+
+@dataclass
+class QuoteEvent(UnifiedBaseEvent):
+    kind: Literal["BIDASK"] = "BIDASK"
+    bid: float = 0.0; ask: float = 0.0
+    bq: int = 0; aq: int = 0
+    seq: Optional[int] = None
+    type: Literal["quote"] = "quote"
+
+@dataclass
+class TradeEvent(UnifiedBaseEvent):
+    px: float = 0.0; vol: int = 0
+    seq: Optional[int] = None
+    type: Literal["trade"] = "trade"
+
+@dataclass
+class PVWAPEvent(UnifiedBaseEvent):
+    pvwap: float = 0.0
+    up1: Optional[float] = None; dn1: Optional[float] = None
+    up2: Optional[float] = None; dn2: Optional[float] = None
+    prev_start: Optional[str] = None; prev_end: Optional[str] = None
+    type: Literal["pvwap"] = "pvwap"
+
+# ---- CHART 8: VIX ----
+
+@dataclass
+class VIXEvent(UnifiedBaseEvent):
+    last: float = 0.0
+    mode: Optional[str] = None  # "study" etc.
+    type: Literal["vix"] = "vix"
+
+# ---- CHART 10: MenthorQ ----
+
+@dataclass
+class MenthorQGammaEvent(UnifiedBaseEvent):
+    study_id: int = 1; sg: int = 0; label: str = ""
+    price: float = 0.0
+    type: Literal["menthorq_gamma_levels"] = "menthorq_gamma_levels"
+
+@dataclass
+class MenthorQBlindSpotEvent(UnifiedBaseEvent):
+    study_id: int = 2; sg: int = 0; label: str = ""
+    price: float = 0.0
+    type: Literal["menthorq_blind_spots"] = "menthorq_blind_spots"
+
+@dataclass
+class MenthorQSwingEvent(UnifiedBaseEvent):
+    study_id: int = 3; sg: int = 0; label: str = ""
+    price: float = 0.0
+    type: Literal["menthorq_swing_levels"] = "menthorq_swing_levels"
+
+UnifiedRecord = Union[
+    BasedataEvent, VWAPEvent, VVAEvent, VAPEvent, DepthEvent, QuoteEvent, TradeEvent, PVWAPEvent,
+    VIXEvent, MenthorQGammaEvent, MenthorQBlindSpotEvent, MenthorQSwingEvent
+]
+
+# === ALIAS UTILES ===
+
+# Types de base pour trading
+Ticks = float
+Price = float
+Qty = float
+Volume = float
+Timestamp = datetime
+
+# === CONSTANTES TRADING ===
 __all__ = [
+    # Types unifiés pour mia_unified
+    'parse_ts', 'GraphId', 'UnifiedBaseEvent', 'UnifiedRecord',
+    'BasedataEvent', 'VWAPEvent', 'VVAEvent', 'VAPEvent', 'DepthEvent', 'QuoteEvent', 'TradeEvent', 'PVWAPEvent',
+    'VIXEvent', 'MenthorQGammaEvent', 'MenthorQBlindSpotEvent', 'MenthorQSwingEvent',
+    # Alias utiles
+    'Ticks', 'Price', 'Qty', 'Volume', 'Timestamp',
+    # Types existants
     'MarketData',
     'TradingSignal',
     'TradingDecision',
@@ -662,7 +798,7 @@ class DataIntegrityIssue:
         self.field = field
         self.issue = issue
         self.value = value
-        self.timestamp = datetime.now()
+        self.timestamp = datetime.now(timezone.utc)
     
     def __str__(self):
         return f"[{self.severity.upper()}] {self.field}: {self.issue} (value: {self.value})"
@@ -726,7 +862,7 @@ class DataIntegrityValidator:
         """
         issues = []
         self.validation_stats['total_validations'] += 1
-        self.validation_stats['last_validation'] = datetime.now()
+        self.validation_stats['last_validation'] = datetime.now(timezone.utc)
         
         try:
             # Validation prix
@@ -836,7 +972,7 @@ class DataIntegrityValidator:
         rules = self.validation_rules['time_rules']
         
         if hasattr(data, 'timestamp') and data.timestamp is not None:
-            now = datetime.now()
+            now = datetime.now(timezone.utc)
             
             # Convertir timestamp si nécessaire
             if isinstance(data.timestamp, pd.Timestamp):

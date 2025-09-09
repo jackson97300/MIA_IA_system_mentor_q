@@ -1,6 +1,6 @@
-# MIA_IA_system
+# MIA_IA_system_mentor_q
 
-Pipeline marché **Sierra → Collector → Fichier unifié** + intégration **MenthorQ**.
+Pipeline marché **Sierra-only** : **Sierra → Collector → Fichier unifié** + intégration **MenthorQ**.
 
 ## 🚀 Vue rapide
 
@@ -8,6 +8,7 @@ Pipeline marché **Sierra → Collector → Fichier unifié** + intégration **M
 - **Collector** : `launchers/collector.py` (lit 3/4/8/10, unifie, feed MenthorQ)
 - **Sortie** : `mia_unified_YYYYMMDD.jsonl` (un seul fichier/jour)
 - **Signal** : Battle Navale + MenthorQ + régime VIX
+- **Mode** : Sierra-only (plus d'IBKR/Polygon/DTC)
 
 ## 📊 Architecture
 
@@ -38,7 +39,7 @@ python launchers/launch_24_7.py
 - **`features/`** : Fonctionnalités (sierra_stream, unifier, menthorq_processor)
 - **`config/`** : Configurations (sierra_paths, menthorq_runtime)
 - **`launchers/`** : Lanceurs (launch_24_7.py, collector.py)
-- **`ancien_system/`** : Systèmes legacy (IBKR, Polygon.io)
+- **`ancien_system/`** : Systèmes legacy (archivés)
 
 ## 🔧 Données collectées
 
@@ -61,4 +62,6 @@ Les workflows GitHub exécutent `test_menthorq_integration.py` et génèrent un 
 
 - **Repo privé** : Données de marché sensibles
 - **Aucune donnée marché** versionnée (JSONL exclus)
-- **Mode lecture seule** : Pas de trading automatique
+- **Mode lecture seule** : Pas de trading automatique (par défaut)
+- **Sierra-only** : Plus de dépendances externes (IBKR/Polygon)
+- **Trading DTC** : Ports ES (11099), NQ (11100) via Sierra Chart

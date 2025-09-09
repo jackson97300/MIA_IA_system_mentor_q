@@ -1,0 +1,34 @@
+
+# 🚀 SOLUTION DÉFINITIVE MIA_IA_SYSTEM
+# Suivez ces étapes EXACTEMENT dans l'ordre
+
+## ÉTAPE 1: CONFIGURATION TWS (OBLIGATOIRE)
+1. Ouvrez TWS
+2. File → Global Configuration → API → Settings
+3. ✅ Enable ActiveX and Socket Clients: OUI
+4. ✅ Socket port: 7497
+5. ✅ Allow connections from localhost: OUI
+6. ✅ Download open orders on connection: OUI
+7. ✅ Include FX positions in portfolio: OUI
+8. Cliquez "OK" et redémarrez TWS
+
+## ÉTAPE 2: SOUSCRIRE ESU25 DANS TWS (CRUCIAL)
+1. Dans TWS, allez dans "Market Data" (en haut à gauche)
+2. Tapez "ESU25" dans la barre de recherche
+3. Sélectionnez "ES Sep'25 @CME"
+4. Cliquez sur "Add to Market Data" ou le bouton "+"
+5. Vérifiez que le prix ~6340.00 s'affiche (PAS "---" ou "N/A")
+
+## ÉTAPE 3: VÉRIFIER LA SOUSCRIPTION
+1. Dans TWS, regardez la section "Market Data"
+2. Vous devriez voir "ES Sep'25 @CME" avec le prix en temps réel
+3. Le prix doit être différent de "---" ou "N/A"
+
+## ÉTAPE 4: TESTER L'API
+1. Lancez le script de test
+2. Le prix ESU25 devrait maintenant être récupéré
+
+# IMPORTANT: 
+# - Vous avez les souscriptions CME Real-Time (NP,L2)
+# - Le problème est que TWS n'a pas ESU25 dans Market Data
+# - L'API ne peut récupérer que ce qui est affiché dans TWS

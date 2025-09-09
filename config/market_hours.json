@@ -1,0 +1,49 @@
+{
+  "exchanges": {
+    "CME": {
+      "timezone": "America/Chicago",
+      "instruments": {
+        "ES": {
+          "rth": {"start": "09:30", "end": "16:00", "tz": "America/New_York"},
+          "globex": {"start": "18:00", "end": "17:00", "tz": "America/Chicago"},
+          "maintenance": {"start": "17:00", "end": "18:00", "tz": "America/Chicago"}
+        },
+        "NQ": {
+          "rth": {"start": "09:30", "end": "16:00", "tz": "America/New_York"},
+          "globex": {"start": "18:00", "end": "17:00", "tz": "America/Chicago"},
+          "maintenance": {"start": "17:00", "end": "18:00", "tz": "America/Chicago"}
+        },
+        "YM": {
+          "rth": {"start": "09:30", "end": "16:00", "tz": "America/New_York"},
+          "globex": {"start": "18:00", "end": "17:00", "tz": "America/Chicago"},
+          "maintenance": {"start": "17:00", "end": "18:00", "tz": "America/Chicago"}
+        },
+        "RTY": {
+          "rth": {"start": "09:30", "end": "16:00", "tz": "America/New_York"},
+          "globex": {"start": "18:00", "end": "17:00", "tz": "America/Chicago"},
+          "maintenance": {"start": "17:00", "end": "18:00", "tz": "America/Chicago"}
+        }
+      }
+    },
+    "NYMEX": {
+      "timezone": "America/New_York",
+      "instruments": {
+        "CL": {
+          "rth": {"start": "09:00", "end": "14:30", "tz": "America/New_York"},
+          "globex": {"start": "18:00", "end": "17:00", "tz": "America/Chicago"},
+          "maintenance": {"start": "17:00", "end": "18:00", "tz": "America/Chicago"}
+        }
+      }
+    }
+  },
+  "hot_windows": {
+    "europe_paris": [
+      {"start": "15:30", "end": "16:30", "name": "Post-open drift"},
+      {"start": "21:00", "end": "22:00", "name": "Pre-close volatility"}
+    ]
+  },
+  "defaults": {
+    "fallback_symbol": "ES",
+    "fallback_exchange": "CME"
+  }
+}
