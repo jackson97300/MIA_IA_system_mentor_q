@@ -1,0 +1,370 @@
+{
+  "metadata": {
+    "created_at": "2025-08-27T20:56:59.294477+00:00",
+    "source": "IBKR_REAL",
+    "underlying": "SPX",
+    "expiry": "20250919",
+    "es_price": 6484.0,
+    "total_strikes": 21
+  },
+  "options_data": {
+    "symbol": "SPX",
+    "expiry": "20250919",
+    "current_price": 6484.0,
+    "strikes": {
+      "6434.0": {
+        "call": {
+          "bid": 51.5,
+          "ask": 52.5,
+          "last": 52.0,
+          "volume": 58,
+          "open_interest": 726
+        },
+        "put": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 73,
+          "open_interest": 528
+        }
+      },
+      "6439.0": {
+        "call": {
+          "bid": 46.5,
+          "ask": 47.5,
+          "last": 47.0,
+          "volume": 13,
+          "open_interest": 120
+        },
+        "put": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 63,
+          "open_interest": 369
+        }
+      },
+      "6444.0": {
+        "call": {
+          "bid": 41.5,
+          "ask": 42.5,
+          "last": 42.0,
+          "volume": 13,
+          "open_interest": 766
+        },
+        "put": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 73,
+          "open_interest": 306
+        }
+      },
+      "6449.0": {
+        "call": {
+          "bid": 36.5,
+          "ask": 37.5,
+          "last": 37.0,
+          "volume": 68,
+          "open_interest": 844
+        },
+        "put": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 88,
+          "open_interest": 870
+        }
+      },
+      "6454.0": {
+        "call": {
+          "bid": 31.5,
+          "ask": 32.5,
+          "last": 32.0,
+          "volume": 51,
+          "open_interest": 333
+        },
+        "put": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 19,
+          "open_interest": 763
+        }
+      },
+      "6459.0": {
+        "call": {
+          "bid": 26.5,
+          "ask": 27.5,
+          "last": 27.0,
+          "volume": 57,
+          "open_interest": 316
+        },
+        "put": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 40,
+          "open_interest": 869
+        }
+      },
+      "6464.0": {
+        "call": {
+          "bid": 21.5,
+          "ask": 22.5,
+          "last": 22.0,
+          "volume": 66,
+          "open_interest": 490
+        },
+        "put": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 83,
+          "open_interest": 510
+        }
+      },
+      "6469.0": {
+        "call": {
+          "bid": 16.5,
+          "ask": 17.5,
+          "last": 17.0,
+          "volume": 35,
+          "open_interest": 571
+        },
+        "put": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 78,
+          "open_interest": 547
+        }
+      },
+      "6474.0": {
+        "call": {
+          "bid": 11.5,
+          "ask": 12.5,
+          "last": 12.0,
+          "volume": 56,
+          "open_interest": 652
+        },
+        "put": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 35,
+          "open_interest": 354
+        }
+      },
+      "6479.0": {
+        "call": {
+          "bid": 6.5,
+          "ask": 7.5,
+          "last": 7.0,
+          "volume": 33,
+          "open_interest": 107
+        },
+        "put": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 51,
+          "open_interest": 467
+        }
+      },
+      "6484.0": {
+        "call": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 81,
+          "open_interest": 239
+        },
+        "put": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 73,
+          "open_interest": 907
+        }
+      },
+      "6489.0": {
+        "call": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 25,
+          "open_interest": 350
+        },
+        "put": {
+          "bid": 6.5,
+          "ask": 7.5,
+          "last": 7.0,
+          "volume": 52,
+          "open_interest": 122
+        }
+      },
+      "6494.0": {
+        "call": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 16,
+          "open_interest": 200
+        },
+        "put": {
+          "bid": 11.5,
+          "ask": 12.5,
+          "last": 12.0,
+          "volume": 54,
+          "open_interest": 442
+        }
+      },
+      "6499.0": {
+        "call": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 88,
+          "open_interest": 929
+        },
+        "put": {
+          "bid": 16.5,
+          "ask": 17.5,
+          "last": 17.0,
+          "volume": 53,
+          "open_interest": 680
+        }
+      },
+      "6504.0": {
+        "call": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 37,
+          "open_interest": 466
+        },
+        "put": {
+          "bid": 21.5,
+          "ask": 22.5,
+          "last": 22.0,
+          "volume": 47,
+          "open_interest": 978
+        }
+      },
+      "6509.0": {
+        "call": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 83,
+          "open_interest": 327
+        },
+        "put": {
+          "bid": 26.5,
+          "ask": 27.5,
+          "last": 27.0,
+          "volume": 54,
+          "open_interest": 763
+        }
+      },
+      "6514.0": {
+        "call": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 22,
+          "open_interest": 264
+        },
+        "put": {
+          "bid": 31.5,
+          "ask": 32.5,
+          "last": 32.0,
+          "volume": 81,
+          "open_interest": 621
+        }
+      },
+      "6519.0": {
+        "call": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 22,
+          "open_interest": 327
+        },
+        "put": {
+          "bid": 36.5,
+          "ask": 37.5,
+          "last": 37.0,
+          "volume": 44,
+          "open_interest": 605
+        }
+      },
+      "6524.0": {
+        "call": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 54,
+          "open_interest": 140
+        },
+        "put": {
+          "bid": 41.5,
+          "ask": 42.5,
+          "last": 42.0,
+          "volume": 63,
+          "open_interest": 482
+        }
+      },
+      "6529.0": {
+        "call": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 34,
+          "open_interest": 788
+        },
+        "put": {
+          "bid": 46.5,
+          "ask": 47.5,
+          "last": 47.0,
+          "volume": 96,
+          "open_interest": 150
+        }
+      },
+      "6534.0": {
+        "call": {
+          "bid": 1.5000000000000004,
+          "ask": 2.5000000000000004,
+          "last": 2.0000000000000004,
+          "volume": 94,
+          "open_interest": 567
+        },
+        "put": {
+          "bid": 51.5,
+          "ask": 52.5,
+          "last": 52.0,
+          "volume": 11,
+          "open_interest": 388
+        }
+      }
+    },
+    "timestamp": "2025-08-27 22:56:59.294470",
+    "mode": "simulation"
+  },
+  "analysis": {
+    "put_call_ratio": 1.0,
+    "implied_volatility": 0.2,
+    "greeks": {
+      "delta": 0.0,
+      "gamma": 0.0,
+      "theta": 0.0,
+      "vega": 0.0
+    },
+    "open_interest": {
+      "calls_oi": 0,
+      "puts_oi": 0,
+      "total_oi": 0
+    }
+  }
+}

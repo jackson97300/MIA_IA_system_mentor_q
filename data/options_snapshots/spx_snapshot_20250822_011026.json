@@ -1,0 +1,25 @@
+{
+  "vix_level": 16.07,
+  "put_call_ratio": 1.15,
+  "gamma_exposure": 75000000000,
+  "call_walls": [
+    6400,
+    6500,
+    6600
+  ],
+  "put_walls": [
+    6300,
+    6200
+  ],
+  "gamma_flip": 6350,
+  "dealer_position": "short",
+  "pin_levels": [
+    6350,
+    6400,
+    6450
+  ],
+  "underlying_price": 6382.23046875,
+  "data_timestamp": "2025-08-21T12:23:05.486Z",
+  "data_source": "ASIA_SESSION_FORCED",
+  "asof": "2025-08-22T01:10:26.811174"
+}

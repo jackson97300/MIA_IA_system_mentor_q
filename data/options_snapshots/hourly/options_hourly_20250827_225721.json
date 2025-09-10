@@ -1,0 +1,10 @@
+{
+  "timestamp": "2025-08-27T20:57:21.836798+00:00",
+  "es_price": 6484.0,
+  "nq_price": 23766.5,
+  "spx_put_call_ratio": 1.0,
+  "ndx_put_call_ratio": 1.0,
+  "spx_implied_volatility": 0.2,
+  "ndx_implied_volatility": 0.2,
+  "source": "IBKR_HOURLY"
+}

@@ -1,0 +1,161 @@
+{
+  "timestamp": 1754703172.2056105,
+  "total_time_ms": 36.709200008772314,
+  "confluence_optimization": [
+    {
+      "scenario": 1,
+      "input": {
+        "volume": 5000,
+        "delta": -2000,
+        "bid_vol": 2000,
+        "ask_vol": 3000,
+        "price": 5400
+      },
+      "confluence_score": 0.3119010657037019,
+      "signal_quality": "GOOD",
+      "position_multiplier": 1.0,
+      "vwap_bands_signal": 0.0,
+      "volume_imbalance_signal": 0.12333333333333335,
+      "calculation_time_ms": 3.1788000487722456
+    },
+    {
+      "scenario": 2,
+      "input": {
+        "volume": 15000,
+        "delta": 8000,
+        "bid_vol": 8000,
+        "ask_vol": 7000,
+        "price": 5410
+      },
+      "confluence_score": 0.30446153504417783,
+      "signal_quality": "GOOD",
+      "position_multiplier": 1.0,
+      "vwap_bands_signal": 0.0,
+      "volume_imbalance_signal": 0.6833431765450327,
+      "calculation_time_ms": 1.317799964454025
+    },
+    {
+      "scenario": 3,
+      "input": {
+        "volume": 800,
+        "delta": -200,
+        "bid_vol": 300,
+        "ask_vol": 500,
+        "price": 5395
+      },
+      "confluence_score": 0.3069340837907381,
+      "signal_quality": "GOOD",
+      "position_multiplier": 1.0,
+      "vwap_bands_signal": 0.0,
+      "volume_imbalance_signal": 0.7815739419876367,
+      "calculation_time_ms": 1.1958000250160694
+    },
+    {
+      "scenario": 4,
+      "input": {
+        "volume": 25000,
+        "delta": 15000,
+        "bid_vol": 15000,
+        "ask_vol": 10000,
+        "price": 5420
+      },
+      "confluence_score": 0.45936102014769076,
+      "signal_quality": "PREMIUM",
+      "position_multiplier": 2.0,
+      "vwap_bands_signal": 0.0,
+      "volume_imbalance_signal": 0.9266666666666667,
+      "calculation_time_ms": 1.5705000259913504
+    }
+  ],
+  "sensitivity_analysis": {
+    "volume_sensitivity": [
+      {
+        "volume": 1000,
+        "confluence_score": 0.36701397028829374,
+        "signal_quality": "STRONG"
+      },
+      {
+        "volume": 5000,
+        "confluence_score": 0.3776393305755399,
+        "signal_quality": "STRONG"
+      },
+      {
+        "volume": 10000,
+        "confluence_score": 0.3346686663499082,
+        "signal_quality": "STRONG"
+      },
+      {
+        "volume": 20000,
+        "confluence_score": 0.3405162956561479,
+        "signal_quality": "STRONG"
+      },
+      {
+        "volume": 50000,
+        "confluence_score": 0.3114310818240673,
+        "signal_quality": "GOOD"
+      }
+    ],
+    "delta_sensitivity": [
+      {
+        "delta": -5000,
+        "confluence_score": 0.3892431437478956,
+        "signal_quality": "PREMIUM"
+      },
+      {
+        "delta": -1000,
+        "confluence_score": 0.34331724928897134,
+        "signal_quality": "STRONG"
+      },
+      {
+        "delta": 0,
+        "confluence_score": 0.3492431437478956,
+        "signal_quality": "STRONG"
+      },
+      {
+        "delta": 1000,
+        "confluence_score": 0.3569911319288675,
+        "signal_quality": "STRONG"
+      },
+      {
+        "delta": 5000,
+        "confluence_score": 0.3761964468686254,
+        "signal_quality": "STRONG"
+      },
+      {
+        "delta": 10000,
+        "confluence_score": 0.3793401914850321,
+        "signal_quality": "STRONG"
+      }
+    ]
+  },
+  "risk_scenarios": [
+    {
+      "name": "Volume Faible",
+      "status": "SUCCESS",
+      "confluence_score": 0.3586408970411064,
+      "signal_quality": "STRONG",
+      "position_multiplier": 1.5
+    },
+    {
+      "name": "Delta Extr\u00eame",
+      "status": "SUCCESS",
+      "confluence_score": 0.37819767005486477,
+      "signal_quality": "STRONG",
+      "position_multiplier": 1.5
+    },
+    {
+      "name": "Imbalance Massif",
+      "status": "SUCCESS",
+      "confluence_score": 0.36191646898707097,
+      "signal_quality": "STRONG",
+      "position_multiplier": 1.5
+    },
+    {
+      "name": "Volume Z\u00e9ro",
+      "status": "SUCCESS",
+      "confluence_score": 0.2890694467229519,
+      "signal_quality": "GOOD",
+      "position_multiplier": 1.0
+    }
+  ]
+}

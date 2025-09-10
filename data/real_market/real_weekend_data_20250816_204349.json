@@ -1,0 +1,156 @@
+{
+  "timestamp": "2025-08-16T20:43:43.969625",
+  "market_data": {
+    "spx": {
+      "symbol": "SPX",
+      "current_price": 6449.7998046875,
+      "open": 6477.3798828125,
+      "high": 6481.33984375,
+      "low": 6441.85009765625,
+      "close": 6449.7998046875,
+      "volume": 4575060000,
+      "high_5d": 6481.33984375,
+      "low_5d": 6385.759765625,
+      "avg_volume": 4842090000.0,
+      "price_change": -18.740234375,
+      "price_change_pct": -0.2897135097229152
+    },
+    "es": {
+      "symbol": "ES",
+      "current_price": 6471.5,
+      "open": 6489.25,
+      "high": 6508.75,
+      "low": 6461.5,
+      "close": 6471.5,
+      "volume": 1186070,
+      "high_5d": 6508.75,
+      "low_5d": 6391.25,
+      "avg_volume": 1188750.75,
+      "price_change": -19.0,
+      "price_change_pct": -0.2927355365534242
+    }
+  },
+  "options_levels": {
+    "current_price": 6449.7998046875,
+    "volatility": 10.461589774925576,
+    "atr": 63.78355189732143,
+    "put_call_ratio": 1.1,
+    "implied_volatility": 11.507748752418134,
+    "strike_levels": [
+      {
+        "strike": 6290.340924944197,
+        "type": "put",
+        "volume": 1761,
+        "delta": -0.55,
+        "gamma": 0.0325,
+        "distance": 159.45887974330358
+      },
+      {
+        "strike": 6322.232700892857,
+        "type": "put",
+        "volume": 1661,
+        "delta": -0.5,
+        "gamma": 0.03,
+        "distance": 127.56710379464286
+      },
+      {
+        "strike": 6354.124476841518,
+        "type": "put",
+        "volume": 1561,
+        "delta": -0.45,
+        "gamma": 0.0275,
+        "distance": 95.67532784598214
+      },
+      {
+        "strike": 6386.016252790178,
+        "type": "put",
+        "volume": 1461,
+        "delta": -0.4,
+        "gamma": 0.025,
+        "distance": 63.78355189732143
+      },
+      {
+        "strike": 6417.90802873884,
+        "type": "put",
+        "volume": 1361,
+        "delta": -0.35,
+        "gamma": 0.0225,
+        "distance": 31.891775948660715
+      },
+      {
+        "strike": 6449.7998046875,
+        "type": "atm",
+        "volume": 2523,
+        "delta": 0.5,
+        "gamma": 0.03,
+        "distance": 0
+      },
+      {
+        "strike": 6481.69158063616,
+        "type": "call",
+        "volume": 1361,
+        "delta": 0.35,
+        "gamma": 0.0225,
+        "distance": 31.891775948660715
+      },
+      {
+        "strike": 6513.583356584822,
+        "type": "call",
+        "volume": 1461,
+        "delta": 0.4,
+        "gamma": 0.025,
+        "distance": 63.78355189732143
+      },
+      {
+        "strike": 6545.475132533482,
+        "type": "call",
+        "volume": 1561,
+        "delta": 0.45,
+        "gamma": 0.0275,
+        "distance": 95.67532784598214
+      },
+      {
+        "strike": 6577.366908482143,
+        "type": "call",
+        "volume": 1661,
+        "delta": 0.5,
+        "gamma": 0.03,
+        "distance": 127.56710379464286
+      },
+      {
+        "strike": 6609.258684430803,
+        "type": "call",
+        "volume": 1761,
+        "delta": 0.55,
+        "gamma": 0.0325,
+        "distance": 159.45887974330358
+      }
+    ],
+    "gamma_exposure": {
+      "gex1": 5991.529676001053,
+      "gex2": 6921.415480460696
+    },
+    "calculation_basis": "real_market_data"
+  },
+  "gamma_exposure": {
+    "current_price": 6449.7998046875,
+    "gex1": 5991.529676001053,
+    "gex2": 6921.415480460696,
+    "gex1_distance": 458.2701286864467,
+    "gex2_distance": 471.615675773196,
+    "volatility": 10.461589774925576,
+    "atr": 63.78355189732143,
+    "calculation_method": "real_data_based"
+  },
+  "technical_analysis": {
+    "volatility": {
+      "historical_volatility": 10.461589774925576,
+      "atr": 63.78355189732143,
+      "atr_percent": 0.9889229717016281,
+      "data_points": 21,
+      "period_days": 30
+    }
+  },
+  "success": false,
+  "errors": []
+}

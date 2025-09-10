@@ -1,0 +1,22 @@
+{
+  "timestamp": "2025-08-16T23:45:39.108212",
+  "battle_navale_results": {
+    "total_trades": 178,
+    "winning_trades": 68,
+    "losing_trades": 106,
+    "win_rate": 38.20224719101123,
+    "total_pnl": 889.6441955566406,
+    "winning_pnl": 4809.1937255859375,
+    "losing_pnl": 3919.549530029297,
+    "profit_factor": 1.226976133032816
+  },
+  "performance_metrics": {
+    "initial_capital": 100000,
+    "final_capital": 100889.64419555664,
+    "total_return": 0.8896441955566406,
+    "max_drawdown": 1.1289088727690757,
+    "sharpe_ratio": 0.09267619710068309,
+    "avg_trade": 4.9980010986328125
+  },
+  "success": false
+}

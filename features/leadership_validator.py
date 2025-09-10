@@ -112,9 +112,15 @@ class LeadershipValidator:
     """
     def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
         cfg = config or {}
-        self.corr_min = float(cfg.get("corr_min", 0.01))
-        self.leader_strength_min = float(cfg.get("leader_strength_min", 0.05))
+        # 🎯 Seuils resserrés pour validation plus stricte
+        self.corr_min = float(cfg.get("corr_min", 0.15))  # 0.01 → 0.15 (15x plus strict)
+        self.leader_strength_min = float(cfg.get("leader_strength_min", 0.25))  # 0.05 → 0.25 (5x plus strict)
         self.calibration_mode = bool(cfg.get("calibration_mode", False))
+        
+        # 🎯 Seuils additionnels pour validation renforcée
+        self.min_correlation_quality = float(cfg.get("min_correlation_quality", 0.3))  # Qualité corrélation
+        self.min_leadership_consistency = float(cfg.get("min_leadership_consistency", 0.4))  # Consistance leadership
+        self.max_risk_threshold = float(cfg.get("max_risk_threshold", 0.8))  # Seuil risque max
 
     def validate(
         self,
@@ -156,14 +162,40 @@ class LeadershipValidator:
             corr_min = max(0.0, self.corr_min * 0.5)
             strength_min = max(0.0, self.leader_strength_min * 0.5)
 
-        # Validation
+        # 🎯 Validation renforcée avec seuils resserrés
         is_valid = True
+        validation_issues = []
+        
+        # 1. Validation corrélation de base
         if corr_intensity < corr_min:
             is_valid = False
-            reason = f"Corrélation insuffisante ({corr_intensity:.3f} < {corr_min:.2f})"
-        elif leader_strength < strength_min:
+            validation_issues.append(f"Corrélation insuffisante ({corr_intensity:.3f} < {corr_min:.2f})")
+        
+        # 2. Validation force du leader
+        if leader_strength < strength_min:
             is_valid = False
-            reason = f"Leader trop faible ({leader_strength:.3f} < {strength_min:.2f})"
+            validation_issues.append(f"Leader trop faible ({leader_strength:.3f} < {strength_min:.2f})")
+        
+        # 3. 🎯 Validation qualité corrélation (nouveau)
+        if corr_intensity < self.min_correlation_quality:
+            is_valid = False
+            validation_issues.append(f"Qualité corrélation insuffisante ({corr_intensity:.3f} < {self.min_correlation_quality:.2f})")
+        
+        # 4. 🎯 Validation consistance leadership (nouveau)
+        if leader_strength < self.min_leadership_consistency:
+            is_valid = False
+            validation_issues.append(f"Consistance leadership insuffisante ({leader_strength:.3f} < {self.min_leadership_consistency:.2f})")
+        
+        # 5. 🎯 Validation cohérence instrument/leader
+        if instrument in ("ES", "MES") and leader == "NQ":
+            is_valid = False
+            validation_issues.append("Incohérence: trading ES mais leader=NQ")
+        elif instrument in ("NQ", "MNQ") and leader == "ES":
+            is_valid = False
+            validation_issues.append("Incohérence: trading NQ mais leader=ES")
+        
+        # Compiler la raison
+        reason = "; ".join(validation_issues) if validation_issues else "Validation OK"
 
         # Multiplicateur de risque continu
         # map |corr|∈[0,1] → risk∈[0.0,1.0] avec un “dead‑zone” doux sur corr_min
@@ -175,6 +207,12 @@ class LeadershipValidator:
             risk = 0.2 + 0.8 * ((corr_intensity - corr_min) / span)
         risk = max(0.0, min(1.0, risk))
 
+        # 🎯 Validation seuil de risque maximum
+        if risk > self.max_risk_threshold:
+            is_valid = False
+            validation_issues.append(f"Risque trop élevé ({risk:.3f} > {self.max_risk_threshold:.2f})")
+            reason = "; ".join(validation_issues) if validation_issues else "Validation OK"
+        
         # Décision finale
         if not is_valid:
             if self.calibration_mode:
@@ -204,3 +242,30 @@ class LeadershipValidator:
             persisted=False,
             corr_es_nq=float(corr),
         )
+    
+    def get_validation_thresholds(self) -> Dict[str, float]:
+        """🎯 Retourne les seuils de validation actuels"""
+        return {
+            'corr_min': self.corr_min,
+            'leader_strength_min': self.leader_strength_min,
+            'min_correlation_quality': self.min_correlation_quality,
+            'min_leadership_consistency': self.min_leadership_consistency,
+            'max_risk_threshold': self.max_risk_threshold,
+            'calibration_mode': self.calibration_mode
+        }
+    
+    def update_thresholds(self, new_thresholds: Dict[str, float]) -> None:
+        """🎯 Met à jour les seuils de validation"""
+        for key, value in new_thresholds.items():
+            if hasattr(self, key) and isinstance(value, (int, float)):
+                setattr(self, key, float(value))
+                logger.info(f"🎯 Seuil {key} mis à jour: {value}")
+    
+    def reset_to_defaults(self) -> None:
+        """🎯 Remet les seuils par défaut"""
+        self.corr_min = 0.15
+        self.leader_strength_min = 0.25
+        self.min_correlation_quality = 0.3
+        self.min_leadership_consistency = 0.4
+        self.max_risk_threshold = 0.8
+        logger.info("🎯 Seuils remis par défaut")

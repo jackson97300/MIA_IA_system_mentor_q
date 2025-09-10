@@ -1,0 +1,13 @@
+{
+  "timestamp": "2025-08-16T20:20:59.497898",
+  "tests": {
+    "gateway": "SUCCESS",
+    "authentication": "FAILED",
+    "account_info": "NO_DATA",
+    "positions": "SUCCESS: 0 positions",
+    "es_data": "NO_DATA",
+    "historical_data": "NO_DATA"
+  },
+  "success": false,
+  "errors": []
+}

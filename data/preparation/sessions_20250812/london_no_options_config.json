@@ -1,0 +1,38 @@
+{
+  "session_info": {
+    "session": "LONDON_NO_OPTIONS",
+    "start_time": "2025-08-12T11:13:22.132495",
+    "options_disabled": true,
+    "reason": "Donn\u00e9es options non disponibles/qualit\u00e9 insuffisante"
+  },
+  "feature_weights": {
+    "volume_confirmation": 0.35,
+    "vwap_trend_signal": 0.22,
+    "sierra_pattern_strength": 0.22,
+    "smart_money_strength": 0.17,
+    "level_proximity": 0.1,
+    "es_nq_correlation": 0.1,
+    "order_book_imbalance": 0.21,
+    "session_context": 0.04,
+    "pullback_quality": 0.02
+  },
+  "risk_management": {
+    "risk_multiplier": 0.8,
+    "signal_threshold": 0.75,
+    "max_position_size": 0.7,
+    "max_daily_loss": 400.0,
+    "max_trades_per_day": 15
+  },
+  "trading_config": {
+    "session": "london",
+    "focus": "Trend continuation (sans options)",
+    "risk_level": "Moderate",
+    "volume": "Elev\u00e9",
+    "key_levels": [
+      "VWAP Bands",
+      "Volume Imbalance",
+      "Sierra Patterns",
+      "Smart Money Flow"
+    ]
+  }
+}

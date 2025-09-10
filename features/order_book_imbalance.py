@@ -25,6 +25,8 @@ import pandas as pd
 # 3. LOCAL (imports absolus, niveau 2 compatible)
 from core.base_types import MarketData, OrderFlowData
 from core.logger import get_logger
+from .data_reader import get_latest_market_data
+from .config_loader import get_feature_config
 
 # === CONFIGURATION ===
 
@@ -360,11 +362,65 @@ def create_order_book_imbalance_calculator(config: Optional[OrderBookImbalanceCo
     """Factory function pour créer calculateur order book imbalance"""
     return OrderBookImbalanceCalculator(config)
 
+def create_real_order_book(symbol: str = "ES", base_price: float = 4500.0) -> OrderBookSnapshot:
+    """Crée order book basé sur les vraies données DOM"""
+    try:
+        # Récupérer les dernières données réelles
+        real_data = get_latest_market_data(symbol)
+        config = get_feature_config()
+        
+        if real_data and 'dom_levels' in real_data:
+            # Utiliser les vraies données DOM
+            dom_levels = real_data['dom_levels']
+            
+            bids = []
+            asks = []
+            
+            # Séparer les niveaux bid/ask
+            for level in dom_levels:
+                if level.get('side') == 'BID':
+                    bids.append(OrderBookLevel(
+                        price=level.get('price', base_price),
+                        size=level.get('size', 100),
+                        num_orders=1
+                    ))
+                elif level.get('side') == 'ASK':
+                    asks.append(OrderBookLevel(
+                        price=level.get('price', base_price),
+                        size=level.get('size', 100),
+                        num_orders=1
+                    ))
+            
+            # Trier par prix (bids décroissants, asks croissants)
+            bids.sort(key=lambda x: x.price, reverse=True)
+            asks.sort(key=lambda x: x.price)
+            
+            # Limiter au nombre de niveaux configuré
+            max_depth = config.order_book.max_depth
+            bids = bids[:max_depth]
+            asks = asks[:max_depth]
+            
+            logger.info(f"✅ Order book réel créé pour {symbol}: {len(bids)} bids, {len(asks)} asks")
+            
+            return OrderBookSnapshot(
+                timestamp=pd.Timestamp.now(),
+                bids=bids,
+                asks=asks
+            )
+        else:
+            # Fallback vers mock si pas de données DOM
+            logger.warning(f"⚠️ Pas de données DOM pour {symbol} - utilisation mock")
+            return create_mock_order_book(symbol, base_price)
+            
+    except Exception as e:
+        logger.error(f"❌ Erreur création order book réel: {e}")
+        return create_mock_order_book(symbol, base_price)
+
 def create_mock_order_book(symbol: str = "ES", base_price: float = 4500.0) -> OrderBookSnapshot:
-    """Crée mock order book pour tests"""
+    """Crée mock order book pour tests (fallback)"""
     timestamp = pd.Timestamp.now()
     
-    # Bids (descending prices)
+    # Bids (descending prices) - valeurs fixes au lieu de random
     bids = [
         OrderBookLevel(base_price - 0.25, 150, 3),  # Best bid
         OrderBookLevel(base_price - 0.50, 120, 2),
@@ -373,7 +429,7 @@ def create_mock_order_book(symbol: str = "ES", base_price: float = 4500.0) -> Or
         OrderBookLevel(base_price - 1.25, 60, 1),
     ]
     
-    # Asks (ascending prices)
+    # Asks (ascending prices) - valeurs fixes au lieu de random
     asks = [
         OrderBookLevel(base_price + 0.25, 140, 2),  # Best ask
         OrderBookLevel(base_price + 0.50, 110, 3),
@@ -399,12 +455,12 @@ def calculate_order_book_imbalance_feature(market_data: MarketData,
         calculator = create_order_book_imbalance_calculator()
     
     if order_book is None:
-        # Mock order book si pas de données réelles
-        order_book = create_mock_order_book(
+        # Essayer d'abord les vraies données DOM
+        order_book = create_real_order_book(
             symbol=market_data.symbol,
             base_price=market_data.close
         )
-        logger.debug("Utilisation mock order book - remplacer par données réelles")
+        logger.debug("Order book créé (réel ou mock selon disponibilité)")
     
     result = calculator.calculate_imbalance(market_data, order_book)
     return result.signal_strength
@@ -434,9 +490,9 @@ def test_order_book_imbalance():
         volume=1500
     )
     
-    # Test 1: Order book équilibré
+    # Test 1: Order book équilibré (essayer vraies données d'abord)
     logger.info("\n[TEST] Order book équilibré")
-    balanced_book = create_mock_order_book("ES", 4502.0)
+    balanced_book = create_real_order_book("ES", 4502.0)
     result_balanced = calculator.calculate_imbalance(market_data, balanced_book)
     
     logger.info(f"Signal strength: {result_balanced.signal_strength:.3f}")
@@ -479,7 +535,7 @@ def test_order_book_imbalance():
     start_time = time.time()
     
     for i in range(100):
-        test_book = create_mock_order_book("ES", 4500.0 + (i * 0.25))
+        test_book = create_real_order_book("ES", 4500.0 + (i * 0.25))
         calculator.calculate_imbalance(market_data, test_book)
     
     total_time = (time.time() - start_time) * 1000

@@ -1,0 +1,27 @@
+{
+  "timestamp": "2025-08-16T20:25:22.009352",
+  "friday_close": "2025-08-15T21:00:00",
+  "spx_levels": {},
+  "es_levels": {},
+  "gamma_exposure": {
+    "gex1_spx": "N/A",
+    "gex2_spx": "N/A",
+    "gex1_es": "N/A",
+    "gex2_es": "N/A"
+  },
+  "success": false,
+  "errors": [
+    "SPX: 'IBKRBetaConnector' object has no attribute 'get_options_data'",
+    "ES: 'IBKRBetaConnector' object has no attribute 'get_options_data'"
+  ],
+  "analysis": {
+    "market_sentiment": "NEUTRAL",
+    "key_levels": [],
+    "weekend_strategy": {
+      "type": "NEUTRAL_RANGE",
+      "description": "Trading range prévu",
+      "key_levels": "Support et résistance"
+    },
+    "risk_assessment": "LOW"
+  }
+}

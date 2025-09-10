@@ -1,0 +1,22 @@
+{
+  "timestamp": "2025-08-13T08:45:30.397796",
+  "target_price": 6469.25,
+  "symbols_found": [
+    {
+      "symbol": "ES",
+      "price": 6525.0,
+      "difference": 55.75,
+      "volume": 204.0,
+      "bid": 6523.75,
+      "ask": 6525.0
+    }
+  ],
+  "best_match": {
+    "symbol": "ES",
+    "price": 6525.0,
+    "difference": 55.75,
+    "volume": 204.0,
+    "bid": 6523.75,
+    "ask": 6525.0
+  }
+}

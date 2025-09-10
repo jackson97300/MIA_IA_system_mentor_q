@@ -12,6 +12,7 @@ Performance: <5ms pour calcul complet
 
 import json
 import math
+import os
 from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -20,6 +21,8 @@ from enum import Enum
 from core.logger import get_logger
 from core.base_types import ES_TICK_SIZE
 from features.menthorq_processor import MenthorQProcessor
+from features.data_reader import get_latest_market_data, get_menthorq_market_data
+from features.config_loader import get_feature_config
 from statistics import mean
 
 logger = get_logger(__name__)
@@ -119,10 +122,12 @@ class MenthorQDealersBiasAnalyzer:
         self.ema_alpha = ema_alpha
         self.last_bias = None  # Pour EMA smoothing
         
-        # Configuration des seuils
-        self.gamma_proximity_ticks = 10.0  # 10 ticks = 2.5 points ES
-        self.blind_spot_danger_ticks = 5.0  # 5 ticks = 1.25 points ES
-        self.swing_proximity_ticks = 15.0  # 15 ticks = 3.75 points ES
+        # Configuration des seuils (depuis config/feature_config.json)
+        from features.config_loader import get_feature_config
+        config = get_feature_config()
+        self.gamma_proximity_ticks = config.menthorq.gamma_proximity_ticks
+        self.blind_spot_danger_ticks = config.menthorq.blind_spot_proximity_ticks
+        self.swing_proximity_ticks = config.menthorq.swing_level_proximity_ticks
         
         # Pondérations (adaptées du système Polygon)
         self.weights = {
@@ -289,9 +294,9 @@ class MenthorQDealersBiasAnalyzer:
         }
 
     def calculate_menthorq_dealers_bias(self, current_price: float, symbol: str = "ESZ5",
-                                      vix_level: float = 20.0) -> Optional[MenthorQDealersBias]:
+                                      vix_level: float = 20.0, use_realtime: bool = False) -> Optional[MenthorQDealersBias]:
         """
-        Calcule le Dealer's Bias avec MenthorQ
+        Calcule le Dealer's Bias avec MenthorQ (vraies données)
         
         Args:
             current_price: Prix actuel
@@ -302,12 +307,27 @@ class MenthorQDealersBiasAnalyzer:
             MenthorQDealersBias ou None si erreur
         """
         try:
-            # Récupérer les niveaux MenthorQ
-            menthorq_data = self.menthorq_processor.get_levels(symbol)
+            # Source: temps réel si explicitement demandé, sinon cache processor (test-safe)
+            menthorq_data = None
+            if use_realtime or os.getenv("MIA_MQ_USE_REALTIME") == "1":
+                try:
+                    from features.data_reader import get_latest_market_data
+                    real_data = get_latest_market_data("ES")
+                    if real_data and real_data.get('menthorq_levels'):
+                        menthorq_data = self._convert_real_menthorq_data(real_data['menthorq_levels'])
+                        logger.info(f"✅ {len(real_data['menthorq_levels'])} niveaux MenthorQ (realtime)")
+                except Exception as e:
+                    logger.warning(f"Realtime MenthorQ indisponible: {e}")
+            if not menthorq_data:
+                menthorq_data = self.menthorq_processor.get_levels(symbol)
+                if menthorq_data.get('stale', False):
+                    logger.warning("Données MenthorQ obsolètes")
+                    return None
             
-            if menthorq_data.get('stale', False):
-                logger.warning("Données MenthorQ obsolètes")
-                return None
+            # Debug: voir la structure des données
+            logger.debug(f"Dealer's Bias Debug - menthorq_data structure: {list(menthorq_data.keys())}")
+            logger.debug(f"Dealer's Bias Debug - gamma keys: {list(menthorq_data.get('gamma', {}).keys())}")
+            logger.debug(f"Dealer's Bias Debug - blind_spots keys: {list(menthorq_data.get('blind_spots', {}).keys())}")
             
             # Calculer les composantes
             gamma_resistance_bias = self._calculate_gamma_resistance_bias(
@@ -381,6 +401,126 @@ class MenthorQDealersBiasAnalyzer:
             logger.error(f"Erreur calcul Dealer's Bias MenthorQ: {e}")
             return None
     
+    def _convert_real_menthorq_data(self, menthorq_levels) -> Dict[str, Any]:
+        """Convertit les vraies données MenthorQ en format compatible"""
+        converted_data = {
+            'gamma': {
+                'call_resistance': None,
+                'put_support': None,
+                'hvl': None,
+                '1d_min': None,
+                '1d_max': None,
+                'call_resistance_0dte': None,
+                'put_support_0dte': None,
+                'hvl_0dte': None,
+                'gamma_wall_0dte': None,
+                'gex_1': None, 'gex_2': None, 'gex_3': None, 'gex_4': None, 'gex_5': None,
+                'gex_6': None, 'gex_7': None, 'gex_8': None, 'gex_9': None, 'gex_10': None
+            },
+            'blind_spots': {},
+            'swing': {},
+            'stale': False
+        }
+        
+        # Gérer le cas où menthorq_levels est un dict (nouveau format)
+        if isinstance(menthorq_levels, dict):
+            # Cas enveloppe: {timestamp, symbol, chart, menthorq_levels: {...}}
+            if 'menthorq_levels' in menthorq_levels and isinstance(menthorq_levels['menthorq_levels'], dict):
+                menthorq_levels = menthorq_levels['menthorq_levels']
+            for level_type, price in menthorq_levels.items():
+                # Ignorer les valeurs non numériques
+                if not isinstance(price, (int, float)):
+                    continue
+                if price is not None and price > 0:
+                    # Mapping direct depuis le dict vers la structure gamma/blind_spots/swing
+                    if 'call_resistance' in level_type:
+                        if '0dte' in level_type:
+                            converted_data['gamma']['call_resistance_0dte'] = price
+                        else:
+                            converted_data['gamma']['call_resistance'] = price
+                    elif 'put_support' in level_type:
+                        if '0dte' in level_type:
+                            converted_data['gamma']['put_support_0dte'] = price
+                        else:
+                            converted_data['gamma']['put_support'] = price
+                    elif 'hvl' in level_type:
+                        if '0dte' in level_type:
+                            converted_data['gamma']['hvl_0dte'] = price
+                        else:
+                            converted_data['gamma']['hvl'] = price
+                    elif 'gamma_wall' in level_type:
+                        converted_data['gamma']['gamma_wall_0dte'] = price
+                    elif '1d_max' in level_type:
+                        converted_data['gamma']['1d_max'] = price
+                    elif '1d_min' in level_type:
+                        converted_data['gamma']['1d_min'] = price
+                    elif 'gex_' in level_type:
+                        # Extraire le numéro GEX (ex: gex_1 -> 1)
+                        gex_num = level_type.replace('gex_', '')
+                        converted_data['gamma'][f'gex_{gex_num}'] = price
+                    elif 'blind_spot' in level_type:
+                        # Extraire le numéro BL (ex: blind_spot_1 -> BL 1)
+                        bl_num = level_type.replace('blind_spot_', '')
+                        converted_data['blind_spots'][f'BL {bl_num}'] = price
+                    elif 'swing_lvl' in level_type:
+                        # Extraire le numéro Swing (ex: swing_lvl_1 -> SG1)
+                        swing_num = level_type.replace('swing_lvl_', '')
+                        converted_data['swing'][f'SG{swing_num}'] = price
+            return converted_data
+        
+        # Gérer le cas où menthorq_levels est une liste (ancien format)
+        for level_data in menthorq_levels:
+            # Gérer le cas où level_data est un string (données brutes)
+            if isinstance(level_data, str):
+                # Parser le string JSON
+                try:
+                    level_data = json.loads(level_data)
+                except json.JSONDecodeError:
+                    continue
+            
+            level_type = level_data.get('level_type', '') if isinstance(level_data, dict) else ''
+            price = level_data.get('price', 0.0) if isinstance(level_data, dict) else 0.0
+            # Ignorer les valeurs non numériques
+            if not isinstance(price, (int, float)):
+                continue
+            
+            # Mapping des types vers la structure gamma/blind_spots/swing
+            if 'call_resistance' in level_type:
+                if '0dte' in level_type:
+                    converted_data['gamma']['call_resistance_0dte'] = price
+                else:
+                    converted_data['gamma']['call_resistance'] = price
+            elif 'put_support' in level_type:
+                if '0dte' in level_type:
+                    converted_data['gamma']['put_support_0dte'] = price
+                else:
+                    converted_data['gamma']['put_support'] = price
+            elif 'hvl' in level_type:
+                if '0dte' in level_type:
+                    converted_data['gamma']['hvl_0dte'] = price
+                else:
+                    converted_data['gamma']['hvl'] = price
+            elif 'gamma_wall' in level_type:
+                converted_data['gamma']['gamma_wall_0dte'] = price
+            elif '1d_min' in level_type:
+                converted_data['gamma']['1d_min'] = price
+            elif '1d_max' in level_type:
+                converted_data['gamma']['1d_max'] = price
+            elif 'gex_' in level_type:
+                # Extraire le numéro GEX (ex: gex_1 -> 1)
+                gex_num = level_type.replace('gex_', '')
+                converted_data['gamma'][f'gex_{gex_num}'] = price
+            elif 'blind_spot' in level_type:
+                # Extraire le numéro BL (ex: blind_spot_1 -> BL 1)
+                bl_num = level_type.replace('blind_spot_', '')
+                converted_data['blind_spots'][f'BL {bl_num}'] = price
+            elif 'swing_lvl' in level_type:
+                # Extraire le numéro Swing (ex: swing_lvl_1 -> SG1)
+                swing_num = level_type.replace('swing_lvl_', '')
+                converted_data['swing'][f'SG{swing_num}'] = price
+        
+        return converted_data
+    
     def _calculate_gamma_resistance_bias(self, current_price: float, 
                                        menthorq_data: Dict[str, Any]) -> float:
         """
@@ -390,13 +530,13 @@ class MenthorQDealersBiasAnalyzer:
         """
         gamma_levels = menthorq_data.get("gamma", {})
         
-        # Chercher les résistances Gamma
-        call_resistance = gamma_levels.get("Call Resistance", 0)
-        call_resistance_0dte = gamma_levels.get("Call Resistance 0DTE", 0)
-        gamma_wall = gamma_levels.get("Gamma Wall 0DTE", 0)
+        # Chercher les résistances Gamma (noms du fichier C++ corrigé)
+        call_resistance = gamma_levels.get("call_resistance", 0)
+        call_resistance_0dte = gamma_levels.get("call_resistance_0dte", 0)
+        gamma_wall = gamma_levels.get("gamma_wall_0dte", 0)
         
         resistance_levels = [call_resistance, call_resistance_0dte, gamma_wall]
-        resistance_levels = [level for level in resistance_levels if level > 0]
+        resistance_levels = [level for level in resistance_levels if level is not None and level > 0]
         
         if not resistance_levels:
             return 0.5  # Neutre
@@ -427,14 +567,14 @@ class MenthorQDealersBiasAnalyzer:
         """
         gamma_levels = menthorq_data.get("gamma", {})
         
-        # Chercher les supports Gamma
-        put_support = gamma_levels.get("Put Support", 0)
-        put_support_0dte = gamma_levels.get("Put Support 0DTE", 0)
-        hvl = gamma_levels.get("HVL", 0)
-        hvl_0dte = gamma_levels.get("HVL 0DTE", 0)
+        # Chercher les supports Gamma (noms du fichier C++ corrigé)
+        put_support = gamma_levels.get("put_support", 0)
+        put_support_0dte = gamma_levels.get("put_support_0dte", 0)
+        hvl = gamma_levels.get("hvl", 0)
+        hvl_0dte = gamma_levels.get("hvl_0dte", 0)
         
         support_levels = [put_support, put_support_0dte, hvl, hvl_0dte]
-        support_levels = [level for level in support_levels if level > 0]
+        support_levels = [level for level in support_levels if level is not None and level > 0]
         
         if not support_levels:
             return 0.5  # Neutre
@@ -470,7 +610,7 @@ class MenthorQDealersBiasAnalyzer:
         
         # Vérifier si on est proche d'un Blind Spot
         for label, price in blind_spots.items():
-            if price > 0:
+            if price is not None and price > 0:
                 distance_ticks = abs(current_price - price) / ES_TICK_SIZE
                 
                 if distance_ticks <= self.blind_spot_danger_ticks:
@@ -497,7 +637,7 @@ class MenthorQDealersBiasAnalyzer:
         swing_bias_sum = 0.0
         
         for label, price in swing_levels.items():
-            if price > 0:
+            if price is not None and price > 0:
                 distance_ticks = abs(current_price - price) / ES_TICK_SIZE
                 
                 if distance_ticks <= self.swing_proximity_ticks:
@@ -524,13 +664,21 @@ class MenthorQDealersBiasAnalyzer:
         """
         gamma_levels = menthorq_data.get("gamma", {})
         
-        # Compter les niveaux GEX
+        # Debug: voir ce qu'on a dans gamma_levels
+        logger.debug(f"GEX Debug - gamma_levels keys: {list(gamma_levels.keys())}")
+        logger.debug(f"GEX Debug - gamma_levels values: {[(k, v) for k, v in gamma_levels.items() if v and v > 0]}")
+        
+        # Compter les niveaux GEX (noms du fichier C++ corrigé)
         gex_levels = []
         for label, price in gamma_levels.items():
-            if label.startswith("GEX ") and price > 0:
+            if label.startswith("gex_") and price is not None and price > 0:
                 gex_levels.append(price)
+                logger.debug(f"GEX Debug - Found GEX level: {label} = {price}")
+        
+        logger.debug(f"GEX Debug - Total GEX levels found: {len(gex_levels)}")
         
         if not gex_levels:
+            logger.debug("GEX Debug - No GEX levels found, returning neutral")
             return 0.5  # Neutre
         
         # Compter les GEX au-dessus et en-dessous
@@ -587,7 +735,7 @@ class MenthorQDealersBiasAnalyzer:
         gamma_levels = menthorq_data.get("gamma", {})
         
         for label, price in gamma_levels.items():
-            if price > 0:
+            if price is not None and price > 0:
                 distance_ticks = abs(current_price - price) / ES_TICK_SIZE
                 if distance_ticks <= self.gamma_proximity_ticks:
                     active_levels.append({
@@ -606,7 +754,7 @@ class MenthorQDealersBiasAnalyzer:
         blind_spots = menthorq_data.get("blind_spots", {})
         
         for label, price in blind_spots.items():
-            if price > 0:
+            if price is not None and price > 0:
                 distance_ticks = abs(current_price - price) / ES_TICK_SIZE
                 if distance_ticks <= self.blind_spot_danger_ticks:
                     active_spots.append({
@@ -625,7 +773,7 @@ class MenthorQDealersBiasAnalyzer:
         swing_levels = menthorq_data.get("swing", {})
         
         for label, price in swing_levels.items():
-            if price > 0:
+            if price is not None and price > 0:
                 distance_ticks = abs(current_price - price) / ES_TICK_SIZE
                 if distance_ticks <= self.swing_proximity_ticks:
                     active_levels.append({
@@ -754,6 +902,32 @@ def test_menthorq_dealers_bias():
     
     logger.info("Test MenthorQDealersBiasAnalyzer terminé")
     return True
+
+# === FACTORY FUNCTION ===
+
+def create_menthorq_dealers_bias_analyzer(config=None):
+    """
+    Factory function pour MenthorQDealersBiasAnalyzer
+    
+    Args:
+        config: Configuration optionnelle (ignorée pour compatibilité)
+        
+    Returns:
+        Instance de MenthorQDealersBiasAnalyzer ou None si erreur
+    """
+    try:
+        # Créer le processeur MenthorQ
+        menthorq_processor = MenthorQProcessor()
+        
+        # Créer l'analyseur avec le processeur
+        analyzer = MenthorQDealersBiasAnalyzer(menthorq_processor)
+        
+        logger.info("✅ MenthorQDealersBiasAnalyzer créé avec succès")
+        return analyzer
+        
+    except Exception as e:
+        logger.error(f"❌ Erreur création MenthorQDealersBiasAnalyzer: {e}")
+        return None
 
 if __name__ == "__main__":
     test_menthorq_dealers_bias()

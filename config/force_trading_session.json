@@ -1,9 +1,0 @@
-{
-  "session": "london_force_trading",
-  "description": "Session Londres - Force Trading (sans options)",
-  "trading_enabled": true,
-  "data_source": "live_data",
-  "options_required": false,
-  "force_trading": true,
-  "skip_options_validation": true
-}

@@ -193,6 +193,103 @@ class MarketRegimeData:
     session_phase: str = "unknown"
     session_performance_factor: float = 1.0
 
+# === TICK CONVERSION UTILITIES ===
+
+class TickConverter:
+    """🎯 Utilitaire de conversion prix ↔ ticks pour différents instruments"""
+    
+    # Tick sizes par instrument
+    TICK_SIZES = {
+        'ES': 0.25,    # E-mini S&P 500
+        'MES': 0.25,   # Micro E-mini S&P 500
+        'NQ': 0.25,    # E-mini NASDAQ-100
+        'MNQ': 0.25,   # Micro E-mini NASDAQ-100
+        'YM': 1.0,     # E-mini Dow Jones
+        'MYM': 1.0,    # Micro E-mini Dow Jones
+        'RTY': 0.1,    # E-mini Russell 2000
+        'M2K': 0.1,    # Micro E-mini Russell 2000
+    }
+    
+    # Tick values par instrument (pour calcul P&L)
+    TICK_VALUES = {
+        'ES': 12.50,   # $12.50 par tick
+        'MES': 1.25,   # $1.25 par tick
+        'NQ': 5.00,    # $5.00 par tick
+        'MNQ': 0.50,   # $0.50 par tick
+        'YM': 5.00,    # $5.00 par tick
+        'MYM': 0.50,   # $0.50 par tick
+        'RTY': 5.00,   # $5.00 par tick
+        'M2K': 0.50,   # $0.50 par tick
+    }
+    
+    @classmethod
+    def price_to_ticks(cls, price: float, instrument: str = 'ES') -> float:
+        """🎯 Convertit un prix en nombre de ticks"""
+        try:
+            tick_size = cls.TICK_SIZES.get(instrument.upper(), 0.25)
+            return price / tick_size
+        except (TypeError, ValueError, ZeroDivisionError):
+            logger.warning(f"⚠️ Erreur conversion prix→ticks: {price} pour {instrument}")
+            return 0.0
+    
+    @classmethod
+    def ticks_to_price(cls, ticks: float, instrument: str = 'ES') -> float:
+        """🎯 Convertit un nombre de ticks en prix"""
+        try:
+            tick_size = cls.TICK_SIZES.get(instrument.upper(), 0.25)
+            return ticks * tick_size
+        except (TypeError, ValueError):
+            logger.warning(f"⚠️ Erreur conversion ticks→prix: {ticks} pour {instrument}")
+            return 0.0
+    
+    @classmethod
+    def price_range_to_ticks(cls, price1: float, price2: float, instrument: str = 'ES') -> float:
+        """🎯 Convertit une plage de prix en ticks"""
+        try:
+            return abs(cls.price_to_ticks(price1, instrument) - cls.price_to_ticks(price2, instrument))
+        except (TypeError, ValueError):
+            logger.warning(f"⚠️ Erreur conversion plage→ticks: {price1}-{price2} pour {instrument}")
+            return 0.0
+    
+    @classmethod
+    def ticks_to_dollar_value(cls, ticks: float, instrument: str = 'ES') -> float:
+        """🎯 Convertit des ticks en valeur dollar"""
+        try:
+            tick_value = cls.TICK_VALUES.get(instrument.upper(), 12.50)
+            return ticks * tick_value
+        except (TypeError, ValueError):
+            logger.warning(f"⚠️ Erreur conversion ticks→dollars: {ticks} pour {instrument}")
+            return 0.0
+    
+    @classmethod
+    def round_to_tick(cls, price: float, instrument: str = 'ES') -> float:
+        """🎯 Arrondit un prix au tick le plus proche"""
+        try:
+            tick_size = cls.TICK_SIZES.get(instrument.upper(), 0.25)
+            return round(price / tick_size) * tick_size
+        except (TypeError, ValueError):
+            logger.warning(f"⚠️ Erreur arrondi tick: {price} pour {instrument}")
+            return price
+    
+    @classmethod
+    def get_tick_size(cls, instrument: str = 'ES') -> float:
+        """🎯 Retourne la taille de tick pour un instrument"""
+        return cls.TICK_SIZES.get(instrument.upper(), 0.25)
+    
+    @classmethod
+    def get_tick_value(cls, instrument: str = 'ES') -> float:
+        """🎯 Retourne la valeur de tick pour un instrument"""
+        return cls.TICK_VALUES.get(instrument.upper(), 12.50)
+    
+    @classmethod
+    def is_valid_tick_price(cls, price: float, instrument: str = 'ES') -> bool:
+        """🎯 Vérifie si un prix est aligné sur les ticks"""
+        try:
+            tick_size = cls.get_tick_size(instrument)
+            return abs(price - cls.round_to_tick(price, instrument)) < 1e-6
+        except (TypeError, ValueError):
+            return False
+
 # === MAIN MARKET REGIME DETECTOR ===
 
 
@@ -230,14 +327,62 @@ class MarketRegimeDetector:
         self.min_correlation_strength = self.config.get('min_correlation_strength', 0.7)
 
         # Paramètres session
-        self.session_volatility_factors = {
+        self.session_volatility_factors = self.config.get('session_volatility_factors', {
             'london_open': 1.3,    # Plus volatil
             'ny_open': 1.5,        # Très volatil
             'lunch': 0.7,          # Moins volatil
             'afternoon': 1.0,      # Normal
             'close': 1.2,          # Modérément volatil
             'after_hours': 0.5     # Faible volatilité
-        }
+        })
+        
+        # 🎯 Paramètres de classification des tendances (configurables)
+        self.trend_classification_thresholds = self.config.get('trend_classification_thresholds', {
+            'very_strong': 0.85,   # >= 0.85
+            'strong': 0.70,        # >= 0.70
+            'moderate': 0.50,      # >= 0.50
+            'weak': 0.30,          # >= 0.30
+            'very_weak': 0.0       # < 0.30
+        })
+        
+        # 🎯 Paramètres de validation des volumes
+        self.volume_validation_thresholds = self.config.get('volume_validation_thresholds', {
+            'min_volume_change': 0.1,  # 10% change minimum
+            'volume_confirmation_weight': 0.2  # Poids dans le calcul
+        })
+        
+        # 🎯 Paramètres de corrélation ES/NQ
+        self.correlation_classification_thresholds = self.config.get('correlation_classification_thresholds', {
+            'very_high': 0.8,      # >= 0.8
+            'high': 0.6,           # >= 0.6
+            'moderate': 0.4,       # >= 0.4
+            'low': 0.0             # < 0.4
+        })
+        
+        # 🎯 Paramètres de divergence
+        self.divergence_thresholds = self.config.get('divergence_thresholds', {
+            'warning_threshold': 0.02,  # 2% divergence warning
+            'critical_threshold': 0.05  # 5% divergence critical
+        })
+        
+        # 🎯 Paramètres de bias
+        self.bias_thresholds = self.config.get('bias_thresholds', {
+            'min_bias_strength': 0.5,    # Force minimum pour bias
+            'vwap_slope_strong': 0.5,    # VWAP slope pour tendance forte
+            'vwap_slope_moderate': 0.2   # VWAP slope pour tendance modérée
+        })
+        
+        # 🎯 Paramètres de qualité des ranges
+        self.range_quality_thresholds = self.config.get('range_quality_thresholds', {
+            'optimal_size_min': 15,      # Taille optimale minimum
+            'optimal_size_max': 30,      # Taille optimale maximum
+            'acceptable_size_min': 12,   # Taille acceptable minimum
+            'acceptable_size_max': 40,   # Taille acceptable maximum
+            'duration_weight': 0.2,      # Poids durée dans score
+            'size_weight': 0.15,         # Poids taille dans score
+            'tests_weight': 0.25,        # Poids tests dans score
+            'respect_weight': 0.4        # Poids respect dans score
+        })
 
         # État système
         self.price_history: deque = deque(maxlen=200)
@@ -376,12 +521,12 @@ class MarketRegimeDetector:
         else:
             # Calcul approximatif si pas fourni
             closes = [bar.close for bar in recent_bars]
-            vwap_slope = np.polyfit(range(len(closes)), closes, 1)[0] / ES_TICK_SIZE
+            vwap_slope = TickConverter.price_to_ticks(np.polyfit(range(len(closes)), closes, 1)[0], 'ES')
 
         # === PRICE SLOPE ===
 
         closes = [bar.close for bar in recent_bars]
-        price_slope = np.polyfit(range(len(closes)), closes, 1)[0] / ES_TICK_SIZE
+        price_slope = TickConverter.price_to_ticks(np.polyfit(range(len(closes)), closes, 1)[0], 'ES')
 
         # === VOLUME TREND ===
 
@@ -413,13 +558,15 @@ class MarketRegimeDetector:
             0.25)
 
         # Classification force
-        if trend_strength_value >= 0.85:
+        # 🎯 Classification basée sur les seuils configurables
+        thresholds = self.trend_classification_thresholds
+        if trend_strength_value >= thresholds['very_strong']:
             trend_strength = TrendStrength.VERY_STRONG
-        elif trend_strength_value >= 0.70:
+        elif trend_strength_value >= thresholds['strong']:
             trend_strength = TrendStrength.STRONG
-        elif trend_strength_value >= 0.50:
+        elif trend_strength_value >= thresholds['moderate']:
             trend_strength = TrendStrength.MODERATE
-        elif trend_strength_value >= 0.30:
+        elif trend_strength_value >= thresholds['weak']:
             trend_strength = TrendStrength.WEAK
         else:
             trend_strength = TrendStrength.VERY_WEAK
@@ -436,7 +583,7 @@ class MarketRegimeDetector:
         # === VALIDATION ===
 
         structure_intact = (hh_count + hl_count >= 3) or (lh_count + ll_count >= 3)
-        volume_confirms = abs(volume_trend) > 0.1  # 10% change in volume trend
+        volume_confirms = abs(volume_trend) > self.volume_validation_thresholds['min_volume_change']
 
         return TrendAnalysis(
             timestamp=market_data.timestamp,
@@ -499,7 +646,7 @@ class MarketRegimeDetector:
 
         # === VALIDATION TAILLE RANGE ===
 
-        range_size_ticks = (resistance_level - support_level) / ES_TICK_SIZE
+        range_size_ticks = TickConverter.price_range_to_ticks(resistance_level, support_level, 'ES')
 
         # FILTRE PRINCIPAL : Taille range
         if range_size_ticks < self.min_range_size_ticks:
@@ -523,10 +670,10 @@ class MarketRegimeDetector:
         # === COMPTAGE TESTS NIVEAUX ===
 
         support_tests = self._count_level_tests(
-            lows, support_level, tolerance=1.5 * ES_TICK_SIZE
+            lows, support_level, tolerance=TickConverter.ticks_to_price(1.5, 'ES')
         )
         resistance_tests = self._count_level_tests(
-            highs, resistance_level, tolerance=1.5 * ES_TICK_SIZE
+            highs, resistance_level, tolerance=TickConverter.ticks_to_price(1.5, 'ES')
         )
 
         # FILTRE : Tests minimum
@@ -654,11 +801,13 @@ class MarketRegimeDetector:
             correlation_coef = 0.0
 
         # Classification force corrélation
-        if abs(correlation_coef) >= 0.8:
+        # 🎯 Classification basée sur les seuils configurables
+        corr_thresholds = self.correlation_classification_thresholds
+        if abs(correlation_coef) >= corr_thresholds['very_high']:
             correlation_strength = "very_strong"
-        elif abs(correlation_coef) >= 0.6:
+        elif abs(correlation_coef) >= corr_thresholds['high']:
             correlation_strength = "strong"
-        elif abs(correlation_coef) >= 0.4:
+        elif abs(correlation_coef) >= corr_thresholds['moderate']:
             correlation_strength = "moderate"
         else:
             correlation_strength = "weak"
@@ -695,7 +844,7 @@ class MarketRegimeDetector:
 
         # Signaux
         aligned = correlation_coef > self.min_correlation_strength
-        divergence_warning = price_divergence > 0.02  # 2% divergence
+        divergence_warning = price_divergence > self.divergence_thresholds['warning_threshold']
 
         return ESNQCorrelation(
             timestamp=pd.Timestamp.now(),
@@ -736,7 +885,7 @@ class MarketRegimeDetector:
         # STRONG TREND BULLISH
         if (trend_strength in [TrendStrength.VERY_STRONG, TrendStrength.STRONG] and
             hh_hl_score >= 4 and hh_hl_score > lh_ll_score and
-                vwap_slope > 0.5 and trend_analysis.structure_intact):
+                vwap_slope > self.bias_thresholds['vwap_slope_strong'] and trend_analysis.structure_intact):
 
             confidence = 0.85 + min(trend_analysis.trend_consistency * 0.15, 0.15)
             return MarketRegime.STRONG_TREND_BULLISH, confidence
@@ -752,7 +901,7 @@ class MarketRegimeDetector:
         # WEAK TREND BULLISH
         elif (trend_strength == TrendStrength.MODERATE and
               hh_hl_score >= 2 and hh_hl_score > lh_ll_score and
-              vwap_slope > 0.2):
+              vwap_slope > self.bias_thresholds['vwap_slope_moderate']):
 
             confidence = 0.65 + min(trend_analysis.trend_consistency * 0.2, 0.2)
             return MarketRegime.WEAK_TREND_BULLISH, confidence
@@ -774,12 +923,12 @@ class MarketRegimeDetector:
             range_quality = self._calculate_range_quality_score(range_analysis)
 
             # RANGE BULLISH BIAS
-            if bias == "bullish" and bias_strength > 0.5:
+            if bias == "bullish" and bias_strength > self.bias_thresholds['min_bias_strength']:
                 confidence = 0.70 + (range_quality * 0.2)
                 return MarketRegime.RANGE_BULLISH_BIAS, confidence
 
             # RANGE BEARISH BIAS
-            elif bias == "bearish" and bias_strength > 0.5:
+            elif bias == "bearish" and bias_strength > self.bias_thresholds['min_bias_strength']:
                 confidence = 0.70 + (range_quality * 0.2)
                 return MarketRegime.RANGE_BEARISH_BIAS, confidence
 
@@ -994,7 +1143,7 @@ class MarketRegimeDetector:
         max_tests = 0
 
         for candidate in candidates:
-            tests = self._count_level_tests(prices, candidate, tolerance=2*ES_TICK_SIZE)
+            tests = self._count_level_tests(prices, candidate, tolerance=TickConverter.ticks_to_price(2, 'ES'))
             if tests > max_tests:
                 max_tests = tests
                 best_level = candidate
@@ -1016,15 +1165,15 @@ class MarketRegimeDetector:
 
         for bar in bars:
             # Test support
-            if abs(bar.low - support) <= 2 * ES_TICK_SIZE:
+            if abs(bar.low - support) <= TickConverter.ticks_to_price(2, 'ES'):
                 total_tests += 1
-                if bar.close < support - ES_TICK_SIZE:  # Violation
+                if bar.close < support - TickConverter.ticks_to_price(1, 'ES'):  # Violation
                     violations += 1
 
             # Test résistance
-            if abs(bar.high - resistance) <= 2 * ES_TICK_SIZE:
+            if abs(bar.high - resistance) <= TickConverter.ticks_to_price(2, 'ES'):
                 total_tests += 1
-                if bar.close > resistance + ES_TICK_SIZE:  # Violation
+                if bar.close > resistance + TickConverter.ticks_to_price(1, 'ES'):  # Violation
                     violations += 1
 
         if total_tests == 0:
@@ -1040,22 +1189,26 @@ class MarketRegimeDetector:
         test_score = min((range_analysis.support_tests + range_analysis.resistance_tests) / 8, 1.0)
         score += test_score * 0.3
 
-        # Respect niveaux (25%)
-        score += range_analysis.level_respect_rate * 0.25
+        # 🎯 Poids configurables pour le calcul de qualité
+        quality_weights = self.range_quality_thresholds
+        
+        # Respect niveaux (configurable)
+        score += range_analysis.level_respect_rate * quality_weights['respect_weight']
 
-        # Durée (20%)
+        # Durée (configurable)
         duration_score = min(range_analysis.range_duration_minutes / 60, 1.0)  # Normalise à 1h
-        score += duration_score * 0.2
+        score += duration_score * quality_weights['duration_weight']
 
-        # Taille optimale (15%)
+        # 🎯 Taille optimale basée sur les seuils configurables
         size = range_analysis.range_size_ticks
-        if 15 <= size <= 30:  # Zone optimale
+        size_thresholds = self.range_quality_thresholds
+        if size_thresholds['optimal_size_min'] <= size <= size_thresholds['optimal_size_max']:
             size_score = 1.0
-        elif 12 <= size <= 40:  # Acceptable
+        elif size_thresholds['acceptable_size_min'] <= size <= size_thresholds['acceptable_size_max']:
             size_score = 0.7
         else:
             size_score = 0.3
-        score += size_score * 0.15
+        score += size_score * quality_weights['size_weight']
 
         # Volume contraction (10%)
         if range_analysis.volume_contraction:

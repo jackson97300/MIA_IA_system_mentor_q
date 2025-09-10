@@ -410,6 +410,11 @@ class AdvancedFeaturesSuite:
         
         results = {}
         
+        # 🆕 Ajouter les vraies données de marché avant calcul
+        symbol = "ES"  # Par défaut
+        if market_data and isinstance(market_data, dict):
+            symbol = market_data.get('symbol', 'ES')
+        
         # Feature #1: Tick Momentum
         if 'tick_momentum' in self.features:
             try:
@@ -427,6 +432,8 @@ class AdvancedFeaturesSuite:
         # Feature #2: Delta Divergence
         if 'delta_divergence' in self.features:
             try:
+                # 🆕 Ajouter les vraies données avant calcul
+                self.features['delta_divergence'].add_real_market_data(symbol)
                 result = self.features['delta_divergence'].calculate_delta_divergence()
                 results['delta_divergence'] = {
                     'entry_signal': result.entry_signal,
@@ -441,6 +448,8 @@ class AdvancedFeaturesSuite:
         # Feature #3: Volatility Regime
         if 'volatility_regime' in self.features:
             try:
+                # 🆕 Ajouter les vraies données avant calcul
+                self.features['volatility_regime'].add_real_market_data(symbol)
                 result = self.features['volatility_regime'].calculate_volatility_regime()
                 results['volatility_regime'] = {
                     'regime': result.regime,

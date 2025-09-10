@@ -42,6 +42,14 @@ from collections import defaultdict
 from core.base_types import MarketData, ES_TICK_SIZE, ES_TICK_VALUE
 from config.automation_config import get_automation_config
 
+# 🆕 MenthorQ Integration
+try:
+    from features.menthorq_integration import MenthorQIntegration, MenthorQLevelType
+    MENTHORQ_AVAILABLE = True
+except ImportError:
+    MENTHORQ_AVAILABLE = False
+    logger.warning("⚠️ MenthorQ Integration non disponible")
+
 logger = get_logger(__name__)
 
 # === CONFLUENCE ENUMS ===
@@ -544,6 +552,18 @@ class ConfluenceAnalyzer:
         # 🆕 INTEGRATION ELITE MTF CONFLUENCE
         self.elite_mtf = EliteMTFConfluence()
 
+        # 🆕 MENTHORQ INTEGRATION
+        if MENTHORQ_AVAILABLE:
+            try:
+                self.menthorq_integration = MenthorQIntegration()
+                logger.info("✅ MenthorQ Integration intégré dans ConfluenceAnalyzer")
+            except Exception as e:
+                logger.error(f"❌ Erreur initialisation MenthorQ: {e}")
+                self.menthorq_integration = None
+        else:
+            self.menthorq_integration = None
+            logger.warning("⚠️ MenthorQ Integration non disponible")
+
         logger.info(f"ConfluenceAnalyzer initialisé (tolérance: {tolerance_ticks} ticks)")
 
     def set_battle_navale_analyzer(self, battle_navale_analyzer):
@@ -646,7 +666,7 @@ class ConfluenceAnalyzer:
                             vwap_data: Optional[Dict[str, Any]],
                             volume_data: Optional[Dict[str, Any]],
                             session_data: Optional[Dict[str, Any]]) -> List[Level]:
-        """Collecte tous les niveaux de prix"""
+        """Collecte tous les niveaux de prix + 🆕 MenthorQ"""
         levels = []
 
         # 1. Gamma levels (options flow)
@@ -671,6 +691,14 @@ class ConfluenceAnalyzer:
 
         # 6. Round numbers automatiques
         levels.extend(self._generate_round_number_levels(market_data.close))
+
+        # 🆕 7. MenthorQ Levels (38 niveaux)
+        try:
+            menthorq_levels = self._extract_menthorq_levels(market_data.close)
+            levels.extend(menthorq_levels)
+            logger.debug(f"✅ {len(menthorq_levels)} niveaux MenthorQ ajoutés à la confluence")
+        except Exception as e:
+            logger.warning(f"⚠️ Erreur extraction MenthorQ: {e}")
 
         # Filtrer niveaux valides et trier
         valid_levels = [level for level in levels if self._is_level_valid(level, market_data)]
@@ -1134,6 +1162,87 @@ class ConfluenceAnalyzer:
         self.stats['avg_analysis_time_ms'] = (
             (current_avg * (count - 1) + analysis_time_ms) / count
         )
+
+    # === 🆕 MENTHORQ METHODS ===
+
+    def _extract_menthorq_levels(self, current_price: float) -> List[Level]:
+        """🆕 Extrait les 38 niveaux MenthorQ pour la confluence"""
+        if not self.menthorq_integration:
+            return []
+        
+        try:
+            # Récupérer les données MenthorQ
+            menthorq_levels = self.menthorq_integration.parse_menthorq_data()
+            levels = []
+            
+            # Convertir les niveaux MenthorQ en Level objects
+            for menthorq_level in menthorq_levels.get_all_levels():
+                # Mapping des types MenthorQ vers LevelType
+                level_type = self._map_menthorq_to_level_type(menthorq_level.level_type)
+                
+                # Calculer la force basée sur la distance
+                distance = abs(current_price - menthorq_level.price)
+                strength = self._calculate_menthorq_strength(distance, menthorq_level.level_type)
+                
+                levels.append(Level(
+                    price=menthorq_level.price,
+                    level_type=level_type,
+                    strength=strength,
+                    age_minutes=0,  # MenthorQ temps réel
+                    touches_count=0
+                ))
+            
+            logger.debug(f"✅ {len(levels)} niveaux MenthorQ extraits")
+            return levels
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur extraction MenthorQ: {e}")
+            return []
+    
+    def _map_menthorq_to_level_type(self, menthorq_type) -> LevelType:
+        """Mappe les types MenthorQ vers LevelType"""
+        mapping = {
+            MenthorQLevelType.CALL_RESISTANCE: LevelType.GAMMA_CALL_WALL,
+            MenthorQLevelType.PUT_SUPPORT: LevelType.GAMMA_PUT_WALL,
+            MenthorQLevelType.HVL: LevelType.VOLUME_HIGH,
+            MenthorQLevelType.ONE_D_MIN: LevelType.SESSION_LOW,
+            MenthorQLevelType.ONE_D_MAX: LevelType.SESSION_HIGH,
+            MenthorQLevelType.CALL_RESISTANCE_0DTE: LevelType.GAMMA_CALL_WALL,
+            MenthorQLevelType.PUT_SUPPORT_0DTE: LevelType.GAMMA_PUT_WALL,
+            MenthorQLevelType.GAMMA_WALL_0DTE: LevelType.GAMMA_CALL_WALL,
+        }
+        
+        # Pour les GEX et BL levels, utiliser des types génériques
+        if "GEX" in str(menthorq_type):
+            return LevelType.GAMMA_CALL_WALL
+        elif "BL" in str(menthorq_type):
+            return LevelType.VOLUME_HIGH
+        else:
+            return mapping.get(menthorq_type, LevelType.TECHNICAL_LEVEL)
+    
+    def _calculate_menthorq_strength(self, distance: float, level_type) -> float:
+        """Calcule la force d'un niveau MenthorQ basée sur la distance et le type"""
+        # Force de base selon le type
+        base_strength = {
+            MenthorQLevelType.GAMMA_WALL_0DTE: 0.95,
+            MenthorQLevelType.CALL_RESISTANCE_0DTE: 0.90,
+            MenthorQLevelType.PUT_SUPPORT_0DTE: 0.90,
+            MenthorQLevelType.CALL_RESISTANCE: 0.80,
+            MenthorQLevelType.PUT_SUPPORT: 0.80,
+            MenthorQLevelType.HVL: 0.75,
+        }.get(level_type, 0.70)
+        
+        # Réduction basée sur la distance
+        if distance < 5.0:  # Très proche
+            distance_multiplier = 1.0
+        elif distance < 15.0:  # Proche
+            distance_multiplier = 0.8
+        elif distance < 30.0:  # Moyennement proche
+            distance_multiplier = 0.6
+        else:  # Loin
+            distance_multiplier = 0.3
+        
+        return base_strength * distance_multiplier
 
     # === PUBLIC METHODS ===
 

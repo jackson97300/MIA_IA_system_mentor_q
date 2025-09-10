@@ -1,0 +1,191 @@
+{
+  "timestamp": "2025-08-16T21:01:57.451121",
+  "data_sources": {
+    "market_data": true,
+    "options_data": true,
+    "orderflow_data": true,
+    "completeness": 75.0
+  },
+  "system_components": {
+    "core_modules": {
+      "data_manager": {
+        "status": "OPERATIONAL",
+        "latency": "5ms",
+        "data_quality": "HIGH"
+      },
+      "pattern_detector": {
+        "status": "OPERATIONAL",
+        "patterns_detected": 12,
+        "accuracy": 0.85
+      },
+      "signal_generator": {
+        "status": "OPERATIONAL",
+        "signals_generated": 8,
+        "strength_avg": 0.72
+      },
+      "risk_manager": {
+        "status": "OPERATIONAL",
+        "risk_level": "LOW",
+        "exposure": "15%"
+      }
+    },
+    "features": {
+      "technical_indicators": {
+        "status": "OPERATIONAL",
+        "indicators": 15,
+        "signals": 6
+      },
+      "options_analysis": {
+        "status": "OPERATIONAL",
+        "gex_levels": 2,
+        "strike_analysis": "COMPLETE"
+      },
+      "orderflow_analysis": {
+        "status": "OPERATIONAL",
+        "flow_direction": "BEARISH",
+        "intensity": 2.9
+      },
+      "confluence_analyzer": {
+        "status": "OPERATIONAL",
+        "confluence_score": 0.78,
+        "factors": 5
+      }
+    },
+    "strategies": {
+      "battle_navale": {
+        "status": "OPERATIONAL",
+        "signals": 3,
+        "success_rate": 0.67
+      },
+      "range_strategy": {
+        "status": "OPERATIONAL",
+        "ranges_detected": 2,
+        "breakouts": 1
+      },
+      "gamma_scalping": {
+        "status": "OPERATIONAL",
+        "gamma_trades": 2,
+        "hedge_ratio": 0.45
+      }
+    },
+    "ml_models": {
+      "price_prediction": {
+        "status": "OPERATIONAL",
+        "accuracy": 0.73,
+        "predictions": 5
+      },
+      "volatility_forecast": {
+        "status": "OPERATIONAL",
+        "forecast_accuracy": 0.68,
+        "regime": "LOW"
+      },
+      "pattern_recognition": {
+        "status": "OPERATIONAL",
+        "patterns_recognized": 8,
+        "confidence": 0.81
+      }
+    },
+    "execution": {
+      "order_manager": {
+        "status": "OPERATIONAL",
+        "orders_processed": 12,
+        "fill_rate": 0.95
+      },
+      "position_tracker": {
+        "status": "OPERATIONAL",
+        "positions_active": 2,
+        "exposure": "12%"
+      },
+      "performance_monitor": {
+        "status": "OPERATIONAL",
+        "metrics_tracked": 15,
+        "alerts": 0
+      }
+    },
+    "monitoring": {
+      "health_checker": {
+        "status": "OPERATIONAL",
+        "health_score": 0.94,
+        "issues": 0
+      },
+      "alert_system": {
+        "status": "OPERATIONAL",
+        "alerts_generated": 0,
+        "response_time": "2s"
+      },
+      "catastrophe_monitor": {
+        "status": "OPERATIONAL",
+        "risk_level": "LOW",
+        "safeguards": "ACTIVE"
+      }
+    }
+  },
+  "trading_simulation": {
+    "session_duration": 60,
+    "initial_price": 6449.7998046875,
+    "final_price": 6398.321131795551,
+    "total_trades": 0,
+    "winning_trades": 0,
+    "win_rate": 0,
+    "total_pnl": 150.73682333230954,
+    "trades": [
+      {
+        "time": 0,
+        "action": "SELL",
+        "price": 6448.728412118331,
+        "signal": "ORDERFLOW_BEARISH"
+      },
+      {
+        "time": 0,
+        "action": "SELL",
+        "price": 6448.728412118331,
+        "signal": "IMBALANCE_BEARISH"
+      },
+      {
+        "time": 1,
+        "action": "SELL",
+        "price": 6448.243394482301,
+        "signal": "ORDERFLOW_BEARISH"
+      }
+    ],
+    "positions": [
+      {
+        "id": 1,
+        "side": "SHORT",
+        "entry_price": 6448.728412118331,
+        "entry_time": 0,
+        "size": 1,
+        "signal_strength": 0.9657116990763841
+      },
+      {
+        "id": 2,
+        "side": "SHORT",
+        "entry_price": 6448.728412118331,
+        "entry_time": 0,
+        "size": 1,
+        "signal_strength": 0.6972154255114074
+      },
+      {
+        "id": 3,
+        "side": "SHORT",
+        "entry_price": 6448.243394482301,
+        "entry_time": 1,
+        "size": 1,
+        "signal_strength": 0.9657116990763841
+      }
+    ]
+  },
+  "performance_metrics": {
+    "total_trades": 0,
+    "winning_trades": 0,
+    "win_rate": 0,
+    "total_pnl": 150.73682333230954,
+    "avg_trade": 0,
+    "profit_factor": Infinity,
+    "max_drawdown": 0,
+    "sharpe_ratio": 0.0,
+    "risk_reward_ratio": 0
+  },
+  "success": false,
+  "errors": []
+}

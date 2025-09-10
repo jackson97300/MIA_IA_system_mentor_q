@@ -6,13 +6,14 @@
 #include <cmath>
 #include <unordered_map>
 #include <string>
+#include <vector>
 using std::fabs;
 
 SCDLLName("MIA_Chart_Dumper_Patched_VIX_NBCV_Quotes_Corrected_Daily")
 
-// Dumper complet : BaseData, DOM live, VAP, T&S, VWAP + VVA (Volume Value Area Lines) + PVWAP + VIX + NBCV Footprint + Quotes/Trades
-// Collecte VAH/VAL/VPOC (courant) + PVAH/PVAL/PPOC (précédent) + PVWAP (VWAP période précédente) + VIX temps réel + NBCV OrderFlow + Time & Sales
-// NBCV Mapping corrigé : SG5(Ask Vol), SG6(Bid Vol), SG1(Delta), SG12(Trades), SG10(Cumulative Sum)
+// Dumper complet : BaseData, DOM live, VAP, T&S, VWAP + VVA (Volume Value Area Lines) + PVWAP + VIX + NBCV Footprint + Quotes/Trades + Corrélation ES/NQ
+// Collecte VAH/VAL/VPOC (courant) + PVAH/PVAL/PPOC (précédent) + PVWAP (VWAP période précédente) + VIX temps réel + NBCV OrderFlow + Time & Sales + Corrélation ES/NQ
+// NBCV Mapping corrigé : SG6(Ask Vol), SG7(Bid Vol), SG1(Delta), SG12(Trades), Cumulative Delta Bars SG4
 
 // ========== FONCTIONS UTILITAIRES ==========
 static void EnsureOutDir() {
@@ -115,6 +116,12 @@ SCSFExport scsf_MIA_Chart_Dumper_Patched_VIX_Daily(SCStudyInterfaceRef sc)
     sc.Input[4].SetInt(0); // Auto-résolution par nom (recommandé)
     sc.Input[5].Name = "Export VWAP Bands Count (0..4)";
     sc.Input[5].SetInt(4); // Default to 4 bands based on user's current config
+    // Mapping explicite des SG VWAP (certains templates n'ont pas SG0)
+    sc.Input[39].Name = "VWAP SG - Main";      sc.Input[39].SetInt(0);  // ex: 0 ou 5
+    sc.Input[40].Name = "VWAP SG - UP1";       sc.Input[40].SetInt(1);  // ex: 1
+    sc.Input[41].Name = "VWAP SG - DN1";       sc.Input[41].SetInt(2);  // ex: 2
+    sc.Input[42].Name = "VWAP SG - UP2";       sc.Input[42].SetInt(3);  // ex: 3
+    sc.Input[43].Name = "VWAP SG - DN2";       sc.Input[43].SetInt(4);  // ex: 4
 
     // --- Inputs VVA (Volume Value Area Lines) ---
     sc.Input[6].Name = "Export Value Area Lines (0/1)";
@@ -155,55 +162,63 @@ SCSFExport scsf_MIA_Chart_Dumper_Patched_VIX_Daily(SCStudyInterfaceRef sc)
     sc.Input[20].Name = "NBCV Study ID (0=auto)";
     sc.Input[20].SetInt(33);  // ID 33 confirmé sur Graph 3
 
-    // Mapping Subgraphs (corrigé selon Sierra Chart: SG5/6/1/12/10)
+    // Alternative: Cumulative Delta Bars Study ID
+    sc.Input[26].Name = "Cumulative Delta Bars Study ID (0=auto)";
+    sc.Input[26].SetInt(6);  // ID 6 confirmé sur Graph 4
+
+    // Mapping Subgraphs (corrigé selon vraie signification: SG6/7/1/12/10)
     sc.Input[21].Name = "NBCV SG - Ask Volume Total";
-    sc.Input[21].SetInt(5);  // SG5 - Ask Volume Total
+    sc.Input[21].SetInt(6);  // SG6 - Ask Volume Total
 
     sc.Input[22].Name = "NBCV SG - Bid Volume Total";
-    sc.Input[22].SetInt(6);  // SG6 - Bid Volume Total
+    sc.Input[22].SetInt(7);  // SG7 - Bid Volume Total
 
     sc.Input[23].Name = "NBCV SG - Delta (Ask-Bid)";
-    sc.Input[23].SetInt(1);  // SG1 - Delta (Ask-Bid)
+    sc.Input[23].SetInt(1);  // SG1 - Ask Volume Bid Volume Difference
 
     sc.Input[24].Name = "NBCV SG - Number of Trades";
     sc.Input[24].SetInt(12); // SG12 - Number of Trades
 
-    sc.Input[25].Name = "NBCV SG - Cumulative Sum Ask-Bid Volume Difference - Day";
-    sc.Input[25].SetInt(10); // SG10 - Cumulative Sum of Ask Volume - Bid Volume Difference - Day
+    sc.Input[25].Name = "NBCV SG - Cumulative Sum Of Ask Volume Bid Volume Difference - Day";
+    sc.Input[25].SetInt(10); // SG10 - Cumulative Sum Of Ask Volume Bid Volume Difference - Day
 
     // Option: n'écrire que sur nouvelle barre
-    sc.Input[26].Name = "NBCV On New Bar Only (0/1)";
-    sc.Input[26].SetInt(1);
+    sc.Input[27].Name = "NBCV On New Bar Only (0/1)";
+    sc.Input[27].SetInt(1);
 
     // --- Inputs Time & Sales / Quotes ---
-    sc.Input[27].Name = "Collect Time & Sales";
-    sc.Input[27].SetYesNo(true);
-
-    sc.Input[28].Name = "Collect Quotes (Bid/Ask)";
+    sc.Input[28].Name = "Collect Time & Sales";
     sc.Input[28].SetYesNo(true);
 
-    sc.Input[29].Name = "T&S On New Bar Only (0/1)";
-    sc.Input[29].SetInt(1);
+    sc.Input[29].Name = "Collect Quotes (Bid/Ask)";
+    sc.Input[29].SetYesNo(true);
+
+    sc.Input[30].Name = "T&S On New Bar Only (0/1)";
+    sc.Input[30].SetInt(1);
 
     // --- Inputs MenthorQ (Chart 10) ---
-    sc.Input[30].Name = "Export MenthorQ Levels (0/1)";
-    sc.Input[30].SetInt(1);
-    sc.Input[31].Name = "MenthorQ Chart Number";
-    sc.Input[31].SetInt(10);
-    sc.Input[32].Name = "Gamma Levels Study ID (0=off)";
-    sc.Input[32].SetInt(1);
-    sc.Input[33].Name = "Gamma Levels Subgraphs Count";
-    sc.Input[33].SetInt(19);
-    sc.Input[34].Name = "Blind Spots Study ID (0=off)";
-    sc.Input[34].SetInt(3);
-    sc.Input[35].Name = "Blind Spots Subgraphs Count";
-    sc.Input[35].SetInt(9);
-    sc.Input[36].Name = "Swing Levels Study ID (0=off)";
-    sc.Input[36].SetInt(2);
-    sc.Input[37].Name = "Swing Levels Subgraphs Count";
-    sc.Input[37].SetInt(9);
-    sc.Input[38].Name = "MenthorQ On New Bar Only (0/1)";
-    sc.Input[38].SetInt(1);
+    sc.Input[31].Name = "Export MenthorQ Levels (0/1)";
+    sc.Input[31].SetInt(1);
+    sc.Input[32].Name = "MenthorQ Chart Number";
+    sc.Input[32].SetInt(10);
+    sc.Input[33].Name = "Gamma Levels Study ID (0=off)";
+    sc.Input[33].SetInt(1);
+    sc.Input[34].Name = "Gamma Levels Subgraphs Count";
+    sc.Input[34].SetInt(19);
+    sc.Input[35].Name = "Blind Spots Study ID (0=off)";
+    sc.Input[35].SetInt(3);
+    sc.Input[36].Name = "Blind Spots Subgraphs Count";
+    sc.Input[36].SetInt(9);
+    sc.Input[37].Name = "Swing Levels Study ID (0=off)";
+    sc.Input[37].SetInt(2);
+    sc.Input[38].Name = "Swing Levels Subgraphs Count";
+    sc.Input[38].SetInt(9);
+    sc.Input[39].Name = "MenthorQ On New Bar Only (0/1)";
+    sc.Input[39].SetInt(1);
+
+    // --- Inputs Corrélation ES/NQ ---
+    sc.Input[40].Name = "Correlation Coefficient Study ID (0=off)";
+    sc.Input[40].SetInt(15);  // ID 15 pour Graph 4
 
     return;
   }
@@ -306,8 +321,11 @@ SCSFExport scsf_MIA_Chart_Dumper_Patched_VIX_Daily(SCStudyInterfaceRef sc)
         for (int k = 0; k < 3; ++k) {
           if (cand[k] > 0) {
             SCFloatArray test;
-            sc.GetStudyArrayUsingID(cand[k], 0, test);
-            if (test.GetArraySize() > i && test[i] != 0) { vwapID = cand[k]; break; }
+            const int sgMain = sc.Input[39].GetInt();
+            if (sgMain >= 0) {
+              sc.GetStudyArrayUsingID(cand[k], sgMain, test);
+              if (test.GetArraySize() > i && test[i] != 0) { vwapID = cand[k]; break; }
+            }
           }
         }
         // Diagnostic uniquement à la première résolution
@@ -317,25 +335,36 @@ SCSFExport scsf_MIA_Chart_Dumper_Patched_VIX_Daily(SCStudyInterfaceRef sc)
   
       if (vwapID > 0) {
         SCFloatArray VWAP, UP1, DN1, UP2, DN2;
-        sc.GetStudyArrayUsingID(vwapID, 0, VWAP);
+        const int sgMain = sc.Input[39].GetInt();
+        const int sgUp1  = sc.Input[40].GetInt();
+        const int sgDn1  = sc.Input[41].GetInt();
+        const int sgUp2  = sc.Input[42].GetInt();
+        const int sgDn2  = sc.Input[43].GetInt();
+        if (sgMain >= 0) sc.GetStudyArrayUsingID(vwapID, sgMain, VWAP);
         int bands = sc.Input[5].GetInt();
-        if (bands >= 1) { sc.GetStudyArrayUsingID(vwapID, 1, UP1); sc.GetStudyArrayUsingID(vwapID, 2, DN1); }
-        if (bands >= 2) { sc.GetStudyArrayUsingID(vwapID, 3, UP2); sc.GetStudyArrayUsingID(vwapID, 4, DN2); }
-  
-        if (VWAP.GetArraySize() > i) {
+        if (bands >= 1) {
+          if (sgUp1 >= 0) sc.GetStudyArrayUsingID(vwapID, sgUp1, UP1);
+          if (sgDn1 >= 0) sc.GetStudyArrayUsingID(vwapID, sgDn1, DN1);
+        }
+        if (bands >= 2) {
+          if (sgUp2 >= 0) sc.GetStudyArrayUsingID(vwapID, sgUp2, UP2);
+          if (sgDn2 >= 0) sc.GetStudyArrayUsingID(vwapID, sgDn2, DN2);
+        }
+
+        if (VWAP.GetArraySize() > i && VWAP[i] != 0.0) {
           double v   = NormalizePx(sc, VWAP[i]);
           double up1 = (UP1.GetArraySize() > i ? NormalizePx(sc, UP1[i]) : 0);
           double dn1 = (DN1.GetArraySize() > i ? NormalizePx(sc, DN1[i]) : 0);
           double up2 = (UP2.GetArraySize() > i ? NormalizePx(sc, UP2[i]) : 0);
           double dn2 = (DN2.GetArraySize() > i ? NormalizePx(sc, DN2[i]) : 0);
-  
+
           SCString j;
           j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"vwap\",\"src\":\"study\",\"i\":%d,\"v\":%.8f,\"up1\":%.8f,\"dn1\":%.8f,\"up2\":%.8f,\"dn2\":%.8f,\"chart\":%d}",
                    t, sc.Symbol.GetChars(), i, v, up1, dn1, up2, dn2, sc.ChartNumber);
           WritePerChartDaily(sc.ChartNumber, j);
         } else {
-          SCString d; d.Format("{\"t\":%.6f,\"type\":\"vwap_diag\",\"msg\":\"array_too_small\",\"id\":%d,\"i\":%d,\"chart\":%d}",
-                               t, vwapID, i, sc.ChartNumber);
+          SCString d; d.Format("{\"t\":%.6f,\"type\":\"vwap_diag\",\"msg\":\"main_sg_empty\",\"id\":%d,\"sgMain\":%d,\"i\":%d,\"chart\":%d}",
+                               t, vwapID, sgMain, i, sc.ChartNumber);
           WritePerChartDaily(sc.ChartNumber, d);
         }
       } else {
@@ -516,7 +545,7 @@ SCSFExport scsf_MIA_Chart_Dumper_Patched_VIX_Daily(SCStudyInterfaceRef sc)
         WritePerChartDailyIfChanged(g4, SCString().Format("%d:basedata:%d", g4, i4).GetChars(), j);
       }
 
-      // ---- G4 VWAP courant (SG0..4) ----
+      // ---- G4 VWAP courant (mapping SG configurable) ----
       {
         // Résoudre un VWAP sur G4 par nom
         int vwapId4 = sc.GetStudyIDByName(g4, "Volume Weighted Average Price", 0);
@@ -526,12 +555,17 @@ SCSFExport scsf_MIA_Chart_Dumper_Patched_VIX_Daily(SCStudyInterfaceRef sc)
         if (vwapId4 > 0)
         {
           SCFloatArray VWAP4, UP1, DN1, UP2, DN2;
-          sc.GetStudyArrayFromChartUsingID(g4, vwapId4, 0, VWAP4);
+          const int sgMain = sc.Input[39].GetInt();
+          const int sgUp1  = sc.Input[40].GetInt();
+          const int sgDn1  = sc.Input[41].GetInt();
+          const int sgUp2  = sc.Input[42].GetInt();
+          const int sgDn2  = sc.Input[43].GetInt();
+          if (sgMain >= 0) sc.GetStudyArrayFromChartUsingID(g4, vwapId4, sgMain, VWAP4);
           int bands = sc.Input[5].GetInt();
-          if (bands >= 1) { sc.GetStudyArrayFromChartUsingID(g4, vwapId4, 1, UP1); sc.GetStudyArrayFromChartUsingID(g4, vwapId4, 2, DN1); }
-          if (bands >= 2) { sc.GetStudyArrayFromChartUsingID(g4, vwapId4, 3, UP2); sc.GetStudyArrayFromChartUsingID(g4, vwapId4, 4, DN2); }
+          if (bands >= 1) { if (sgUp1 >= 0) sc.GetStudyArrayFromChartUsingID(g4, vwapId4, sgUp1, UP1); if (sgDn1 >= 0) sc.GetStudyArrayFromChartUsingID(g4, vwapId4, sgDn1, DN1); }
+          if (bands >= 2) { if (sgUp2 >= 0) sc.GetStudyArrayFromChartUsingID(g4, vwapId4, sgUp2, UP2); if (sgDn2 >= 0) sc.GetStudyArrayFromChartUsingID(g4, vwapId4, sgDn2, DN2); }
 
-          if (VWAP4.GetArraySize() > i4)
+          if (VWAP4.GetArraySize() > i4 && VWAP4[i4] != 0.0)
           {
             double v   = NormalizePx(sc, VWAP4[i4]);
             double up1 = (UP1.GetArraySize() > i4 ? NormalizePx(sc, UP1[i4]) : 0);
@@ -545,8 +579,8 @@ SCSFExport scsf_MIA_Chart_Dumper_Patched_VIX_Daily(SCStudyInterfaceRef sc)
           }
           else
           {
-            SCString d; d.Format("{\"t\":%.6f,\"type\":\"vwap_diag\",\"msg\":\"array_too_small\",\"id\":%d,\"i\":%d,\"chart\":%d}",
-                                 t_src.GetAsDouble(), vwapId4, i4, g4);
+            SCString d; d.Format("{\"t\":%.6f,\"type\":\"vwap_diag\",\"msg\":\"main_sg_empty\",\"id\":%d,\"sgMain\":%d,\"i\":%d,\"chart\":%d}",
+                                 t_src.GetAsDouble(), vwapId4, sgMain, i4, g4);
             WritePerChartDailyIfChanged(g4, SCString().Format("%d:vwap_diag:%d", g4, i4).GetChars(), d);
           }
         }
@@ -557,10 +591,25 @@ SCSFExport scsf_MIA_Chart_Dumper_Patched_VIX_Daily(SCStudyInterfaceRef sc)
         }
       }
 
-      // ---- G4 PVWAP (diag temporaire: détection session cross-chart non disponible ici) ----
+      // ---- G4 PVWAP (Previous VWAP depuis étude ID 3, SG5) ----
       {
-        SCString d; d.Format("{\"t\":%.6f,\"type\":\"pvwap_diag\",\"msg\":\"insufficient_history\",\"chart\":%d}", t_src.GetAsDouble(), g4);
-        WritePerChartDailyIfChanged(g4, SCString().Format("%d:pvwap_diag:%d", g4, i4).GetChars(), d);
+        const int pvwapId4 = 3; // ID 3 = PREVIOUS VWAP SD+1 SD-1
+        const int pvwapSG4 = 5; // SG5 = PVWAP - Volume Weighted Average Price
+        
+        SCFloatArray PVWAP4;
+        sc.GetStudyArrayFromChartUsingID(g4, pvwapId4, pvwapSG4, PVWAP4);
+        
+        if (PVWAP4.GetArraySize() > i4 && PVWAP4[i4] != 0.0) {
+          double pvwap = NormalizePx(sc, PVWAP4[i4]);
+          SCString j;
+          j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"pvwap\",\"src\":\"study\",\"i\":%d,\"pvwap\":%.8f,\"chart\":%d}",
+                   t_src.GetAsDouble(), sc.Symbol.GetChars(), i4, pvwap, g4);
+          WritePerChartDailyIfChanged(g4, SCString().Format("%d:pvwap:%d", g4, i4).GetChars(), j);
+        } else {
+          SCString d; d.Format("{\"t\":%.6f,\"type\":\"pvwap_diag\",\"msg\":\"no_data\",\"id\":%d,\"sg\":%d,\"i\":%d,\"chart\":%d}", 
+                               t_src.GetAsDouble(), pvwapId4, pvwapSG4, i4, g4);
+          WritePerChartDailyIfChanged(g4, SCString().Format("%d:pvwap_diag:%d", g4, i4).GetChars(), d);
+        }
       }
 
       // ---- G4 NBCV (Numbers Bars Calculated Values) ----
@@ -570,12 +619,25 @@ SCSFExport scsf_MIA_Chart_Dumper_Patched_VIX_Daily(SCStudyInterfaceRef sc)
           nbcvId4 = sc.GetStudyIDByName(g4, "Numbers Bars Calculated Values", 0);
         if (nbcvId4 > 0)
         {
+          static int s_logged_nbcv_bind_id4 = -1;
+          if (s_logged_nbcv_bind_id4 != nbcvId4) {
+            s_logged_nbcv_bind_id4 = nbcvId4;
+            SCString b; b.Format(R"({"t":%.6f,"type":"nbcv_bind","chart":%d,"study_id":%d,"sg":{"ask":6,"bid":7,"delta":1,"trades":12,"cum":"study6_sg4_close"}})",
+                                 t_src.GetAsDouble(), g4, nbcvId4);
+            WritePerChartDaily(g4, b);
+          }
+
           SCFloatArray askVolArr, bidVolArr, deltaArr, tradesArr, cumDeltaArr;
-          sc.GetStudyArrayFromChartUsingID(g4, nbcvId4, 5, askVolArr);
-          sc.GetStudyArrayFromChartUsingID(g4, nbcvId4, 6, bidVolArr);
-          sc.GetStudyArrayFromChartUsingID(g4, nbcvId4, 1, deltaArr);
-          sc.GetStudyArrayFromChartUsingID(g4, nbcvId4, 12, tradesArr);
-          sc.GetStudyArrayFromChartUsingID(g4, nbcvId4, 10, cumDeltaArr);
+          sc.GetStudyArrayFromChartUsingID(g4, nbcvId4, 6, askVolArr);  // SG6 - Ask Volume Total
+          sc.GetStudyArrayFromChartUsingID(g4, nbcvId4, 7, bidVolArr);  // SG7 - Bid Volume Total
+          sc.GetStudyArrayFromChartUsingID(g4, nbcvId4, 1, deltaArr);   // SG1 - Ask Volume Bid Volume Difference
+          sc.GetStudyArrayFromChartUsingID(g4, nbcvId4, 12, tradesArr); // SG12 - Number of Trades
+          
+          // Cumulative Delta depuis Cumulative Delta Bars (Study ID 6, SG4 Close)
+          const int cumDeltaBarsId4 = sc.Input[26].GetInt();
+          if (cumDeltaBarsId4 > 0) {
+            sc.GetStudyArrayFromChartUsingID(g4, cumDeltaBarsId4, 4, cumDeltaArr); // Study ID 6, SG4 Close (Cumulative Delta)
+          }
 
           auto has4 = [&](const SCFloatArray& a){ return a.GetArraySize() > i4; };
           if (has4(askVolArr) && has4(bidVolArr) && has4(deltaArr))
@@ -584,12 +646,31 @@ SCSFExport scsf_MIA_Chart_Dumper_Patched_VIX_Daily(SCStudyInterfaceRef sc)
             const double askVolume      = askVolArr[i4];
             const double bidVolume      = bidVolArr[i4];
             const double delta          = askVolume - bidVolume; // fiabilisé comme sur G3
-            const double numberOfTrades = has4(tradesArr)   ? tradesArr[i4]   : 0.0;
-            const double cumulativeDelta= has4(cumDeltaArr) ? cumDeltaArr[i4] : 0.0;
+            double numberOfTrades = has4(tradesArr)   ? tradesArr[i4]   : 0.0;
+
+            // Fallback cumulatif si SG10 absent/invalide
+            double cumulativeDelta = 0.0;
+            bool cum_from_sg = false;
+            if (has4(cumDeltaArr)) {
+              cumulativeDelta = cumDeltaArr[i4];
+              // SG10 peut retourner 0.0 même quand il fonctionne, donc on force le fallback si on est au début
+              cum_from_sg = (i4 > 50 && cumulativeDelta != 0.0); // Force le fallback si SG10 retourne 0.0
+            }
+            if (!cum_from_sg) {
+              static std::vector<double> s_cum_fallback4;
+              if ((int)s_cum_fallback4.size() < sz4) s_cum_fallback4.resize(sz4, 0.0);
+              if (i4 <= 0) s_cum_fallback4[i4] = delta; else s_cum_fallback4[i4] = s_cum_fallback4[i4 - 1] + delta;
+              cumulativeDelta = s_cum_fallback4[i4];
+            }
             const double totalVolume = askVolume + bidVolume;
             const double deltaRatio  = (totalVolume > 0.0) ? (delta / totalVolume) : 0.0;
             const double bidAskRatio = (askVolume > 0.0) ? (bidVolume / askVolume) : 0.0;
             const double askBidRatio = (bidVolume > 0.0) ? (askVolume / bidVolume) : 0.0;
+
+            // Trades douteux: neutraliser si manquant ou ~égal au volume total
+            if (!(has4(tradesArr)) || (totalVolume > 0.0 && fabs(numberOfTrades - totalVolume) / totalVolume < 0.02)) {
+              numberOfTrades = 0.0;
+            }
 
             {
               SCString j;
@@ -625,6 +706,21 @@ SCSFExport scsf_MIA_Chart_Dumper_Patched_VIX_Daily(SCStudyInterfaceRef sc)
         {
           SCString j; j.Format("{\"t\":%.6f,\"type\":\"nbcv_diag\",\"msg\":\"study_not_found\",\"chart\":%d}", t_src.GetAsDouble(), g4);
           WritePerChartDaily(g4, j);
+        }
+      }
+
+      // === CORRÉLATION ES/NQ (Graph 4) ===
+      const int correlationId4 = sc.Input[40].GetInt();
+      if (correlationId4 > 0) {
+        SCFloatArray correlationArr;
+        if (sc.GetStudyArrayFromChartUsingID(g4, correlationId4, 1, correlationArr)) { // SG1 CC
+          if (correlationArr.GetArraySize() > i4) {
+            const double correlation = correlationArr[i4];
+            SCString log;
+            log.Format("{\"t\":%.6f,\"sym\":\"ESU25_FUT_CME\",\"type\":\"correlation\",\"i\":%d,\"value\":%.6f,\"study_id\":%d,\"sg\":1,\"chart\":%d}",
+                      t_src.GetAsDouble(), i4, correlation, correlationId4, g4);
+            WritePerChartDaily(g4, log);
+          }
         }
       }
     }
@@ -699,22 +795,22 @@ SCSFExport scsf_MIA_Chart_Dumper_Patched_VIX_Daily(SCStudyInterfaceRef sc)
             case 1: s = "call_resistance"; break;
             case 2: s = "put_support"; break;
             case 3: s = "hvl"; break;
-            case 4: s = "1d_max"; break;
-            case 5: s = "call_resistance_0dte"; break;
-            case 6: s = "put_support_0dte"; break;
-            case 7: s = "hvl_0dte"; break;
-            case 8: s = "gex_1"; break;
-            case 9: s = "gex_2"; break;
-            case 10: s = "gex_3"; break;
-            case 11: s = "gex_4"; break;
-            case 12: s = "gex_5"; break;
-            case 13: s = "gex_6"; break;
-            case 14: s = "gex_7"; break;
-            case 15: s = "gex_8"; break;
-            case 16: s = "gex_9"; break;
-            case 17: s = "gex_10"; break;
-            case 18: s = "gex_11"; break;
-            case 19: s = "gex_12"; break;
+            case 4: s = "1d_min"; break;
+            case 5: s = "1d_max"; break;
+            case 6: s = "call_resistance_0dte"; break;
+            case 7: s = "put_support_0dte"; break;
+            case 8: s = "hvl_0dte"; break;
+            case 9: s = "gamma_wall_0dte"; break;
+            case 10: s = "gex_1"; break;
+            case 11: s = "gex_2"; break;
+            case 12: s = "gex_3"; break;
+            case 13: s = "gex_4"; break;
+            case 14: s = "gex_5"; break;
+            case 15: s = "gex_6"; break;
+            case 16: s = "gex_7"; break;
+            case 17: s = "gex_8"; break;
+            case 18: s = "gex_9"; break;
+            case 19: s = "gex_10"; break;
             default: s.Format("gamma_sg_%d", sg); break;
           }
         } else if (studyId == sc.Input[34].GetInt()) { // Blind Spots
@@ -805,7 +901,21 @@ SCSFExport scsf_MIA_Chart_Dumper_Patched_VIX_Daily(SCStudyInterfaceRef sc)
         sc.GetStudyArrayUsingID(nbcv_id, sgBid,   bidVolArr);
         sc.GetStudyArrayUsingID(nbcv_id, sgDelta, deltaArr);
         sc.GetStudyArrayUsingID(nbcv_id, sgNtr,   tradesArr);
-        sc.GetStudyArrayUsingID(nbcv_id, sgCum,   cumDeltaArr);
+        
+        // Cumulative Delta depuis Cumulative Delta Bars (Study ID 33, SG4 Close) - Graph 3
+        const int cumDeltaBarsId = 33; // ID 33 pour Graph 3
+        if (cumDeltaBarsId > 0) {
+          sc.GetStudyArrayUsingID(cumDeltaBarsId, 4, cumDeltaArr); // Study ID 33, SG4 Close (Cumulative Delta)
+        }
+
+        // Log du binding NBCV pour Graph 3
+        static int s_logged_nbcv_bind_id3 = -1;
+        if (s_logged_nbcv_bind_id3 != nbcv_id) {
+          s_logged_nbcv_bind_id3 = nbcv_id;
+          SCString b; b.Format(R"({"t":%.6f,"type":"nbcv_bind","chart":%d,"study_id":%d,"sg":{"ask":%d,"bid":%d,"delta":%d,"trades":%d,"cum":"study33_sg4_close"}})",
+                               sc.CurrentSystemDateTime.GetAsDouble(), sc.ChartNumber, nbcv_id, sgAsk, sgBid, sgDelta, sgNtr);
+          WritePerChartDaily(sc.ChartNumber, b);
+        }
 
         // 3) Vérifier la dispo à l'index i
         auto has = [&](const SCFloatArray& a){ return a.GetArraySize() > i; };
@@ -817,13 +927,32 @@ SCSFExport scsf_MIA_Chart_Dumper_Patched_VIX_Daily(SCStudyInterfaceRef sc)
           const double bidVolume      = bidVolArr[i];
           // Delta fiable basé sur volumes: Ask - Bid (au lieu de SG1 parfois mal mappé)
           const double delta          = askVolume - bidVolume;
-          const double numberOfTrades = has(tradesArr)   ? tradesArr[i]   : 0.0;
-          const double cumulativeDelta= has(cumDeltaArr) ? cumDeltaArr[i] : 0.0;
+          double numberOfTrades = has(tradesArr)   ? tradesArr[i]   : 0.0;
+
+          // Fallback cumulatif si SG10 absent/invalide (Graph 3)
+          double cumulativeDelta = 0.0;
+          bool cum_from_sg = false;
+          if (has(cumDeltaArr)) {
+            cumulativeDelta = cumDeltaArr[i];
+            // SG10 peut retourner 0.0 même quand il fonctionne, donc on force le fallback si on est au début
+              cum_from_sg = (i > 50 && cumulativeDelta != 0.0); // Force le fallback si SG10 retourne 0.0
+          }
+          if (!cum_from_sg) {
+            static std::vector<double> s_cum_fallback3;
+            if ((int)s_cum_fallback3.size() < sc.ArraySize) s_cum_fallback3.resize(sc.ArraySize, 0.0);
+            if (i <= 0) s_cum_fallback3[i] = delta; else s_cum_fallback3[i] = s_cum_fallback3[i - 1] + delta;
+            cumulativeDelta = s_cum_fallback3[i];
+          }
 
           const double totalVolume = askVolume + bidVolume;
           const double deltaRatio  = (totalVolume > 0.0) ? (delta / totalVolume) : 0.0;
           const double bidAskRatio = (askVolume > 0.0) ? (bidVolume / askVolume) : 0.0;
           const double askBidRatio = (bidVolume > 0.0) ? (askVolume / bidVolume) : 0.0;
+
+          // Trades douteux: neutraliser si manquant ou ~égal au volume total (Graph 3)
+          if (!(has(tradesArr)) || (totalVolume > 0.0 && fabs(numberOfTrades - totalVolume) / totalVolume < 0.02)) {
+            numberOfTrades = 0.0;
+          }
 
           // 5) Exports
           {

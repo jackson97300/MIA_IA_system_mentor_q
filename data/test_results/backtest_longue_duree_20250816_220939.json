@@ -1,0 +1,27 @@
+{
+  "timestamp": "2025-08-16T22:09:39.213269",
+  "backtest_period": {
+    "start_date": "2024-01-01",
+    "end_date": "2024-12-31",
+    "days": 251
+  },
+  "trading_results": {
+    "total_trades": 93,
+    "winning_trades": 16,
+    "losing_trades": 76,
+    "win_rate": 17.20430107526882,
+    "total_pnl": -1175.6068115234375,
+    "winning_pnl": 640.3656005859375,
+    "losing_pnl": 1815.972412109375,
+    "profit_factor": 0.3526295863944923
+  },
+  "performance_metrics": {
+    "initial_capital": 100000,
+    "final_capital": 98824.39318847656,
+    "total_return": -1.1756068115234375,
+    "max_drawdown": 1.1756068115234375,
+    "sharpe_ratio": -0.5037352280841796,
+    "avg_trade": -12.640933457241264
+  },
+  "success": false
+}

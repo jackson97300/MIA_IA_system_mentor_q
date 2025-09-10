@@ -45,6 +45,8 @@ from enum import Enum
 from datetime import datetime, timedelta
 from core.logger import get_logger
 from collections import defaultdict
+from .data_reader import get_latest_market_data, get_menthorq_market_data
+from .config_loader import get_feature_config
 
 # Local imports
 from core.base_types import MarketData, ES_TICK_SIZE, ES_TICK_VALUE
@@ -288,57 +290,123 @@ class MenthorQIntegration:
             "last_analysis_time": 0,
         }
     
-    def parse_menthorq_data(self, raw_data: str) -> MenthorQLevels:
-        """Parse les données MenthorQ depuis Sierra Chart"""
+    def parse_menthorq_data(self, raw_data: str = None) -> MenthorQLevels:
+        """Parse les données MenthorQ depuis les vraies données ou raw_data"""
         try:
-            # Exemple de parsing pour ESU25_FUT_CME
-            # Format: "Call Resistance, 6600, Put Support, 6425, HVL, 6470, ..."
+            # Essayer d'abord les vraies données MenthorQ du Graph 10
+            menthorq_data = get_menthorq_market_data("ES")
             
-            levels = MenthorQLevels(symbol="ESU25_FUT_CME")
-            
-            # Parse des niveaux principaux
-            if "Call Resistance," in raw_data:
-                levels.call_resistance = self._extract_price(raw_data, "Call Resistance,")
-            if "Put Support," in raw_data:
-                levels.put_support = self._extract_price(raw_data, "Put Support,")
-            if "HVL," in raw_data:
-                levels.hvl = self._extract_price(raw_data, "HVL,")
-            if "1D Min," in raw_data:
-                levels.one_d_min = self._extract_price(raw_data, "1D Min,")
-            if "1D Max," in raw_data:
-                levels.one_d_max = self._extract_price(raw_data, "1D Max,")
-            
-            # Parse des niveaux 0DTE
-            if "Call Resistance 0DTE," in raw_data:
-                levels.call_resistance_0dte = self._extract_price(raw_data, "Call Resistance 0DTE,")
-            if "Put Support 0DTE," in raw_data:
-                levels.put_support_0dte = self._extract_price(raw_data, "Put Support 0DTE,")
-            if "HVL 0DTE," in raw_data:
-                levels.hvl_0dte = self._extract_price(raw_data, "HVL 0DTE,")
-            if "Gamma Wall 0DTE," in raw_data:
-                levels.gamma_wall_0dte = self._extract_price(raw_data, "Gamma Wall 0DTE,")
-            
-            # Parse des GEX Levels
-            for i in range(1, 11):
-                gex_key = f"GEX {i},"
-                if gex_key in raw_data:
-                    gex_price = self._extract_price(raw_data, gex_key)
-                    if gex_price:
-                        levels.gex_levels.append(gex_price)
-            
-            # Parse des BL Levels
-            for i in range(1, 11):
-                bl_key = f"BL {i},"
-                if bl_key in raw_data:
-                    bl_price = self._extract_price(raw_data, bl_key)
-                    if bl_price:
-                        levels.bl_levels.append(bl_price)
-            
-            return levels
-            
+            if menthorq_data and 'menthorq_levels' in menthorq_data and menthorq_data['menthorq_levels']:
+                levels = self._parse_real_menthorq_data(menthorq_data['menthorq_levels'])
+                logger.info(f"✅ {len(menthorq_data['menthorq_levels'])} niveaux MenthorQ réels récupérés du Graph 10")
+                return levels
+            else:
+                # Fallback vers parsing raw_data
+                logger.warning("⚠️ Pas de vraies données MenthorQ sur Graph 10 - utilisation raw_data")
+                return self._parse_raw_menthorq_data(raw_data or "")
+                
         except Exception as e:
-            self.logger.error(f"Erreur parsing MenthorQ: {e}")
-            return MenthorQLevels(symbol="ESU25_FUT_CME")
+            logger.error(f"❌ Erreur parsing MenthorQ: {e}")
+            return self._parse_raw_menthorq_data(raw_data or "")
+    
+    def _parse_real_menthorq_data(self, menthorq_levels: List[Dict]) -> MenthorQLevels:
+        """Parse les vraies données MenthorQ depuis le JSONL"""
+        levels = MenthorQLevels(symbol="ESU25_FUT_CME")
+        
+        for level_data in menthorq_levels:
+            # Utiliser 'level_type' car c'est ce qui est dans le JSON
+            level_type = level_data.get('level_type', '')
+            price = level_data.get('price', 0.0)
+            
+            logger.debug(f"📊 Parsing MenthorQ: {level_type} = {price}")
+            
+            # Mapping des types vers les champs (basé sur les vrais types MenthorQ)
+            if 'call_resistance' in level_type:
+                if '0dte' in level_type:
+                    levels.call_resistance_0dte = price
+                else:
+                    levels.call_resistance = price
+            elif 'put_support' in level_type:
+                if '0dte' in level_type:
+                    levels.put_support_0dte = price
+                else:
+                    levels.put_support = price
+            elif 'hvl' in level_type:
+                if '0dte' in level_type:
+                    levels.hvl_0dte = price
+                else:
+                    levels.hvl = price
+            elif 'gamma_wall' in level_type:
+                levels.gamma_wall_0dte = price
+            elif '1d_min' in level_type:
+                levels.one_d_min = price
+            elif '1d_max' in level_type:
+                levels.one_d_max = price
+            elif 'gex_' in level_type:
+                # GEX Levels 1-10
+                gex_num = self._extract_number_from_type(level_type)
+                if gex_num and 1 <= gex_num <= 10:
+                    levels.gex_levels[gex_num] = price
+            elif 'blind_spot' in level_type:
+                # BL Levels 1-10
+                bl_num = self._extract_number_from_type(level_type)
+                if bl_num and 1 <= bl_num <= 10:
+                    levels.bl_levels[bl_num] = price
+        
+        return levels
+    
+    def _extract_number_from_type(self, level_type: str) -> int:
+        """Extrait le numéro d'un type de niveau (ex: 'GEX Level 3' -> 3)"""
+        import re
+        match = re.search(r'(\d+)', level_type)
+        return int(match.group(1)) if match else 0
+    
+    def _parse_raw_menthorq_data(self, raw_data: str) -> MenthorQLevels:
+        """Parse les données MenthorQ depuis raw_data (fallback)"""
+        levels = MenthorQLevels(symbol="ESU25_FUT_CME")
+        
+        # Parse des niveaux principaux
+        if "Call Resistance," in raw_data:
+            levels.call_resistance = self._extract_price(raw_data, "Call Resistance,")
+        if "Put Support," in raw_data:
+            levels.put_support = self._extract_price(raw_data, "Put Support,")
+        if "HVL," in raw_data:
+            levels.hvl = self._extract_price(raw_data, "HVL,")
+        if "1D Min," in raw_data:
+            levels.one_d_min = self._extract_price(raw_data, "1D Min,")
+        if "1D Max," in raw_data:
+            levels.one_d_max = self._extract_price(raw_data, "1D Max,")
+        
+        # Parse des niveaux 0DTE
+        if "Call Resistance 0DTE," in raw_data:
+            levels.call_resistance_0dte = self._extract_price(raw_data, "Call Resistance 0DTE,")
+        if "Put Support 0DTE," in raw_data:
+            levels.put_support_0dte = self._extract_price(raw_data, "Put Support 0DTE,")
+        if "HVL 0DTE," in raw_data:
+            levels.hvl_0dte = self._extract_price(raw_data, "HVL 0DTE,")
+        if "Gamma Wall 0DTE," in raw_data:
+            levels.gamma_wall_0dte = self._extract_price(raw_data, "Gamma Wall 0DTE,")
+        
+        # Parse des GEX Levels
+        for i in range(1, 11):
+            gex_key = f"GEX {i},"
+            if gex_key in raw_data:
+                gex_price = self._extract_price(raw_data, gex_key)
+                if gex_price:
+                    # S'assurer que la liste est assez grande
+                    while len(levels.gex_levels) <= i:
+                        levels.gex_levels.append(None)
+                    levels.gex_levels[i] = gex_price
+        
+        # Parse des BL Levels
+        for i in range(1, 11):
+            bl_key = f"BL {i},"
+            if bl_key in raw_data:
+                bl_price = self._extract_price(raw_data, bl_key)
+                if bl_price:
+                    levels.bl_levels.append(bl_price)
+        
+        return levels
     
     def _extract_price(self, data: str, key: str) -> Optional[float]:
         """Extrait un prix depuis les données"""
@@ -581,6 +649,24 @@ def get_menthorq_battle_navale_vote(confluence_result: MenthorQConfluenceResult)
 def get_menthorq_alert(confluence_result: MenthorQConfluenceResult) -> Optional[Dict[str, Any]]:
     """Fonction utilitaire pour les alertes MenthorQ"""
     return menthorq_integration.get_confluence_alert(confluence_result)
+
+# === FACTORY FUNCTION ===
+
+def create_menthorq_integration(config=None):
+    """
+    Factory function pour MenthorQIntegration
+    
+    Args:
+        config: Configuration optionnelle (ignorée pour compatibilité)
+        
+    Returns:
+        Instance de MenthorQIntegration ou None si erreur
+    """
+    try:
+        return MenthorQIntegration()
+    except Exception as e:
+        logger.error(f"Erreur création MenthorQIntegration: {e}")
+        return None
 
 # === EXEMPLE D'UTILISATION ===
 

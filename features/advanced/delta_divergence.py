@@ -22,6 +22,7 @@ from scipy import stats
 
 # Imports locaux (selon architecture projet)
 from core.base_types import MarketData
+from ..data_reader import get_latest_market_data
 
 logger = logging.getLogger(__name__)
 
@@ -206,6 +207,34 @@ class DeltaDivergenceDetector:
         
         # Nettoyage cache
         self._cleanup_cache()
+    
+    def add_real_market_data(self, symbol: str = "ES") -> None:
+        """
+        🆕 Ajoute les vraies données de marché depuis Sierra Chart
+        
+        Args:
+            symbol: Symbole à analyser (défaut: ES)
+        """
+        try:
+            # Récupérer les vraies données
+            market_data = get_latest_market_data(symbol)
+            
+            if market_data and 'close' in market_data and 'delta' in market_data:
+                price = market_data['close']
+                delta = market_data['delta']
+                volume = market_data.get('total_volume', 1000)
+                bid_volume = market_data.get('bid_volume', 500)
+                ask_volume = market_data.get('ask_volume', 500)
+                
+                # Ajouter le point de données
+                self.add_data_point(price, delta, volume, bid_volume, ask_volume)
+                
+                logger.debug(f"✅ Données réelles ajoutées: {symbol} @ {price:.2f}, delta: {delta}")
+            else:
+                logger.warning(f"⚠️ Données incomplètes pour {symbol}")
+                
+        except Exception as e:
+            logger.error(f"❌ Erreur ajout données réelles: {e}")
     
     def calculate_delta_divergence(self, lookback: Optional[int] = None) -> DeltaDivergenceResult:
         """

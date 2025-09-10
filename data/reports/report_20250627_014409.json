@@ -1,0 +1,18 @@
+{
+  "report_id": "report_20250627_014409",
+  "generated_at": "2025-06-26 23:44:09.793509+00:00",
+  "time_frame": "TimeFrame.ALL_TIME",
+  "analysis_type": "AnalysisType.COMPREHENSIVE",
+  "start_date": "2025-06-27 01:44:09.793518",
+  "end_date": "2025-06-27 01:44:09.793521",
+  "total_records": 0,
+  "performance": null,
+  "patterns": null,
+  "risk": null,
+  "ml_metrics": null,
+  "insights": [],
+  "recommendations": [],
+  "warnings": [
+    "\u26a0\ufe0f \u00c9chantillon limit\u00e9 - r\u00e9sultats peu fiables"
+  ]
+}

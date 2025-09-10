@@ -1,0 +1,32 @@
+{
+  "timestamp": "2025-08-12T11:16:14.768054",
+  "diagnostic": {
+    "ports": {
+      "TWS Paper Trading": {
+        "port": 7497,
+        "open": false
+      },
+      "TWS Live Trading": {
+        "port": 7496,
+        "open": false
+      },
+      "Gateway Paper Trading": {
+        "port": 4001,
+        "open": false
+      },
+      "Gateway Live Trading": {
+        "port": 4002,
+        "open": false
+      }
+    },
+    "config_loaded": true,
+    "connector_loaded": true,
+    "dependencies": {
+      "ib_insync": true,
+      "ibapi": true
+    }
+  },
+  "recommendations": [
+    "\ud83d\udea8 Aucun port paper trading ouvert - D\u00e9marrer IB Gateway"
+  ]
+}

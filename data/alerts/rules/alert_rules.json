@@ -1,0 +1,141 @@
+{
+  "max_drawdown": {
+    "rule_id": "max_drawdown",
+    "name": "Maximum Drawdown Exceeded",
+    "category": "AlertCategory.PERFORMANCE",
+    "level": "AlertLevel.CRITICAL",
+    "condition": "max_drawdown_percent",
+    "threshold_value": 10.0,
+    "comparison_operator": ">",
+    "enabled": true,
+    "cooldown_minutes": 60,
+    "notification_channels": [
+      "NotificationChannel.SLACK",
+      "NotificationChannel.LOG_ONLY"
+    ],
+    "escalation_minutes": 30,
+    "description": "Alerte si drawdown d\u00e9passe 10%",
+    "custom_message": "\ud83d\udea8 DRAWDOWN CRITIQUE: {current_value:.2f}% (seuil: {threshold_value:.2f}%)"
+  },
+  "consecutive_losses": {
+    "rule_id": "consecutive_losses",
+    "name": "Consecutive Losses",
+    "category": "AlertCategory.RISK_MANAGEMENT",
+    "level": "AlertLevel.WARNING",
+    "condition": "consecutive_losses",
+    "threshold_value": 5.0,
+    "comparison_operator": ">=",
+    "enabled": true,
+    "cooldown_minutes": 30,
+    "notification_channels": [
+      "NotificationChannel.LOG_ONLY"
+    ],
+    "escalation_minutes": null,
+    "description": "Alerte si 5+ pertes cons\u00e9cutives",
+    "custom_message": ""
+  },
+  "low_sharpe_ratio": {
+    "rule_id": "low_sharpe_ratio",
+    "name": "Low Sharpe Ratio",
+    "category": "AlertCategory.PERFORMANCE",
+    "level": "AlertLevel.WARNING",
+    "condition": "sharpe_ratio",
+    "threshold_value": 0.5,
+    "comparison_operator": "<",
+    "enabled": true,
+    "cooldown_minutes": 120,
+    "notification_channels": [
+      "NotificationChannel.LOG_ONLY"
+    ],
+    "escalation_minutes": null,
+    "description": "Alerte si Sharpe ratio < 0.5",
+    "custom_message": ""
+  },
+  "high_cpu_usage": {
+    "rule_id": "high_cpu_usage",
+    "name": "High CPU Usage",
+    "category": "AlertCategory.SYSTEM_HEALTH",
+    "level": "AlertLevel.WARNING",
+    "condition": "cpu_percent",
+    "threshold_value": 80.0,
+    "comparison_operator": ">",
+    "enabled": true,
+    "cooldown_minutes": 15,
+    "notification_channels": [
+      "NotificationChannel.LOG_ONLY"
+    ],
+    "escalation_minutes": null,
+    "description": "Alerte si CPU > 80%",
+    "custom_message": ""
+  },
+  "high_memory_usage": {
+    "rule_id": "high_memory_usage",
+    "name": "High Memory Usage",
+    "category": "AlertCategory.SYSTEM_HEALTH",
+    "level": "AlertLevel.CRITICAL",
+    "condition": "memory_percent",
+    "threshold_value": 90.0,
+    "comparison_operator": ">",
+    "enabled": true,
+    "cooldown_minutes": 10,
+    "notification_channels": [
+      "NotificationChannel.SMS",
+      "NotificationChannel.LOG_ONLY"
+    ],
+    "escalation_minutes": 15,
+    "description": "Alerte si m\u00e9moire > 90%",
+    "custom_message": ""
+  },
+  "low_disk_space": {
+    "rule_id": "low_disk_space",
+    "name": "Low Disk Space",
+    "category": "AlertCategory.SYSTEM_HEALTH",
+    "level": "AlertLevel.WARNING",
+    "condition": "disk_usage_percent",
+    "threshold_value": 85.0,
+    "comparison_operator": ">",
+    "enabled": true,
+    "cooldown_minutes": 60,
+    "notification_channels": [
+      "NotificationChannel.LOG_ONLY"
+    ],
+    "escalation_minutes": null,
+    "description": "Alerte si disque > 85%",
+    "custom_message": ""
+  },
+  "feed_disconnection": {
+    "rule_id": "feed_disconnection",
+    "name": "Market Data Feed Disconnected",
+    "category": "AlertCategory.CONNECTIVITY",
+    "level": "AlertLevel.CRITICAL",
+    "condition": "feed_connected",
+    "threshold_value": 0.0,
+    "comparison_operator": "==",
+    "enabled": true,
+    "cooldown_minutes": 5,
+    "notification_channels": [
+      "NotificationChannel.SMS",
+      "NotificationChannel.LOG_ONLY"
+    ],
+    "escalation_minutes": 10,
+    "description": "Alerte si feed donn\u00e9es d\u00e9connect\u00e9",
+    "custom_message": ""
+  },
+  "high_data_latency": {
+    "rule_id": "high_data_latency",
+    "name": "High Data Latency",
+    "category": "AlertCategory.DATA_QUALITY",
+    "level": "AlertLevel.WARNING",
+    "condition": "data_latency_ms",
+    "threshold_value": 500.0,
+    "comparison_operator": ">",
+    "enabled": true,
+    "cooldown_minutes": 30,
+    "notification_channels": [
+      "NotificationChannel.LOG_ONLY"
+    ],
+    "escalation_minutes": null,
+    "description": "Alerte si latence donn\u00e9es > 500ms",
+    "custom_message": ""
+  }
+}

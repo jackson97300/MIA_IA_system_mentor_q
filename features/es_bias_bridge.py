@@ -14,7 +14,7 @@ from datetime import datetime
 # Assurer l'import du package racine
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from data.polygon_spx_adapter import PolygonSPXAdapter
+from features.spx_bias_source import SPXBiasSourceFactory
 
 def jprint(obj):
     print(json.dumps(obj, ensure_ascii=False))
@@ -26,7 +26,7 @@ def dprint(msg):
 
 async def run():
     dprint("Démarrage du bridge ES...")
-    adapter = PolygonSPXAdapter()
+    adapter = SPXBiasSourceFactory.create_source("polygon")
     dprint("Adaptateur créé")
 
     try:

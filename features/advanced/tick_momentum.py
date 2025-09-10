@@ -416,16 +416,17 @@ def simulate_tick_data(count: int = 50,
     current_price = base_price
     
     for i in range(count):
-        # Direction avec biais
-        if np.random.random() < (0.5 + trend_bias * 0.3):
+        # Direction avec biais (déterministe)
+        bias_threshold = 0.5 + trend_bias * 0.3
+        if (i % 10) / 10.0 < bias_threshold:  # Pattern déterministe basé sur l'index
             direction = TickDirection.UP
-            price_change = np.random.uniform(0.25, 1.0)
+            price_change = 0.625  # Moyenne de 0.25-1.0
         else:
             direction = TickDirection.DOWN
-            price_change = -np.random.uniform(0.25, 1.0)
+            price_change = -0.625  # Moyenne de -0.25 à -1.0
         
         current_price += price_change
-        volume = np.random.randint(1, 100)
+        volume = 50 + (i % 5) * 10  # Pattern déterministe: 50, 60, 70, 80, 90, 50...
         
         tick = TickData(
             timestamp=time.time() + i,

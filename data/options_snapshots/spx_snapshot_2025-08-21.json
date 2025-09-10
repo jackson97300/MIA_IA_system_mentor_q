@@ -1,0 +1,42 @@
+{
+  "asof": "2025-08-21T12:23:05.486Z",
+  "source": "IBKR_REAL",
+  "underlying": "SPX",
+  "undPrice": 6382.23046875,
+  "expiry": "20250919",
+  "strike": 6400,
+  "right": "C",
+  "exchange": "CBOE",
+  "iv": 2.4848460215775856,
+  "delta": 0.9999999381244501,
+  "gamma": 7.539977074176604e-11,
+  "vega": 6.350121111609042e-06,
+  "theta": -0.0264042608323507,
+  "optPrice": 6177.348347087277,
+  "pvDividend": 8.34827173156858,
+  "levels": {
+    "call_walls": [6400, 6500, 6600],
+    "put_walls": [6300, 6200],
+    "gamma_flip": 6350,
+    "dealer_position": "short",
+    "total_gamma_exposure": 75000000000
+  },
+  "market_data": {
+    "es_price": 6400.75,
+    "nq_price": 23300.75,
+    "vix_level": 16.07,
+    "correlation_ratio": 3.6403,
+    "correlation_score": 0.081
+  },
+  "options_flow": {
+    "put_call_ratio": 1.15,
+    "volume": null,
+    "open_interest": null,
+    "unusual_activity": false
+  },
+  "pin_levels": [6350, 6400, 6450],
+  "days_to_monthly_expiry": 15,
+  "days_to_weekly_expiry": 3
+}
+
+

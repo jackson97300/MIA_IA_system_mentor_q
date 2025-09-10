@@ -1,0 +1,191 @@
+{
+  "timestamp": "2025-08-16T22:12:39.591345",
+  "best_parameters": {
+    "position_size": 0.05,
+    "take_profit": 0.015,
+    "stop_loss": 0.008,
+    "signal_threshold": 1.0,
+    "max_positions": 7
+  },
+  "performance_comparison": {},
+  "recommendations": {
+    "position_size": 0.041,
+    "take_profit": 0.0165,
+    "stop_loss": 0.0108,
+    "signal_threshold": 1.0,
+    "max_positions": 6.1
+  },
+  "top_results": [
+    {
+      "params": {
+        "position_size": 0.05,
+        "take_profit": 0.015,
+        "stop_loss": 0.008,
+        "signal_threshold": 1.0,
+        "max_positions": 7
+      },
+      "metrics": {
+        "total_trades": 89,
+        "win_rate": 39.325842696629216,
+        "profit_factor": 0.9914869138801834,
+        "total_return": -0.0279581298828125,
+        "total_pnl": -27.9581298828125
+      },
+      "score": 31.613512021651026
+    },
+    {
+      "params": {
+        "position_size": 0.03,
+        "take_profit": 0.015,
+        "stop_loss": 0.01,
+        "signal_threshold": 1.0,
+        "max_positions": 10
+      },
+      "metrics": {
+        "total_trades": 79,
+        "win_rate": 37.9746835443038,
+        "profit_factor": 0.8121926117811726,
+        "total_return": -0.37590621948242187,
+        "total_pnl": -375.9062194824219
+      },
+      "score": 27.44830418917338
+    },
+    {
+      "params": {
+        "position_size": 0.05,
+        "take_profit": 0.015,
+        "stop_loss": 0.008,
+        "signal_threshold": 1.0,
+        "max_positions": 10
+      },
+      "metrics": {
+        "total_trades": 104,
+        "win_rate": 34.61538461538461,
+        "profit_factor": 0.8645770880472746,
+        "total_return": -0.5363847045898438,
+        "total_pnl": -536.3847045898438
+      },
+      "score": 27.407964793265954
+    },
+    {
+      "params": {
+        "position_size": 0.03,
+        "take_profit": 0.02,
+        "stop_loss": 0.015,
+        "signal_threshold": 1.0,
+        "max_positions": 7
+      },
+      "metrics": {
+        "total_trades": 87,
+        "win_rate": 36.7816091954023,
+        "profit_factor": 0.7962400180866401,
+        "total_return": -0.5918106384277344,
+        "total_pnl": -591.8106384277344
+      },
+      "score": 26.663377801139625
+    },
+    {
+      "params": {
+        "position_size": 0.05,
+        "take_profit": 0.015,
+        "stop_loss": 0.01,
+        "signal_threshold": 1.0,
+        "max_positions": 3
+      },
+      "metrics": {
+        "total_trades": 69,
+        "win_rate": 37.68115942028986,
+        "profit_factor": 0.7592525115220714,
+        "total_return": -0.7797722473144532,
+        "total_pnl": -779.7722473144531
+      },
+      "score": 26.09951193287116
+    },
+    {
+      "params": {
+        "position_size": 0.05,
+        "take_profit": 0.015,
+        "stop_loss": 0.012,
+        "signal_threshold": 1.0,
+        "max_positions": 3
+      },
+      "metrics": {
+        "total_trades": 71,
+        "win_rate": 39.436619718309856,
+        "profit_factor": 0.7109568083770208,
+        "total_return": -1.0183888549804687,
+        "total_pnl": -1018.3888549804688
+      },
+      "score": 25.540927655543136
+    },
+    {
+      "params": {
+        "position_size": 0.05,
+        "take_profit": 0.015,
+        "stop_loss": 0.015,
+        "signal_threshold": 1.0,
+        "max_positions": 3
+      },
+      "metrics": {
+        "total_trades": 66,
+        "win_rate": 39.39393939393939,
+        "profit_factor": 0.6801201898733075,
+        "total_return": -1.2054190063476562,
+        "total_pnl": -1205.4190063476562
+      },
+      "score": 24.81787611247414
+    },
+    {
+      "params": {
+        "position_size": 0.05,
+        "take_profit": 0.015,
+        "stop_loss": 0.01,
+        "signal_threshold": 1.0,
+        "max_positions": 5
+      },
+      "metrics": {
+        "total_trades": 90,
+        "win_rate": 35.55555555555556,
+        "profit_factor": 0.7200447828164599,
+        "total_return": -1.1194138793945314,
+        "total_pnl": -1119.4138793945312
+      },
+      "score": 24.507855383298597
+    },
+    {
+      "params": {
+        "position_size": 0.03,
+        "take_profit": 0.025,
+        "stop_loss": 0.01,
+        "signal_threshold": 1.0,
+        "max_positions": 3
+      },
+      "metrics": {
+        "total_trades": 61,
+        "win_rate": 27.86885245901639,
+        "profit_factor": 0.7975164995082443,
+        "total_return": -0.37430389404296877,
+        "total_pnl": -374.30389404296875
+      },
+      "score": 24.123833780848322
+    },
+    {
+      "params": {
+        "position_size": 0.02,
+        "take_profit": 0.015,
+        "stop_loss": 0.01,
+        "signal_threshold": 1.0,
+        "max_positions": 10
+      },
+      "metrics": {
+        "total_trades": 95,
+        "win_rate": 35.78947368421053,
+        "profit_factor": 0.6812681859038906,
+        "total_return": -0.507753173828125,
+        "total_pnl": -507.753173828125
+      },
+      "score": 24.108329236426908
+    }
+  ],
+  "total_combinations": 1024
+}

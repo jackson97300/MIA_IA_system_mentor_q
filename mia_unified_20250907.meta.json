@@ -1,0 +1,27 @@
+{
+  "generated_at": "2025-09-07T20:18:46.116398+00:00",
+  "config": {
+    "session_len": "2m",
+    "regime": "MID",
+    "mq_scenario": "clear",
+    "trend": "choppy",
+    "mtf_aligned": true,
+    "noise_level": 0.1,
+    "seed": 42
+  },
+  "total_lines": 21,
+  "duration_seconds": 0.0011744499206542969,
+  "symbols": [
+    "ESU25_FUT_CME"
+  ],
+  "vix_range": [
+    17.261685802716393,
+    18.304717079754433
+  ],
+  "price_range": {
+    "ESU25_FUT_CME": [
+      5294.5,
+      5295.25
+    ]
+  }
+}

@@ -61,9 +61,8 @@ class LeadershipConfig:
 class MarketStateAnalyzer:
     """Analyseur d'état de marché avec adaptation automatique des seuils"""
     
-    def __init__(self, calibration: LeadershipConfig | None = None, demo_mode: bool = False):
+    def __init__(self, calibration: LeadershipConfig | None = None):
         self.cal = calibration  # PATCH: peut être None -> fallback valeurs actuelles
-        self.demo_mode = demo_mode  # PATCH: mode démo plus permissif
         self.last_analysis = None
         self.analysis_count = 0
         self.regime_history = []
@@ -328,21 +327,14 @@ class MarketStateAnalyzer:
             return 0.0
     
     def _classify_correlation_regime(self, corr_15m: float) -> str:
-        """Classifie le régime de corrélation (PATCH: demo mode permissif)"""
-        # En demo, on considère "normal" plus souvent pour faciliter le passage
-        if self.demo_mode:
-            if abs(corr_15m) > 0.9: 
-                return 'tight'
-            if abs(corr_15m) < 0.6: 
-                return 'weak'
-            return 'normal'
-        
-        # Prod (comportement actuel)
+        """Classifie le régime de corrélation"""
+        # Seuils configurables ou par défaut
         weak = getattr(self.cal, "corr_weak_threshold", 0.70) if self.cal else 0.70
         tight = getattr(self.cal, "corr_tight_threshold", 0.90) if self.cal else 0.90
-        if corr_15m < weak:
+        
+        if abs(corr_15m) < weak:
             return 'weak'
-        elif corr_15m > tight:
+        elif abs(corr_15m) > tight:
             return 'tight'
         else:
             return 'normal'
@@ -456,7 +448,7 @@ class MarketStateAnalyzer:
         else:
             return 'after'
     
-    def adapt_thresholds(self, base_config: LeadershipConfig, market_state: MarketState, demo_mode: bool = False) -> LeadershipConfig:
+    def adapt_thresholds(self, base_config: LeadershipConfig, market_state: MarketState) -> LeadershipConfig:
         """
         Adapte dynamiquement les seuils selon l'état du marché
         """
@@ -485,17 +477,8 @@ class MarketStateAnalyzer:
             cfg.leader_strength_min = max(0.0, min(1.0, cfg.leader_strength_min + 0.05))
             cfg.persistence_bars = max(1, cfg.persistence_bars + 1)
 
-        # --- Soft-gate corr en démo : on réduit le corr_min effectif ---
-        if demo_mode:
-            # CorrMin_effectif := min(corr_min, corr_15m + marge) borné [-0.25, 1]
-            margin = 0.12
-            corr_floor = -0.25  # PATCH: plancher pour éviter seuils trop permissifs
-            old = cfg.corr_min
-            eff = min(old, c + margin)
-            eff = max(corr_floor, min(1.0, eff))  # PATCH: utilise le plancher
-            cfg.corr_min_effective = eff
-        else:
-            cfg.corr_min_effective = cfg.corr_min
+        # Configuration standard (sans mode démo)
+        cfg.corr_min_effective = cfg.corr_min
 
         return cfg
     
@@ -505,6 +488,247 @@ class MarketStateAnalyzer:
             'analysis_count': self.analysis_count,
             'last_analysis': self.last_analysis.isoformat() if self.last_analysis else None,
             'regime_history_count': len(self.regime_history)
+        }
+    
+    def get_risk_context(self, market_state: Optional[MarketState] = None) -> Dict[str, Any]:
+        """🎯 Retourne le contexte de risque basé sur l'état du marché"""
+        try:
+            # Si pas d'état fourni, utiliser le dernier analysé
+            if market_state is None:
+                if self.last_analysis is None:
+                    return self._get_default_risk_context()
+                market_state = self.last_analysis
+            
+            # Calcul du niveau de risque global
+            risk_level = self._calculate_risk_level(market_state)
+            
+            # Facteurs de risque individuels
+            risk_factors = {
+                'volatility_risk': self._assess_volatility_risk(market_state),
+                'correlation_risk': self._assess_correlation_risk(market_state),
+                'liquidity_risk': self._assess_liquidity_risk(market_state),
+                'gamma_risk': self._assess_gamma_risk(market_state),
+                'session_risk': self._assess_session_risk(market_state)
+            }
+            
+            # Recommandations de trading
+            trading_recommendations = self._generate_trading_recommendations(market_state, risk_level)
+            
+            return {
+                'risk_level': risk_level,
+                'risk_score': self._calculate_risk_score(risk_factors),
+                'risk_factors': risk_factors,
+                'trading_recommendations': trading_recommendations,
+                'market_state': {
+                    'vol_regime': market_state.vol_regime,
+                    'corr_regime': market_state.corr_regime,
+                    'liq_regime': market_state.liq_regime,
+                    'gamma_regime': market_state.gamma_regime,
+                    'session': market_state.session
+                },
+                'timestamp': datetime.now().isoformat(),
+                'analysis_quality': 'real' if market_state else 'fallback'
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur calcul contexte risque: {e}")
+            return self._get_default_risk_context()
+    
+    def _calculate_risk_level(self, market_state: MarketState) -> str:
+        """Calcule le niveau de risque global"""
+        risk_score = 0
+        
+        # Volatilité
+        if market_state.vol_regime == 'high':
+            risk_score += 3
+        elif market_state.vol_regime == 'normal':
+            risk_score += 1
+        
+        # Corrélation
+        if market_state.corr_regime == 'weak':
+            risk_score += 2
+        elif market_state.corr_regime == 'tight':
+            risk_score += 1
+        
+        # Liquidité
+        if market_state.liq_regime == 'thin':
+            risk_score += 2
+        
+        # Gamma
+        if market_state.gamma_regime == 'near_wall':
+            risk_score += 3
+        elif market_state.gamma_regime == 'expansion':
+            risk_score += 1
+        
+        # Session
+        if market_state.session in ['power', 'after']:
+            risk_score += 1
+        
+        # Classification
+        if risk_score >= 7:
+            return 'very_high'
+        elif risk_score >= 5:
+            return 'high'
+        elif risk_score >= 3:
+            return 'moderate'
+        elif risk_score >= 1:
+            return 'low'
+        else:
+            return 'very_low'
+    
+    def _assess_volatility_risk(self, market_state: MarketState) -> Dict[str, Any]:
+        """Évalue le risque de volatilité"""
+        risk_level = 'low'
+        if market_state.vol_regime == 'high':
+            risk_level = 'high'
+        elif market_state.vol_regime == 'normal':
+            risk_level = 'moderate'
+        
+        return {
+            'level': risk_level,
+            'realized_vol': market_state.realized_vol,
+            'regime': market_state.vol_regime,
+            'recommendation': 'Réduire la taille des positions' if risk_level == 'high' else 'Taille normale'
+        }
+    
+    def _assess_correlation_risk(self, market_state: MarketState) -> Dict[str, Any]:
+        """Évalue le risque de corrélation"""
+        risk_level = 'low'
+        if market_state.corr_regime == 'weak':
+            risk_level = 'high'
+        elif market_state.corr_regime == 'tight':
+            risk_level = 'moderate'
+        
+        return {
+            'level': risk_level,
+            'correlation_15m': market_state.corr_15m,
+            'regime': market_state.corr_regime,
+            'recommendation': 'Vérifier la cohérence ES/NQ' if risk_level == 'high' else 'Corrélation stable'
+        }
+    
+    def _assess_liquidity_risk(self, market_state: MarketState) -> Dict[str, Any]:
+        """Évalue le risque de liquidité"""
+        risk_level = 'low'
+        if market_state.liq_regime == 'thin':
+            risk_level = 'high'
+        elif market_state.liq_regime == 'normal':
+            risk_level = 'moderate'
+        
+        return {
+            'level': risk_level,
+            'volume_zscore': market_state.volume_zscore,
+            'regime': market_state.liq_regime,
+            'recommendation': 'Éviter les gros ordres' if risk_level == 'high' else 'Liquidité normale'
+        }
+    
+    def _assess_gamma_risk(self, market_state: MarketState) -> Dict[str, Any]:
+        """Évalue le risque gamma"""
+        risk_level = 'low'
+        if market_state.gamma_regime == 'near_wall':
+            risk_level = 'high'
+        elif market_state.gamma_regime == 'expansion':
+            risk_level = 'moderate'
+        
+        return {
+            'level': risk_level,
+            'gamma_distance': market_state.gamma_distance,
+            'regime': market_state.gamma_regime,
+            'recommendation': 'Attention aux murs gamma' if risk_level == 'high' else 'Gamma neutre'
+        }
+    
+    def _assess_session_risk(self, market_state: MarketState) -> Dict[str, Any]:
+        """Évalue le risque de session"""
+        risk_level = 'low'
+        if market_state.session in ['power', 'after']:
+            risk_level = 'moderate'
+        
+        return {
+            'level': risk_level,
+            'session': market_state.session,
+            'recommendation': 'Session volatile' if risk_level == 'moderate' else 'Session stable'
+        }
+    
+    def _calculate_risk_score(self, risk_factors: Dict[str, Dict[str, Any]]) -> float:
+        """Calcule un score de risque global (0-1)"""
+        risk_weights = {
+            'volatility_risk': 0.3,
+            'correlation_risk': 0.25,
+            'liquidity_risk': 0.2,
+            'gamma_risk': 0.15,
+            'session_risk': 0.1
+        }
+        
+        risk_levels = {'low': 0.2, 'moderate': 0.5, 'high': 0.8, 'very_high': 1.0}
+        
+        total_score = 0
+        for factor, weight in risk_weights.items():
+            if factor in risk_factors:
+                level = risk_factors[factor]['level']
+                total_score += risk_levels.get(level, 0.5) * weight
+        
+        return min(1.0, total_score)
+    
+    def _generate_trading_recommendations(self, market_state: MarketState, risk_level: str) -> Dict[str, Any]:
+        """Génère des recommandations de trading basées sur le risque"""
+        recommendations = {
+            'position_sizing': 'normal',
+            'stop_loss_tightness': 'normal',
+            'take_profit_aggressiveness': 'normal',
+            'entry_timing': 'normal',
+            'overall_advice': 'Trading normal'
+        }
+        
+        if risk_level in ['high', 'very_high']:
+            recommendations.update({
+                'position_sizing': 'reduce',
+                'stop_loss_tightness': 'tight',
+                'take_profit_aggressiveness': 'conservative',
+                'entry_timing': 'wait',
+                'overall_advice': 'Conditions risquées - Réduire l\'exposition'
+            })
+        elif risk_level == 'moderate':
+            recommendations.update({
+                'position_sizing': 'slightly_reduce',
+                'stop_loss_tightness': 'slightly_tight',
+                'overall_advice': 'Conditions modérées - Prudence recommandée'
+            })
+        elif risk_level == 'very_low':
+            recommendations.update({
+                'position_sizing': 'slightly_increase',
+                'take_profit_aggressiveness': 'slightly_aggressive',
+                'overall_advice': 'Conditions favorables - Opportunités possibles'
+            })
+        
+        return recommendations
+    
+    def _get_default_risk_context(self) -> Dict[str, Any]:
+        """Retourne un contexte de risque par défaut en cas d'erreur"""
+        return {
+            'risk_level': 'moderate',
+            'risk_score': 0.5,
+            'risk_factors': {
+                'volatility_risk': {'level': 'moderate', 'recommendation': 'Données indisponibles'},
+                'correlation_risk': {'level': 'moderate', 'recommendation': 'Données indisponibles'},
+                'liquidity_risk': {'level': 'moderate', 'recommendation': 'Données indisponibles'},
+                'gamma_risk': {'level': 'moderate', 'recommendation': 'Données indisponibles'},
+                'session_risk': {'level': 'moderate', 'recommendation': 'Données indisponibles'}
+            },
+            'trading_recommendations': {
+                'position_sizing': 'normal',
+                'stop_loss_tightness': 'normal',
+                'take_profit_aggressiveness': 'normal',
+                'entry_timing': 'normal',
+                'overall_advice': 'Données de marché indisponibles - Prudence recommandée'
+            },
+            'market_state': {
+                'vol_regime': 'unknown',
+                'corr_regime': 'unknown',
+                'liq_regime': 'unknown',
+                'gamma_regime': 'unknown',
+                'session': 'unknown'
+            },
+            'timestamp': datetime.now().isoformat(),
+            'analysis_quality': 'fallback'
         }
     
     def get_recent_regimes(self, count: int = 10) -> List[Dict]:

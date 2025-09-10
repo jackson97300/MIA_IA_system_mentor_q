@@ -35,7 +35,7 @@ from typing import Dict, List, Tuple, Optional, Any, Union
 from dataclasses import dataclass, field
 from enum import Enum
 from core.logger import get_logger
-from collections import deque
+from collections import deque, defaultdict
 
 # Local imports
 from core.base_types import (
@@ -44,14 +44,9 @@ from core.base_types import (
 )
 
 # Strategy components
-from features.market_regime import (
-    MarketRegimeDetector, MarketRegimeData, MarketRegime,
-    create_market_regime_detector
-)
-from features.feature_calculator import (
-    FeatureCalculator, FeatureCalculationResult, SignalQuality,
-    create_feature_calculator
-)
+# Les classes MarketRegime seront importées dynamiquement
+# Utilisation du système de lazy loading
+from features import create_feature_calculator, create_market_regime_detector
 from .trend_strategy import (
     TrendStrategy, TrendSignalData, TrendSignalType,
     create_trend_strategy
@@ -60,6 +55,18 @@ from .range_strategy import (
     RangeStrategy, RangeSignalData, RangeSignalType,
     create_range_strategy
 )
+
+# === NEW: registry des stratégies "patterns" ===
+from .gamma_pin_reversion import GammaPinReversion
+from .dealer_flip_breakout import DealerFlipBreakout
+from .liquidity_sweep_reversal import LiquiditySweepReversal
+from .stacked_imbalance_continuation import StackedImbalanceContinuation
+from .iceberg_tracker_follow import IcebergTrackerFollow
+from .cvd_divergence_trap import CvdDivergenceTrap
+from .opening_drive_fail import OpeningDriveFail
+from .es_nq_lead_lag_mirror import EsNqLeadLagMirror
+from .vwap_band_squeeze_break import VwapBandSqueezeBreak
+from .profile_gap_fill import ProfileGapFill
 
 logger = get_logger(__name__)
 
@@ -117,6 +124,11 @@ class StrategySelectionResult:
     confluence_score: float = 0.0
     features_quality: float = 0.0
     total_processing_time_ms: float = 0.0
+    
+    # === NEW: Pattern strategies tracking ===
+    patterns_considered: List[str] = field(default_factory=list)
+    best_pattern: Optional[str] = None
+    features_snapshot: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -149,6 +161,7 @@ class SystemPerformance:
     total_analyses: int = 0
     trend_signals: int = 0
     range_signals: int = 0
+    pattern_signals: int = 0  # === NEW: Pattern strategies counter ===
     rejected_signals: int = 0
 
     # Strategy usage
@@ -164,6 +177,9 @@ class SystemPerformance:
     # Performance tracking
     successful_regime_transitions: int = 0
     failed_signal_validations: int = 0
+    
+    # === NEW: Risk management ===
+    current_risk: float = 0.0
 
 # === MAIN STRATEGY SELECTOR ===
 
@@ -201,12 +217,29 @@ class StrategySelector:
         range_config = self.config.get('range_config', {})
         self.range_strategy = create_range_strategy(range_config)
 
+        # === NEW: Pattern strategies registry ===
+        self.pattern_strategies = [
+            GammaPinReversion(), DealerFlipBreakout(), LiquiditySweepReversal(),
+            StackedImbalanceContinuation(), IcebergTrackerFollow(),
+            CvdDivergenceTrap(), OpeningDriveFail(),
+            EsNqLeadLagMirror(), VwapBandSqueezeBreak(), ProfileGapFill(),
+        ]
+
+        # Anti-sur-sollicitation par stratégie
+        self.last_fire_ts = defaultdict(lambda: pd.Timestamp(0))
+        self.fire_cooldown_sec = self.config.get("pattern_fire_cooldown_sec", 60)
+
         # === PARAMÈTRES SYSTÈME ===
 
         # Seuils validation finale
         self.min_confluence_for_execution = self.config.get('min_confluence_execution', 0.70)
         self.min_regime_confidence = self.config.get('min_regime_confidence', 0.60)
         self.max_processing_time_ms = self.config.get('max_processing_time_ms', 50)
+        
+        # === NEW: Pattern strategies parameters ===
+        self.min_pattern_confidence = self.config.get('min_pattern_confidence', 0.60)
+        self.min_dist_ticks_wall = self.config.get('min_dist_ticks_wall', 6)
+        self.max_risk_budget = self.config.get('max_risk_budget', 1.0)
 
         # Gestion transitions
         self.regime_change_cooldown = self.config.get('regime_change_cooldown', 5)  # minutes
@@ -296,6 +329,37 @@ class StrategySelector:
                     signal_generated = True
                     self.performance.range_signals += 1
 
+            # === NEW: Explorer les patterns micro-stratégies en complément ===
+            pattern_signals = []
+            now_ts = trading_context.timestamp
+
+            for strat in self.pattern_strategies:
+                # Cooldown par stratégie
+                if (now_ts - self.last_fire_ts[strat.name]).total_seconds() < self.fire_cooldown_sec:
+                    continue
+                try:
+                    # Créer un contexte standardisé pour les patterns
+                    pattern_ctx = self._create_pattern_context(features_result, trading_context)
+                    sig = strat.generate(pattern_ctx)
+                except Exception as e:
+                    logger.exception("Pattern %s crashed: %s", strat.name, e)
+                    continue
+                if not sig:
+                    continue
+                # Scoring contextuel
+                score = self._score_pattern_signal(sig, regime_data, features_result)
+                if score is not None:
+                    pattern_signals.append((score, sig))
+
+            # Conserver le meilleur pattern
+            best_pattern = max(pattern_signals, key=lambda x: x[0])[1] if pattern_signals else None
+            if best_pattern and best_pattern.get("confidence", 0) >= self.min_pattern_confidence:
+                signal_generated = True
+                # Tag pour perf
+                self.performance.pattern_signals += 1
+                # Enregistrer le fire time
+                self.last_fire_ts[best_pattern["strategy"]] = now_ts
+
             # === 5. VALIDATION FINALE ===
 
             final_decision = self._make_final_decision(
@@ -325,7 +389,15 @@ class StrategySelector:
                 final_decision=final_decision,
                 confluence_score=features_result.confluence_score,
                 features_quality=self._calculate_features_quality(features_result),
-                total_processing_time_ms=processing_time
+                total_processing_time_ms=processing_time,
+                # === NEW: Pattern strategies tracking ===
+                patterns_considered=[s["strategy"] for _, s in pattern_signals],
+                best_pattern=(best_pattern or {}).get("strategy"),
+                features_snapshot={
+                    "confluence": features_result.confluence_score,
+                    "regime": regime_data.regime.name,
+                    "menthorq_flip": getattr(features_result, 'menthorq', {}).get("gamma_flip", False) if hasattr(features_result, 'menthorq') else False,
+                }
             )
 
             # Ajout historique
@@ -449,7 +521,7 @@ class StrategySelector:
         # Préparation contexte tendance
         trend_context = {
             'vwap_slope': trading_context.structure_data.get('vwap_slope', 0) if trading_context.structure_data else 0,
-            'dow_trend_direction': self._map_regime_to_dow_direction(regime_data.regime),
+            'dow_trend_direction': self._map_regime_to_direction(regime_data.regime),
             'trend_strength': regime_data.bias_strength
         }
 
@@ -472,7 +544,7 @@ class StrategySelector:
         # Préparation contexte range avec bias
         range_trend_context = {
             'vwap_slope': trading_context.structure_data.get('vwap_slope', 0) if trading_context.structure_data else 0,
-            'dow_trend_direction': self._map_regime_to_dow_direction(regime_data.regime),
+            'dow_trend_direction': self._map_regime_to_direction(regime_data.regime),
             'trend_strength': regime_data.bias_strength
         }
 
@@ -571,6 +643,19 @@ class StrategySelector:
             logger.info(f"Session défavorable: {session_factor:.2f}")
             return SignalDecision.WAIT_BETTER_SETUP
 
+        # === NEW: MenthorQ blocking wall ===
+        menthorq = getattr(features, "menthorq", {}) or {}
+        wall = menthorq.get("nearest_wall")
+        if wall and wall.get("dist_ticks") is not None:
+            # si mur opposé < N ticks et trade va à travers → REJECT sauf si breakout pattern
+            if wall["dist_ticks"] < self.min_dist_ticks_wall:
+                if not (signal_data and getattr(signal_data, "is_breakout", False)):
+                    return SignalDecision.REJECT_SIGNAL
+
+        # === NEW: risk budget rapide ===
+        if getattr(self.performance, "current_risk", 0.0) > self.max_risk_budget:
+            return SignalDecision.WAIT_BETTER_SETUP
+
         # === SIGNAL VALIDÉ [OK] ===
 
         logger.info(f"Signal validé: conf={features.confluence_score:.2f}, "
@@ -580,8 +665,8 @@ class StrategySelector:
 
     # === HELPER METHODS ===
 
-    def _map_regime_to_dow_direction(self, regime: MarketRegime) -> str:
-        """Mapping régime vers direction Dow"""
+    def _map_regime_to_direction(self, regime: MarketRegime) -> str:
+        """Mapping régime vers direction (corrigé de DOW)"""
         mapping = {
             MarketRegime.STRONG_TREND_BULLISH: 'bullish',
             MarketRegime.WEAK_TREND_BULLISH: 'bullish',
@@ -643,6 +728,118 @@ class StrategySelector:
 
         return min(quality_score, 1.0)
 
+    def _create_pattern_context(self, features_result: FeatureCalculationResult, trading_context: TradingContext) -> Dict[str, Any]:
+        """
+        Crée un contexte standardisé pour les pattern strategies.
+        
+        Args:
+            features_result: Résultat du calcul des features
+            trading_context: Contexte de trading
+            
+        Returns:
+            Contexte standardisé pour les patterns
+        """
+        # Adapter les features_result vers le format attendu par les patterns
+        ctx = {
+            "price": {"last": trading_context.market_data.close},
+            "atr": getattr(features_result, 'atr', 2.0),
+            "tick_size": 0.25,
+            "symbol": trading_context.market_data.symbol,
+        }
+        
+        # VWAP data
+        if hasattr(features_result, 'vwap_data'):
+            ctx["vwap"] = features_result.vwap_data
+        else:
+            ctx["vwap"] = {
+                "vwap": trading_context.market_data.close,
+                "sd1_up": trading_context.market_data.close + 2.0,
+                "sd1_dn": trading_context.market_data.close - 2.0,
+            }
+        
+        # VVA data
+        if hasattr(features_result, 'vva_data'):
+            ctx["vva"] = features_result.vva_data
+        else:
+            ctx["vva"] = {
+                "vpoc": trading_context.market_data.close,
+                "vah": trading_context.market_data.close + 5.0,
+                "val": trading_context.market_data.close - 5.0,
+            }
+        
+        # MenthorQ data
+        if hasattr(features_result, 'menthorq'):
+            ctx["menthorq"] = features_result.menthorq
+        else:
+            ctx["menthorq"] = {
+                "nearest_wall": {"type": "CALL", "price": trading_context.market_data.close + 10.0, "dist_ticks": 40},
+                "gamma_flip": False
+            }
+        
+        # Orderflow data
+        if hasattr(features_result, 'orderflow'):
+            ctx["orderflow"] = features_result.orderflow
+        else:
+            ctx["orderflow"] = {
+                "delta_burst": False,
+                "delta_flip": False,
+                "cvd_divergence": False,
+                "stacked_imbalance": {"side": "BUY", "rows": 0},
+                "absorption": None,
+                "iceberg": None,
+            }
+        
+        # Autres données
+        ctx["quotes"] = {"speed_up": False}
+        ctx["correlation"] = {"es_nq": 0.9, "leader": "ES"}
+        ctx["vix"] = {"last": 20.0, "rising": False}
+        ctx["session"] = {"label": "OTHER", "time_ok": True}
+        ctx["basedata"] = {"last_wick_ticks": 0}
+        
+        return ctx
+
+    def _score_pattern_signal(self, sig: Dict[str, Any], regime_data: MarketRegimeData, features_result: FeatureCalculationResult) -> Optional[float]:
+        """
+        Score 0..1 basé sur :
+        - confiance du signal
+        - compatibilité avec le régime
+        - contexte MenthorQ (gamma flip, mur proche)
+        - session et VIX
+        """
+        conf = float(sig.get("confidence", 0.0))
+        if conf <= 0.0:
+            return None
+
+        score = conf
+
+        # Boost si régime cohérent
+        if regime_data.regime.name.startswith("STRONG_TREND") and sig["strategy"] in ("dealer_flip_breakout", "vwap_band_squeeze_break"):
+            score += 0.06
+        if "RANGE" in regime_data.regime.name and sig["strategy"] in ("gamma_pin_reversion", "profile_gap_fill"):
+            score += 0.04
+
+        # MenthorQ
+        mctx = getattr(features_result, "menthorq", None) or {}
+        if mctx.get("gamma_flip", False) and sig["strategy"] in ("dealer_flip_breakout", "es_nq_lead_lag_mirror"):
+            score += 0.05
+        # pénalité mur opposé trop proche
+        wall = (mctx.get("nearest_wall") or {})
+        if wall and wall.get("dist_ticks") is not None and wall["dist_ticks"] < 6:
+            # si TP du signal est au-delà du mur opposé, pénalise
+            score -= 0.05
+
+        # Session
+        sess = getattr(features_result, "session", {}) or {}
+        if sess.get("label") == "OPEN" and sig["strategy"] in ("opening_drive_fail", "dealer_flip_breakout"):
+            score += 0.03
+
+        # VIX
+        vix = getattr(features_result, "vix", {}) or {}
+        if vix.get("rising", False) and sig["side"] == "countertrend":
+            score -= 0.03
+
+        return max(0.0, min(1.0, score))
+
     def _update_performance_metrics(self,
                                     processing_time: float,
                                     confluence_score: float,
@@ -682,7 +879,7 @@ class StrategySelector:
         current_strategy_name = self.current_strategy.value if self.current_strategy else "None"
 
         # Calcul success rate
-        total_signals = self.performance.trend_signals + self.performance.range_signals
+        total_signals = self.performance.trend_signals + self.performance.range_signals + self.performance.pattern_signals
         success_rate = ((total_signals - self.performance.rejected_signals) /
                         total_signals * 100) if total_signals > 0 else 0
 
@@ -702,6 +899,7 @@ class StrategySelector:
             # Distribution signaux
             'trend_signals': self.performance.trend_signals,
             'range_signals': self.performance.range_signals,
+            'pattern_signals': self.performance.pattern_signals,  # === NEW ===
             'rejected_signals': self.performance.rejected_signals,
 
             # Utilisation stratégies
@@ -718,7 +916,8 @@ class StrategySelector:
                 'regime_detector': 'active',
                 'feature_calculator': 'active',
                 'trend_strategy': 'active',
-                'range_strategy': 'active'
+                'range_strategy': 'active',
+                'pattern_strategies': f'active ({len(self.pattern_strategies)} strategies)'  # === NEW ===
             }
         }
 

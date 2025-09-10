@@ -1,0 +1,6 @@
+{
+  "data_directory": "data/options_snapshots",
+  "max_age_hours": 18.0,
+  "hourly_backup_enabled": true,
+  "final_backup_enabled": true
+}

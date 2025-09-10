@@ -32,6 +32,8 @@ from dataclasses import dataclass
 from enum import Enum
 from collections import deque
 from core.logger import get_logger
+from .data_reader import get_latest_market_data
+from .config_loader import get_feature_config
 
 # Local imports
 try:
@@ -241,7 +243,31 @@ class VWAPBandsAnalyzer:
             return self._create_default_result(market_data.timestamp)
     
     def _calculate_vwap_bands(self) -> Tuple[float, float, float, float, float]:
-        """Calcul VWAP et standard deviation bands"""
+        """Calcul VWAP et standard deviation bands avec vraies données"""
+        try:
+            # Essayer d'abord les vraies données VWAP
+            real_data = get_latest_market_data("ES")
+            
+            if real_data and all(key in real_data for key in ['vwap', 'vwap_up1', 'vwap_dn1', 'vwap_up2', 'vwap_dn2']):
+                vwap = real_data['vwap']
+                sd1_up = real_data['vwap_up1']
+                sd1_down = real_data['vwap_dn1']
+                sd2_up = real_data['vwap_up2']
+                sd2_down = real_data['vwap_dn2']
+                
+                logger.info(f"✅ Utilisation vraies données VWAP: {vwap:.2f} | SD1: [{sd1_down:.2f}, {sd1_up:.2f}] | SD2: [{sd2_down:.2f}, {sd2_up:.2f}]")
+                return vwap, sd1_up, sd1_down, sd2_up, sd2_down
+            else:
+                # Fallback vers calcul historique
+                logger.warning("⚠️ Pas de vraies données VWAP - utilisation calcul historique")
+                return self._calculate_vwap_bands_fallback()
+                
+        except Exception as e:
+            logger.error(f"❌ Erreur calcul VWAP bands: {e}")
+            return self._calculate_vwap_bands_fallback()
+    
+    def _calculate_vwap_bands_fallback(self) -> Tuple[float, float, float, float, float]:
+        """Calcul VWAP et standard deviation bands (fallback)"""
         
         # Conversion en arrays pour calcul
         prices = np.array(list(self.price_history))
@@ -415,8 +441,8 @@ class VWAPBandsAnalyzer:
         # Utiliser le prix actuel comme base pour VWAP
         current_price = 6477.50  # Prix ES typique
         
-        # VWAP simulé proche du prix actuel
-        vwap = current_price + np.random.uniform(-5, 5)
+        # VWAP simulé proche du prix actuel (déterministe)
+        vwap = current_price + 2.5  # Offset déterministe
         
         # Bands simulées avec volatilité réaliste
         volatility = current_price * 0.001  # 0.1% volatilité
@@ -507,7 +533,7 @@ def simulate_vwap_bands_scenario(price_range: Tuple[float, float] = (5400, 5450)
     
     # Génération données simulées
     from datetime import datetime
-    import random
+    # import random  # Supprimé - plus de valeurs aléatoires
     
     analyzer = create_vwap_bands_analyzer()
     
@@ -515,13 +541,13 @@ def simulate_vwap_bands_scenario(price_range: Tuple[float, float] = (5400, 5450)
     base_price = (price_range[0] + price_range[1]) / 2
     
     for i in range(periods):
-        # Prix avec trend et noise
+        # Prix avec trend et noise déterministe
         trend = (i - periods/2) * 0.1
-        noise = random.uniform(-2, 2)
+        noise = (i % 3 - 1) * 1.0  # Pattern déterministe: -1, 0, 1, -1, 0, 1...
         price = base_price + trend + noise
         
-        # Volume simulé
-        volume = random.randint(50, 200)
+        # Volume simulé (déterministe)
+        volume = 100 + (i % 5) * 20  # Pattern: 100, 120, 140, 160, 180, 100...
         
         # Market data simulé
         market_data = type('MarketData', (), {

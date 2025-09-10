@@ -1,0 +1,22 @@
+{
+  "vix_level": 21.2,
+  "put_call_ratio": 0.88,
+  "put_call_volume_ratio": 0.82,
+  "call_volume": 28000,
+  "put_volume": 23000,
+  "call_oi": 1100000,
+  "put_oi": 850000,
+  "gamma_exposure": 78000000000.0,
+  "dealer_position": "slightly_long",
+  "gamma_flip_level": 5410.0,
+  "pin_levels": [
+    5400,
+    5450,
+    5500,
+    5550
+  ],
+  "unusual_activity": false,
+  "estimated_dealer_hedging": "slight_buying",
+  "timestamp": "2025-08-10T23:02:46.374787+00:00",
+  "data_source": "asian_session_test"
+}

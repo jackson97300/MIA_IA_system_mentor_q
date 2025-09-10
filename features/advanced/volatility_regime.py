@@ -21,6 +21,7 @@ import logging
 
 # Imports locaux (selon architecture projet)
 from core.base_types import MarketData
+from ..data_reader import get_latest_market_data
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +162,35 @@ class VolatilityRegimeCalculator:
         
         # Nettoyage cache
         self._cleanup_cache()
+    
+    def add_real_market_data(self, symbol: str = "ES") -> None:
+        """
+        🆕 Ajoute les vraies données de marché depuis Sierra Chart
+        
+        Args:
+            symbol: Symbole à analyser (défaut: ES)
+        """
+        try:
+            # Récupérer les vraies données
+            market_data = get_latest_market_data(symbol)
+            
+            if market_data:
+                # VIX depuis les vraies données
+                vix = market_data.get('vix', 20.0)
+                self.add_vix_data(vix)
+                
+                # ATR calculé depuis OHLC
+                if all(key in market_data for key in ['open', 'high', 'low', 'close']):
+                    o, h, l, c = market_data['open'], market_data['high'], market_data['low'], market_data['close']
+                    atr = self._calculate_atr(o, h, l, c)
+                    self.add_atr_data(atr)
+                
+                logger.debug(f"✅ Données volatilité réelles ajoutées: {symbol}, VIX: {vix:.2f}")
+            else:
+                logger.warning(f"⚠️ Pas de données pour {symbol}")
+                
+        except Exception as e:
+            logger.error(f"❌ Erreur ajout données volatilité réelles: {e}")
     
     def calculate_volatility_regime(self) -> VolatilityRegimeResult:
         """

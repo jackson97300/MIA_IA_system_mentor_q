@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "disable_existing_loggers": false,
+  "formatters": {
+    "detailed": {
+      "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    },
+    "simple": {
+      "format": "%(levelname)s - %(message)s"
+    }
+  },
+  "handlers": {
+    "file": {
+      "class": "logging.handlers.RotatingFileHandler",
+      "level": "INFO",
+      "formatter": "detailed",
+      "filename": "D:\\MIA_IA_system\\data\\performance\\logs\\performance.log",
+      "maxBytes": 10485760,
+      "backupCount": 5
+    },
+    "console": {
+      "class": "logging.StreamHandler",
+      "level": "INFO",
+      "formatter": "simple"
+    }
+  },
+  "loggers": {
+    "performance": {
+      "level": "INFO",
+      "handlers": [
+        "file",
+        "console"
+      ],
+      "propagate": false
+    }
+  }
+}

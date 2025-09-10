@@ -1,0 +1,33 @@
+
+# 🔧 GUIDE SOUSCRIPTION ESU25 DANS TWS
+# Vous avez les souscriptions, maintenant il faut les activer dans TWS
+
+## ÉTAPE 1: SOUSCRIRE ESU25 DANS TWS
+1. Dans TWS, allez dans "Market Data" (en haut à gauche)
+2. Tapez "ESU25" ou "ES" dans la barre de recherche
+3. Sélectionnez "ES Sep'25 @CME" ou "ESU25"
+4. Cliquez sur "Add to Market Data" ou le bouton "+"
+5. Vérifiez que le prix ~6340.00 s'affiche
+
+## ÉTAPE 2: VÉRIFIER LA SOUSCRIPTION
+1. Dans TWS, regardez la section "Market Data"
+2. Vous devriez voir "ES Sep'25 @CME" avec le prix en temps réel
+3. Le prix doit être différent de "---" ou "N/A"
+
+## ÉTAPE 3: CONFIGURATION API (si pas déjà fait)
+1. File → Global Configuration → API → Settings
+2. ✅ Enable ActiveX and Socket Clients: OUI
+3. ✅ Socket port: 7497
+4. ✅ Allow connections from localhost: OUI
+
+## ÉTAPE 4: REDÉMARRER TWS
+1. Fermez TWS complètement
+2. Relancez TWS
+3. Reconnectez-vous
+4. Vérifiez que ESU25 est toujours visible
+
+## ÉTAPE 5: TESTER L'API
+1. Lancez le script de test
+2. Le prix ESU25 devrait maintenant être récupéré
+
+# IMPORTANT: Même avec les souscriptions, il faut ajouter le contrat dans TWS !

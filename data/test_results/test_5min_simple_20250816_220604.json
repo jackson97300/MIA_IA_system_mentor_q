@@ -1,0 +1,53 @@
+{
+  "timestamp": "2025-08-16T22:06:04.369483",
+  "data_quality": {
+    "market": true,
+    "orderflow": true,
+    "options": true
+  },
+  "trading_simulation": {
+    "duration": 5,
+    "initial_price": 6449.7998046875,
+    "final_price": 6453.232291225946,
+    "total_trades": 0,
+    "winning_trades": 0,
+    "win_rate": 0,
+    "total_pnl": -4.093253810405258,
+    "trades": [
+      {
+        "time": 0,
+        "action": "SELL",
+        "price": 6451.171379461502,
+        "signal": "TIME_BASED"
+      },
+      {
+        "time": 0,
+        "action": "SELL",
+        "price": 6451.171379461502,
+        "signal": "ORDERFLOW_BEAR"
+      },
+      {
+        "time": 3,
+        "action": "BUY",
+        "price": 6453.203721507462,
+        "signal": "RANDOM"
+      },
+      {
+        "time": 4,
+        "action": "BUY",
+        "price": 6453.232291225946,
+        "signal": "TIME_BASED"
+      }
+    ]
+  },
+  "performance_metrics": {
+    "total_trades": 0,
+    "winning_trades": 0,
+    "win_rate": 0,
+    "total_pnl": -4.093253810405258,
+    "profit_factor": Infinity,
+    "sharpe_ratio": 0,
+    "avg_trade": 0
+  },
+  "success": false
+}

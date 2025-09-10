@@ -1,0 +1,71 @@
+{
+  "confluence": {
+    "tolerance_ticks": 3.0,
+    "quality_thresholds": {
+      "high": 0.8,
+      "medium": 0.6,
+      "low": 0.4
+    },
+    "leadership_gates": {
+      "correlation_min": 0.7,
+      "volume_ratio_min": 0.3,
+      "volatility_max": 0.02
+    }
+  },
+  "menthorq": {
+    "gamma_proximity_ticks": 10.0,
+    "blind_spot_proximity_ticks": 5.0,
+    "swing_level_proximity_ticks": 15.0,
+    "data_ttl_seconds": 300,
+    "ema_alpha": 0.3,
+    "min_levels_required": 3
+  },
+  "order_book": {
+    "max_depth": 10,
+    "decay_factor": 0.85,
+    "min_depth_required": 3,
+    "neutral_score": 0.5
+  },
+  "volume_profile": {
+    "min_volume_threshold": 100,
+    "proximity_ticks": 5.0,
+    "imbalance_threshold": 0.1
+  },
+  "vwap": {
+    "bands_count": 4,
+    "deviation_multipliers": [0.5, 1.0, 1.5, 2.0],
+    "session_reset": true
+  },
+  "vix": {
+    "low_threshold": 15.0,
+    "high_threshold": 30.0,
+    "extreme_threshold": 40.0
+  },
+  "nbcv": {
+    "delta_threshold": 1000,
+    "volume_imbalance_threshold": 0.1,
+    "trade_intensity_threshold": 0.5
+  },
+  "feature_weights": {
+    "mtf_confluence_score": 0.25,
+    "smart_money_strength": 0.20,
+    "order_book_imbalance": 0.15,
+    "volume_profile_imbalance": 0.15,
+    "vwap_deviation": 0.10,
+    "vix_regime": 0.10,
+    "nbcv_orderflow": 0.05
+  },
+  "thresholds": {
+    "premium": 0.8,
+    "strong": 0.6,
+    "weak": 0.4,
+    "no_trade": 0.2
+  },
+  "data_sources": {
+    "unified_file_path": "D:\\MIA_IA_system",
+    "max_lines_per_read": 1000,
+    "cache_ttl_seconds": 60
+  }
+}
+
+

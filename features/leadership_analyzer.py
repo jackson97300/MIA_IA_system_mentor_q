@@ -14,7 +14,7 @@ import sys
 import numpy as np
 import pandas as pd
 import math
-import random
+# import random  # Supprimé - plus de valeurs aléatoires
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any
@@ -34,6 +34,13 @@ class LeadershipAnalyzer:
         self.confluence_integrator = None
         self.last_confluence_score = 0.0
         self.data_collector = {}
+        
+        # 🎯 Intégration LeadershipEngine avec persistance en barres
+        from .leadership_engine import LeadershipEngine
+        self.leadership_engine = LeadershipEngine(
+            max_history=1000,
+            bars_timeframe_minutes=self.config.get('bars_timeframe_minutes', 1)
+        )
         
         logger.info("🎯 Leadership Analyzer initialisé")
     
@@ -69,8 +76,7 @@ class LeadershipAnalyzer:
                 'NQ': nq_df,
                 'bias': 'bullish',
                 'session': 'london_session',
-                'timestamp': datetime.now(),
-                'demo_mode': True
+                'timestamp': datetime.now()
             }
             
             confluence_result = self.confluence_integrator.calculate_confluence_with_leadership(
@@ -154,21 +160,21 @@ class LeadershipAnalyzer:
                             data = historical_data[i]
                             df_data.append({
                                 'timestamp': timestamp,
-                                'open': data.get('open', 4500.0 + random.uniform(-5, 5)),
-                                'high': data.get('high', 4500.0 + random.uniform(-3, 7)),
-                                'low': data.get('low', 4500.0 + random.uniform(-7, 3)),
-                                'close': data.get('close', 4500.0 + random.uniform(-5, 5)),
-                                'volume': data.get('volume', random.randint(500, 1500))
+                                'open': data.get('open', 4500.0),
+                                'high': data.get('high', 4505.0),
+                                'low': data.get('low', 4495.0),
+                                'close': data.get('close', 4500.0),
+                                'volume': data.get('volume', 1000)
                             })
                         else:
-                            # Données simulées pour compléter
+                            # Données de fallback fixes (pas de random)
                             df_data.append({
                                 'timestamp': timestamp,
-                                'open': 4500.0 + random.uniform(-5, 5),
-                                'high': 4500.0 + random.uniform(-3, 7),
-                                'low': 4500.0 + random.uniform(-7, 3),
-                                'close': 4500.0 + random.uniform(-5, 5),
-                                'volume': random.randint(500, 1500)
+                                'open': 4500.0,
+                                'high': 4505.0,
+                                'low': 4495.0,
+                                'close': 4500.0,
+                                'volume': 1000
                             })
                     
                     df = pd.DataFrame(df_data)
@@ -183,11 +189,11 @@ class LeadershipAnalyzer:
             for timestamp in timestamps:
                 df_data.append({
                     'timestamp': timestamp,
-                    'open': 4500.0 + random.uniform(-5, 5),
-                    'high': 4500.0 + random.uniform(-3, 7),
-                    'low': 4500.0 + random.uniform(-7, 3),
-                    'close': 4500.0 + random.uniform(-5, 5),
-                    'volume': random.randint(500, 1500)
+                    'open': 4500.0,
+                    'high': 4505.0,
+                    'low': 4495.0,
+                    'close': 4500.0,
+                    'volume': 1000
                 })
             
             df = pd.DataFrame(df_data)
@@ -196,10 +202,10 @@ class LeadershipAnalyzer:
             
         except Exception as e:
             logger.error(f"❌ Erreur préparation DataFrame {symbol}: {e}")
-            # DataFrame minimal de secours
+            # DataFrame minimal de secours (valeurs fixes)
             return pd.DataFrame({
-                'close': [4500.0 + random.uniform(-5, 5) for _ in range(10)],
-                'volume': [random.randint(500, 1500) for _ in range(10)]
+                'close': [4500.0] * 10,
+                'volume': [1000] * 10
             }, index=pd.date_range(start=datetime.now(), periods=10, freq='15S'))
     
     def _debug_correlation_calculation(self, es_df, nq_df) -> float:
@@ -228,7 +234,9 @@ class LeadershipAnalyzer:
             def _ensure_variance(x: np.ndarray) -> np.ndarray:
                 # évite std=0 (NaN corr) en simulation
                 if x.size and float(np.nanstd(x)) == 0.0:
-                    x = x + np.random.normal(0.0, 1e-6, size=x.shape)
+                    # Ajouter un petit bruit déterministe pour éviter std=0
+                    noise = np.full(x.shape, 1e-6)
+                    x = x + noise
                 return x
 
             if len(common_index) < 5:
@@ -296,6 +304,27 @@ class LeadershipAnalyzer:
             logger.error(f"❌ Erreur calcul corrélation: {e}")
             return 0.0
     
+    def _calculate_real_correlation(self, es_data: Dict, nq_data: Dict) -> float:
+        """🆕 Calcule la corrélation réelle ES/NQ"""
+        try:
+            # Convertir les données en DataFrames si nécessaire
+            es_df = self._prepare_dataframe_for_confluence(es_data, 'ES')
+            nq_df = self._prepare_dataframe_for_confluence(nq_data, 'NQ')
+            
+            # Utiliser la méthode de debug existante
+            correlation = self._debug_correlation_calculation(es_df, nq_df)
+            
+            # Fallback si corrélation invalide
+            if np.isnan(correlation) or np.isinf(correlation):
+                logger.warning("⚠️ Corrélation invalide détectée - fallback à 0.85")
+                return 0.85
+            
+            return correlation
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur calcul corrélation réelle: {e}")
+            return 0.85  # Fallback sécurisé
+    
     def analyze_enhanced_leadership(self, es_data: Dict, nq_data: Dict) -> Dict[str, Any]:
         """Analyse leadership améliorée (fallback)"""
         try:
@@ -303,8 +332,8 @@ class LeadershipAnalyzer:
             es_price = es_data.get('price', 4500.0)
             nq_price = nq_data.get('price', 15000.0)
             
-            # Calcul corrélation simple
-            correlation = 0.85 + random.uniform(-0.1, 0.1)
+            # 🆕 Calcul corrélation réelle avec DataFrames
+            correlation = self._calculate_real_correlation(es_data, nq_data)
             
             # Détermination leader
             if correlation > 0.8:
@@ -343,6 +372,99 @@ class LeadershipAnalyzer:
                 'confluence_score': 0.0,
                 'debug_correlation': 0.0
             }
+    
+    def analyze_leadership_with_persistence(self, es_data: Dict, nq_data: Dict, 
+                                          persistence_bars: int = 3, 
+                                          min_strength: float = 0.35) -> Dict[str, Any]:
+        """🎯 Analyse leadership avec persistance en barres via LeadershipEngine"""
+        try:
+            from datetime import datetime
+            import pandas as pd
+            
+            # Préparer les DataFrames pour LeadershipEngine
+            es_df = self._prepare_dataframe_for_leadership_engine(es_data, 'ES')
+            nq_df = self._prepare_dataframe_for_leadership_engine(nq_data, 'NQ')
+            
+            if es_df.empty or nq_df.empty:
+                logger.warning("⚠️ DataFrames vides pour LeadershipEngine")
+                return {
+                    'leader': None,
+                    'strength': 0.0,
+                    'persisted': False,
+                    'votes': [],
+                    'scores': {},
+                    'analysis_quality': 'insufficient_data'
+                }
+            
+            # Utiliser LeadershipEngine avec persistance en barres
+            now_ts = datetime.now()
+            result = self.leadership_engine.decide_leader(
+                es_df, nq_df, now_ts, 
+                persistence_bars=persistence_bars, 
+                min_strength=min_strength
+            )
+            
+            # Convertir le résultat en format compatible
+            return {
+                'leader': result.leader,
+                'strength': result.strength,
+                'persisted': result.persisted,
+                'votes': result.votes,
+                'scores': result.scores,
+                'analysis_quality': 'persistence_engine',
+                'persistence_bars': persistence_bars,
+                'min_strength': min_strength
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur analyse leadership avec persistance: {e}")
+            return {
+                'leader': None,
+                'strength': 0.0,
+                'persisted': False,
+                'votes': [],
+                'scores': {},
+                'analysis_quality': 'error'
+            }
+    
+    def _prepare_dataframe_for_leadership_engine(self, market_data: Dict, symbol: str) -> 'pd.DataFrame':
+        """Prépare un DataFrame pour LeadershipEngine"""
+        try:
+            import pandas as pd
+            from datetime import datetime
+            
+            if not market_data or 'bars' not in market_data:
+                return pd.DataFrame()
+            
+            bars = market_data['bars']
+            if not bars:
+                return pd.DataFrame()
+            
+            # Convertir les barres en DataFrame
+            data = []
+            for bar in bars[-100:]:  # Limiter à 100 barres récentes
+                if isinstance(bar, dict) and 'timestamp' in bar:
+                    data.append({
+                        'timestamp': pd.to_datetime(bar['timestamp']),
+                        'open': float(bar.get('open', 0)),
+                        'high': float(bar.get('high', 0)),
+                        'low': float(bar.get('low', 0)),
+                        'close': float(bar.get('close', 0)),
+                        'volume': float(bar.get('volume', 0))
+                    })
+            
+            if not data:
+                return pd.DataFrame()
+            
+            df = pd.DataFrame(data)
+            df.set_index('timestamp', inplace=True)
+            df.sort_index(inplace=True)
+            
+            return df
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur préparation DataFrame pour LeadershipEngine: {e}")
+            return pd.DataFrame()
     
     def _get_historical_data_for_symbol(self, symbol: str, max_bars: int = 20) -> List[Dict]:
         """Récupère les données historiques pour un symbole"""

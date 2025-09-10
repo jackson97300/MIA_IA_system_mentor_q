@@ -1,0 +1,17 @@
+{
+  "timestamp": "2025-08-16T20:19:35.280079",
+  "tests": {
+    "gateway": "SUCCESS",
+    "authentication": "SUCCESS",
+    "accounts": "ERROR: 'IBKRBetaConnector' object has no attribute 'get_accounts'",
+    "es_data": "NO_DATA",
+    "options_data": "ERROR: 'IBKRBetaConnector' object has no attribute 'get_options_data'",
+    "paper_trading": "ERROR: 'IBKRBetaConnector' object has no attribute 'get_accounts'"
+  },
+  "success": false,
+  "errors": [
+    "Accounts: 'IBKRBetaConnector' object has no attribute 'get_accounts'",
+    "Options: 'IBKRBetaConnector' object has no attribute 'get_options_data'",
+    "Paper Trading: 'IBKRBetaConnector' object has no attribute 'get_accounts'"
+  ]
+}

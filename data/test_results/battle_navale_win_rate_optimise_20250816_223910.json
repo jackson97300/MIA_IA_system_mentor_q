@@ -1,0 +1,22 @@
+{
+  "timestamp": "2025-08-16T22:39:09.977995",
+  "battle_navale_results": {
+    "total_trades": 0,
+    "winning_trades": 0,
+    "losing_trades": 0,
+    "win_rate": 0,
+    "total_pnl": 0,
+    "winning_pnl": 0,
+    "losing_pnl": 0,
+    "profit_factor": Infinity
+  },
+  "performance_metrics": {
+    "initial_capital": 100000,
+    "final_capital": 100000,
+    "total_return": 0.0,
+    "max_drawdown": 0,
+    "sharpe_ratio": 0.0,
+    "avg_trade": 0
+  },
+  "success": false
+}

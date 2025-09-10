@@ -36,6 +36,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from collections import defaultdict, deque
 from core.logger import get_logger
+from .data_reader import get_latest_market_data
+from .config_loader import get_feature_config
 
 # Local imports
 try:
@@ -295,9 +297,9 @@ class VolumeProfileImbalanceDetector:
         start_time = time.perf_counter()
         
         try:
-            # Simulation trade data si non fourni
+            # Récupérer les vraies données de trades si non fourni
             if trade_data is None:
-                trade_data = self._simulate_trade_data(market_data)
+                trade_data = self._get_real_trade_data(market_data)
             
             # Construction volume profile
             volume_levels = self._build_volume_profile(trade_data)
@@ -584,7 +586,40 @@ class VolumeProfileImbalanceDetector:
             return "neutral"
     
     def _classify_current_value_area(self, current_price: float, volume_levels: List[VolumeLevel]) -> ValueArea:
-        """Classification zone valeur actuelle"""
+        """Classification zone valeur actuelle avec vraies données VP"""
+        try:
+            # Essayer d'abord les vraies données Volume Profile
+            real_data = get_latest_market_data("ES")
+            
+            if real_data and all(key in real_data for key in ['vah', 'val', 'vpoc']):
+                vah = real_data['vah']
+                val = real_data['val']
+                vpoc = real_data['vpoc']
+                
+                logger.info(f"✅ Utilisation vraies données VP: VAH={vah}, VAL={val}, VPOC={vpoc}")
+                
+                # Classification basée sur les vraies données
+                if current_price > vah:
+                    return ValueArea.HIGH_VALUE
+                elif current_price < val:
+                    return ValueArea.LOW_VALUE
+                elif abs(current_price - vpoc) < abs(current_price - vah) and abs(current_price - vpoc) < abs(current_price - val):
+                    return ValueArea.MIDDLE_VALUE
+                elif current_price > (val + vah) / 2:
+                    return ValueArea.HIGH_VALUE
+                else:
+                    return ValueArea.LOW_VALUE
+            else:
+                # Fallback vers calcul approximatif
+                logger.warning("⚠️ Pas de vraies données VP - utilisation calcul approximatif")
+                return self._classify_current_value_area_fallback(current_price, volume_levels)
+                
+        except Exception as e:
+            logger.error(f"❌ Erreur classification zone valeur: {e}")
+            return self._classify_current_value_area_fallback(current_price, volume_levels)
+    
+    def _classify_current_value_area_fallback(self, current_price: float, volume_levels: List[VolumeLevel]) -> ValueArea:
+        """Classification zone valeur actuelle (fallback)"""
         if not volume_levels:
             return ValueArea.MIDDLE_VALUE
         
@@ -639,26 +674,53 @@ class VolumeProfileImbalanceDetector:
         
         return (data_quality + institutional_presence + signal_clarity) / 3
     
-    def _simulate_trade_data(self, market_data: MarketData) -> List[Dict]:
-        """Simulation trade data pour tests"""
-        import random
+    def _get_real_trade_data(self, market_data: MarketData) -> List[Dict]:
+        """Récupère les vraies données de trades"""
+        try:
+            # Récupérer les dernières données réelles
+            real_data = get_latest_market_data(market_data.symbol)
+            
+            if real_data and 'trades' in real_data and real_data['trades']:
+                # Utiliser les vraies données de trades
+                trades = []
+                for trade in real_data['trades']:
+                    trades.append({
+                        'price': trade.get('px', market_data.close),
+                        'volume': trade.get('qty', 100),
+                        'timestamp': market_data.timestamp,  # Utiliser le timestamp du market_data
+                        'direction': 'buy' if trade.get('px', 0) >= market_data.close else 'sell'
+                    })
+                
+                logger.info(f"✅ {len(trades)} trades réels récupérés pour {market_data.symbol}")
+                return trades
+            else:
+                # Fallback vers simulation si pas de données réelles
+                logger.warning(f"⚠️ Pas de données de trades pour {market_data.symbol} - utilisation simulation")
+                return self._simulate_trade_data_fallback(market_data)
+                
+        except Exception as e:
+            logger.error(f"❌ Erreur récupération trades réels: {e}")
+            return self._simulate_trade_data_fallback(market_data)
+    
+    def _simulate_trade_data_fallback(self, market_data: MarketData) -> List[Dict]:
+        """Simulation trade data pour tests (fallback)"""
         from datetime import timedelta
         
         trades = []
         base_timestamp = market_data.timestamp
         
-        # Génération 50 trades autour prix actuel
+        # Génération 50 trades autour prix actuel (valeurs fixes au lieu de random)
         for i in range(50):
-            price_offset = random.uniform(-2.0, 2.0)
+            price_offset = (i % 10 - 5) * 0.5  # Pattern déterministe
             price = market_data.close + price_offset
             
-            # Volume variable avec quelques gros trades
-            if random.random() < 0.1:  # 10% chance gros trade
-                volume = random.randint(500, 2000)
+            # Volume variable avec quelques gros trades (valeurs fixes)
+            if i % 10 == 0:  # 10% chance gros trade
+                volume = 1000
             else:
-                volume = random.randint(10, 200)
+                volume = 100
             
-            direction = "buy" if random.random() > 0.5 else "sell"
+            direction = "buy" if i % 2 == 0 else "sell"
             
             trade = {
                 'price': price,

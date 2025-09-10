@@ -1,0 +1,20 @@
+{
+  "period": "daily_enhanced_2025-07-03",
+  "start_time": "2025-07-03 00:00:00",
+  "end_time": "2025-07-03 23:59:59.999999",
+  "total_trades": 0,
+  "total_snapshots": 0,
+  "data_quality": "DataQuality.POOR",
+  "file_size_mb": 0.0,
+  "checksum": "",
+  "ml_features_available": false,
+  "last_updated": "2025-07-02 22:54:22.354730+00:00",
+  "microstructure_snapshots": 0,
+  "options_flow_snapshots": 0,
+  "session_context_snapshots": 0,
+  "post_trade_analyses": 0,
+  "correlation_updates": 0,
+  "enhanced_features_count": 0,
+  "standard_features_count": 0,
+  "enrichment_ratio": 0.0
+}
