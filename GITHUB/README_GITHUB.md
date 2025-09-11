@@ -6,7 +6,7 @@
 
 **Statut :** ✅ **ACTIF ET À JOUR**
 
-**Dernière mise à jour :** 10 septembre 2025
+**Dernière mise à jour :** 11 septembre 2025
 
 ---
 
@@ -14,6 +14,7 @@
 
 ### **Système MIA IA Complet**
 - ✅ **16 stratégies** de trading avancées
+- ✅ **Architecture multi-chart Sierra Chart** avec 4 dumpers C++ autonomes
 - ✅ **Architecture robuste** avec gestion d'erreurs
 - ✅ **Performance optimisée** (+20-28% win rate projeté)
 - ✅ **Sécurité maximale** (données sensibles exclues)
@@ -27,6 +28,16 @@
 - ✅ **Scoring contextuel** optimisé
 - ✅ **Cooldown intelligent** par stratégie
 - ✅ **Limite quotidienne** (12 signaux max)
+
+### **Architecture Multi-Chart Sierra Chart**
+- ✅ **4 Dumpers C++ Autonomes** compilés avec succès
+- ✅ **Chart 3 (1 min)** : BaseData, VWAP, VVA, PVWAP, NBCV, DOM, T&S, Cumulative Delta + Bearish/Bullish
+- ✅ **Chart 4 (30 min)** : OHLC, VWAP, PVWAP, NBCV, Cumulative Delta, Correlation, ATR, Volume Profile, VVA Previous
+- ✅ **Chart 8 (VIX)** : VIX OHLC direct du chart
+- ✅ **Chart 10 (MenthorQ)** : MenthorQ levels (Gamma, Blind Spots, Swing Levels)
+- ✅ **Headers Intégrés** (Approach 1) - plus de dépendances externes
+- ✅ **Mappings Validés** - Study IDs et Subgraphs corrigés
+- ✅ **Unifier Mis à Jour** - Support de tous les nouveaux types de données
 
 ---
 
@@ -52,6 +63,8 @@
 - ❌ Fichiers JSONL (données marché)
 - ❌ Logs système
 - ❌ Backups et fichiers temporaires
+- ❌ Dossiers de tests (`tests/`, `test_*`)
+- ❌ Outils temporaires (`tools/` - scripts de test)
 - ❌ Modèles entraînés volumineux
 - ❌ Fichiers sensibles (clés, mots de passe)
 
@@ -109,8 +122,12 @@ MIA_IA_system_mentor_q/
 ├── features/                   # Fonctionnalités avancées
 ├── strategies/                 # 16 stratégies de trading
 ├── config/                     # Configurations
-├── launchers/                  # Lanceurs système
-├── tools/                      # Outils et utilitaires
+├── extracteur/                 # 4 dumpers C++ Sierra Chart
+│   ├── MIA_Dumper_G3_Core.cpp      # Chart 3 (1 min)
+│   ├── MIA_Dumper_G4_Studies.cpp   # Chart 4 (30 min)
+│   ├── MIA_Dumper_G8_VIX.cpp       # Chart 8 (VIX)
+│   ├── MIA_Dumper_G10_MenthorQ.cpp # Chart 10 (MenthorQ)
+│   └── MAPPING_MIA_CLEF.md         # Mappings Study IDs/Subgraphs
 ├── docs/                       # Documentation
 ├── GITHUB/                     # Documentation GitHub
 ├── .gitignore                  # Exclusion données sensibles
@@ -122,10 +139,11 @@ MIA_IA_system_mentor_q/
 
 ## 🎯 **PROCHAINES ÉTAPES**
 
-1. **Monitoring** : Surveiller les workflows GitHub Actions
-2. **Tests** : Valider les performances en production
-3. **Optimisation** : Ajuster les paramètres selon les résultats
-4. **Documentation** : Mettre à jour selon les retours
+1. **✅ Architecture Multi-Chart** : 4 dumpers C++ compilés et opérationnels
+2. **Monitoring** : Surveiller les workflows GitHub Actions
+3. **Tests** : Valider les performances en production
+4. **Optimisation** : Ajuster les paramètres selon les résultats
+5. **Documentation** : Mettre à jour selon les retours
 
 ---
 
@@ -137,5 +155,5 @@ MIA_IA_system_mentor_q/
 
 ---
 
-*Documentation GitHub - MIA IA System v1.0 - 10/09/2025*
+*Documentation GitHub - MIA IA System v1.1 - 11/09/2025*
 
