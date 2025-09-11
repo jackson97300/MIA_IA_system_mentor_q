@@ -112,6 +112,9 @@ class UnifiedWriter:
         
         # Filtrage par type
         if event_type == "menthorq_gamma_levels" or event_type == "menthorq_blind_spots" or event_type == "menthorq_swing_levels":
+            # Forcer MenthorQ uniquement sur le graph 10
+            if getattr(event, 'graph', None) != 10:
+                return False, "menthorq_wrong_chart"
             if self.config.filter_menthorq and self.menthorq_filter:
                 # Appliquer le filtre MenthorQ
                 try:

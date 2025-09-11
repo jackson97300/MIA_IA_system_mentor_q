@@ -1,0 +1,81 @@
+{
+  "timestamp": "2025-08-16T20:37:29.732420",
+  "market_analysis": {
+    "trend": "BULLISH",
+    "current_price": 6471.5,
+    "volatility": 10.515532649726458,
+    "volatility_status": "FAIBLE",
+    "recent_momentum": 1.1211375444353295,
+    "es_price": 6471.5,
+    "spx_price": 6449.7998046875,
+    "support_levels": [
+      6342.07,
+      6212.639999999999
+    ],
+    "resistance_levels": [
+      6600.93,
+      6730.360000000001
+    ]
+  },
+  "strategy_analysis": {
+    "scenario_1": {
+      "name": "Breakout Haussier",
+      "risk_reward_ratio": 0.6456703388069004,
+      "success_probability": 0.7,
+      "entry_price": 6600.93,
+      "stop_loss": 6396.4625,
+      "take_profit": 6732.948600000001,
+      "risk": 204.46750000000065,
+      "reward": 132.01860000000033
+    },
+    "scenario_2": {
+      "name": "Breakdown Baissier",
+      "risk_reward_ratio": 2.331964884864649,
+      "success_probability": 0.5,
+      "entry_price": 6342.07,
+      "stop_loss": 6396.4625,
+      "take_profit": 6215.2285999999995,
+      "risk": 54.39249999999993,
+      "reward": 126.84140000000025
+    },
+    "scenario_3": {
+      "name": "Range Trading",
+      "risk_reward_ratio": 1.0,
+      "success_probability": 0.5,
+      "entry_price": 6471.5,
+      "stop_loss": 6342.07,
+      "take_profit": 6600.93,
+      "risk": 129.4300000000003,
+      "reward": 129.4300000000003
+    },
+    "options_analysis": {
+      "gex1_distance": 71.7001953125,
+      "gex2_distance": 28.2998046875,
+      "put_call_ratio": 1.2,
+      "implied_volatility": 18.5
+    }
+  },
+  "risk_analysis": {
+    "position_size": 0.05,
+    "stop_loss_distance": 1361.0253908540956,
+    "max_drawdown": 5.257766324863229,
+    "volatility_risk": "FAIBLE",
+    "risk_per_trade": 5.0,
+    "max_concurrent_trades": 3
+  },
+  "recommendations": {
+    "market_outlook": "Marché haussier - Favoriser les stratégies longues",
+    "best_strategy": "Breakdown Baissier",
+    "entry_points": [
+      "Long sur pullback vers 6342.1",
+      "Breakout au-dessus de 6600.9"
+    ],
+    "risk_warnings": [],
+    "weekend_preparation": [
+      "Analyser niveaux options GEX1/GEX2",
+      "Préparer ordres pour lundi",
+      "Vérifier news économiques"
+    ]
+  },
+  "success": false
+}

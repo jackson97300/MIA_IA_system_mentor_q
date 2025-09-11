@@ -138,3 +138,4 @@ MIA_IA_system_mentor_q/
 ---
 
 *Documentation GitHub - MIA IA System v1.0 - 10/09/2025*
+

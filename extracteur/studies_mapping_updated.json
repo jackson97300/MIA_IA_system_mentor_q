@@ -1,0 +1,2185 @@
+{
+  "charts": {
+    "chart_3": {
+      "chart_number": 3,
+      "studies": {
+        "3": {
+          "name": "HIGHLIGHT CASH SESSION",
+          "short_name": "HIGHLIGHT CASH SESSION",
+          "subgraphs": {
+            "0": "TR"
+          }
+        },
+        "45": {
+          "name": "MIA - Study Inspector",
+          "short_name": "",
+          "subgraphs": {}
+        },
+        "33": {
+          "name": "Numbers Bars Calculated Values",
+          "short_name": "",
+          "subgraphs": {
+            "0": "Ask Volume Bid Volume Difference",
+            "1": "Ask Volume Bid Volume Total",
+            "2": "Ask Volume Bid Volume Difference Change",
+            "3": "Positive Delta Sum",
+            "4": "Negative Delta Sum",
+            "5": "Ask Volume Total",
+            "6": "Bid Volume Total",
+            "7": "Maximum Ask Volume Bid Volume Difference",
+            "8": "Minimum Ask Volume Bid Volume Difference",
+            "9": "Cumulative Sum Of Ask Volume Bid Volume Difference - Day",
+            "10": "Ask Volume Bid Volume Difference Percent",
+            "11": "Number of Trades",
+            "12": "Total Volume",
+            "13": "Total Volume Bar Difference",
+            "14": "Average Volume Per Trade",
+            "15": "Average Volume Per Price",
+            "16": "Ask Volume Percent",
+            "17": "Bid Volume Percent",
+            "18": "Cumulative Sum Of Ask Volume Bid Volume Difference - All",
+            "19": "Point Of Control Volume",
+            "20": "Cumulative Delta Volume High",
+            "21": "Cumulative Delta Volume Low",
+            "22": "Ask Bid Difference To Max/Min",
+            "23": "Ask Ticks Bid Ticks Difference",
+            "24": "Cumulative Sum Of Ask Ticks Bid Ticks Difference - Day",
+            "25": "Cumulative Delta Trades High",
+            "26": "Cumulative Delta Trades Low",
+            "27": "Maximum Ask Bid Vol Diff to Closing Ask Bid Vol Diff",
+            "28": "Minimum Ask Bid Vol Diff to Closing Ask Bid Vol Diff",
+            "29": "Bar Duration",
+            "30": "Daily Range",
+            "32": "Weekly Range",
+            "33": "Finish AskVol BidVol Diff",
+            "34": "Finish AskVol BidVol Diff %",
+            "35": "Volume / Sec",
+            "36": "High Pullback Ask/Bid Vol Diff",
+            "37": "Low Pullback Ask/Bid Vol Diff",
+            "38": "Cumulative Delta Minus Delta",
+            "39": "Cumulative Volume - Day",
+            "40": "High-Low Range",
+            "41": "Point Of Control Value",
+            "42": "Diagonal Positive Delta Sum",
+            "43": "Diagonal Negative Delta Sum",
+            "44": "Low Bid Volume Percent",
+            "45": "High Ask Volume Percent",
+            "46": "Cumulative Delta Up/Down Tick Volume",
+            "47": "Total Up Tick Volume",
+            "48": "Total Down Tick Volume",
+            "49": "Up Down Tick Volume Difference",
+            "50": "Average Bid Trade Size",
+            "51": "Average Ask Trade Size",
+            "52": "Bid Volume Per Second",
+            "53": "Ask Volume Per Second",
+            "54": "Grid Lines"
+          }
+        },
+        "23": {
+          "name": "VIX_CGI[M]  1 Min  #8",
+          "short_name": "",
+          "subgraphs": {
+            "0": "Open",
+            "1": "High",
+            "2": "Low",
+            "3": "Last",
+            "4": "Volume",
+            "5": "# of Trades",
+            "6": "OHLC Avg",
+            "7": "HLC Avg",
+            "8": "HL Avg",
+            "9": "Bid Volume",
+            "10": "Ask Volume"
+          }
+        },
+        "1": {
+          "name": "Volume Value Area Lines",
+          "short_name": "",
+          "subgraphs": {
+            "0": "Vol POC",
+            "1": "Vol Value Area High",
+            "2": "Vol Value Area Low"
+          }
+        },
+        "2": {
+          "name": "Volume Value Area Previous",
+          "short_name": "Volume Value Area Previous",
+          "subgraphs": {
+            "0": "PPOC",
+            "1": "PVAH",
+            "2": "PVAL"
+          }
+        },
+        "43": {
+          "name": "NEWS 07.15",
+          "short_name": "NEWS 07.15",
+          "subgraphs": {
+            "0": "7.",
+            "1": "High",
+            "2": "L",
+            "3": "Close",
+            "4": "Volume",
+            "6": "OHLC Avg",
+            "7": "HLC Avg",
+            "8": "HL Avg"
+          }
+        },
+        "22": {
+          "name": "VWAP",
+          "short_name": "VWAP",
+          "subgraphs": {
+            "0": "V",
+            "1": "+1",
+            "2": "-1",
+            "3": "+2",
+            "4": "-2",
+            "5": "+3",
+            "6": "-3",
+            "7": "+4",
+            "8": "-4"
+          }
+        },
+        "34": {
+          "name": "NEWS 07.30",
+          "short_name": "NEWS 07.30",
+          "subgraphs": {
+            "0": "7..",
+            "1": "High",
+            "2": "L",
+            "3": "Close",
+            "4": "Volume",
+            "6": "OHLC Avg",
+            "7": "HLC Avg",
+            "8": "HL Avg"
+          }
+        },
+        "35": {
+          "name": "NEWS 08.45",
+          "short_name": "NEWS 08.45",
+          "subgraphs": {
+            "0": "8...",
+            "1": "High",
+            "2": "L",
+            "3": "Close",
+            "4": "Volume",
+            "6": "OHLC Avg",
+            "7": "HLC Avg",
+            "8": "HL Avg"
+          }
+        },
+        "36": {
+          "name": "NEWS 09.00",
+          "short_name": "NEWS 09.00",
+          "subgraphs": {
+            "0": "9",
+            "1": "High",
+            "2": "L",
+            "3": "Close",
+            "4": "Volume",
+            "6": "OHLC Avg",
+            "7": "HLC Avg",
+            "8": "HL Avg"
+          }
+        },
+        "37": {
+          "name": "NEWS 09.30",
+          "short_name": "NEWS 09.30",
+          "subgraphs": {
+            "0": "9..",
+            "1": "High",
+            "2": "L",
+            "3": "Close",
+            "4": "Volume",
+            "6": "OHLC Avg",
+            "7": "HLC Avg",
+            "8": "HL Avg"
+          }
+        },
+        "28": {
+          "name": "EDGE ZONES IMBALANCE SELL rev1 800%DIAG",
+          "short_name": "EDGE ZONES IMBALANCE SELL rev1 800%DIAG",
+          "subgraphs": {
+            "0": "Trigger 0",
+            "1": "Trigger 1",
+            "2": "Trigger 2",
+            "3": "Trigger 3",
+            "4": "Trigger 4",
+            "5": "Trigger 5",
+            "6": "Trigger 6",
+            "7": "Trigger 7",
+            "8": "Trigger 8",
+            "9": "Trigger 9",
+            "10": "Trigger 10",
+            "11": "Trigger 11",
+            "12": "Trigger 12",
+            "13": "Trigger 13",
+            "14": "Trigger 14",
+            "15": "Trigger 15",
+            "16": "Trigger 16",
+            "17": "Trigger 17",
+            "18": "Trigger 18",
+            "19": "Trigger 19",
+            "20": "Trigger 20",
+            "21": "Trigger 21",
+            "22": "Trigger 22",
+            "23": "Trigger 23",
+            "24": "Trigger 24",
+            "25": "Trigger 25",
+            "26": "Trigger 26",
+            "27": "Trigger 27",
+            "28": "Trigger 28",
+            "29": "Trigger 29",
+            "30": "Trigger 30",
+            "31": "Trigger 31",
+            "32": "Trigger 32",
+            "33": "Trigger 33",
+            "34": "Trigger 34",
+            "35": "Trigger 35",
+            "36": "Trigger 36",
+            "37": "Trigger 37",
+            "38": "Trigger 38",
+            "39": "Trigger 39",
+            "40": "Trigger 40",
+            "41": "Trigger 41",
+            "42": "Trigger 42",
+            "43": "Trigger 43",
+            "44": "Trigger 44",
+            "45": "Trigger 45",
+            "46": "Trigger 46",
+            "48": "Adjacent Alert Highlight Bottom 1",
+            "49": "Adjacent Alert Highlight Top 1",
+            "50": "Adjacent Alert Highlight Bottom 2",
+            "51": "Adjacent Alert Highlight Top 2",
+            "52": "Adjacent Alert Highlight Bottom 3",
+            "53": "Adjacent Alert Highlight Top 3",
+            "54": "Adjacent Alert Highlight Bottom 4",
+            "55": "Adjacent Alert Highlight Top 4",
+            "56": "Adjacent Alert Highlight Bottom 5",
+            "57": "Adjacent Alert Highlight Top 5",
+            "58": "Count of Alerts",
+            "59": "Extension Line Properties"
+          }
+        },
+        "29": {
+          "name": "EDGE ZONES IMBALANCE BUY rev1 800%DIAG",
+          "short_name": "EDGE ZONES IMBALANCE BUY rev1 800%DIAG",
+          "subgraphs": {
+            "0": "Trigger 0",
+            "1": "Trigger 1",
+            "2": "Trigger 2",
+            "3": "Trigger 3",
+            "4": "Trigger 4",
+            "5": "Trigger 5",
+            "6": "Trigger 6",
+            "7": "Trigger 7",
+            "8": "Trigger 8",
+            "9": "Trigger 9",
+            "10": "Trigger 10",
+            "11": "Trigger 11",
+            "12": "Trigger 12",
+            "13": "Trigger 13",
+            "14": "Trigger 14",
+            "15": "Trigger 15",
+            "16": "Trigger 16",
+            "17": "Trigger 17",
+            "18": "Trigger 18",
+            "19": "Trigger 19",
+            "20": "Trigger 20",
+            "21": "Trigger 21",
+            "22": "Trigger 22",
+            "23": "Trigger 23",
+            "24": "Trigger 24",
+            "25": "Trigger 25",
+            "26": "Trigger 26",
+            "27": "Trigger 27",
+            "28": "Trigger 28",
+            "29": "Trigger 29",
+            "30": "Trigger 30",
+            "31": "Trigger 31",
+            "32": "Trigger 32",
+            "33": "Trigger 33",
+            "34": "Trigger 34",
+            "35": "Trigger 35",
+            "36": "Trigger 36",
+            "37": "Trigger 37",
+            "38": "Trigger 38",
+            "39": "Trigger 39",
+            "40": "Trigger 40",
+            "41": "Trigger 41",
+            "42": "Trigger 42",
+            "43": "Trigger 43",
+            "44": "Trigger 44",
+            "45": "Trigger 45",
+            "46": "Trigger 46",
+            "48": "Adjacent Alert Highlight Bottom 1",
+            "49": "Adjacent Alert Highlight Top 1",
+            "50": "Adjacent Alert Highlight Bottom 2",
+            "51": "Adjacent Alert Highlight Top 2",
+            "52": "Adjacent Alert Highlight Bottom 3",
+            "53": "Adjacent Alert Highlight Top 3",
+            "54": "Adjacent Alert Highlight Bottom 4",
+            "55": "Adjacent Alert Highlight Top 4",
+            "56": "Adjacent Alert Highlight Bottom 5",
+            "57": "Adjacent Alert Highlight Top 5",
+            "58": "Count of Alerts",
+            "59": "Extension Line Properties"
+          }
+        },
+        "5": {
+          "name": "EDGE ZONES IMBALANCE SELL rev2 800%DIAG",
+          "short_name": "EDGE ZONES IMBALANCE SELL rev2 800%DIAG",
+          "subgraphs": {
+            "0": "Trigger 0",
+            "1": "Trigger 1",
+            "2": "Trigger 2",
+            "3": "Trigger 3",
+            "4": "Trigger 4",
+            "5": "Trigger 5",
+            "6": "Trigger 6",
+            "7": "Trigger 7",
+            "8": "Trigger 8",
+            "9": "Trigger 9",
+            "10": "Trigger 10",
+            "11": "Trigger 11",
+            "12": "Trigger 12",
+            "13": "Trigger 13",
+            "14": "Trigger 14",
+            "15": "Trigger 15",
+            "16": "Trigger 16",
+            "17": "Trigger 17",
+            "18": "Trigger 18",
+            "19": "Trigger 19",
+            "20": "Trigger 20",
+            "21": "Trigger 21",
+            "22": "Trigger 22",
+            "23": "Trigger 23",
+            "24": "Trigger 24",
+            "25": "Trigger 25",
+            "26": "Trigger 26",
+            "27": "Trigger 27",
+            "28": "Trigger 28",
+            "29": "Trigger 29",
+            "30": "Trigger 30",
+            "31": "Trigger 31",
+            "32": "Trigger 32",
+            "33": "Trigger 33",
+            "34": "Trigger 34",
+            "35": "Trigger 35",
+            "36": "Trigger 36",
+            "37": "Trigger 37",
+            "38": "Trigger 38",
+            "39": "Trigger 39",
+            "40": "Trigger 40",
+            "41": "Trigger 41",
+            "42": "Trigger 42",
+            "43": "Trigger 43",
+            "44": "Trigger 44",
+            "45": "Trigger 45",
+            "46": "Trigger 46",
+            "48": "Adjacent Alert Highlight Bottom 1",
+            "49": "Adjacent Alert Highlight Top 1",
+            "50": "Adjacent Alert Highlight Bottom 2",
+            "51": "Adjacent Alert Highlight Top 2",
+            "52": "Adjacent Alert Highlight Bottom 3",
+            "53": "Adjacent Alert Highlight Top 3",
+            "54": "Adjacent Alert Highlight Bottom 4",
+            "55": "Adjacent Alert Highlight Top 4",
+            "56": "Adjacent Alert Highlight Bottom 5",
+            "57": "Adjacent Alert Highlight Top 5",
+            "58": "Count of Alerts",
+            "59": "Extension Line Properties"
+          }
+        },
+        "6": {
+          "name": "EDGE ZONES IMBALANCE BUY rev2 800%DIAG",
+          "short_name": "EDGE ZONES IMBALANCE BUY rev2 800%DIAG",
+          "subgraphs": {
+            "0": "Trigger 0",
+            "1": "Trigger 1",
+            "2": "Trigger 2",
+            "3": "Trigger 3",
+            "4": "Trigger 4",
+            "5": "Trigger 5",
+            "6": "Trigger 6",
+            "7": "Trigger 7",
+            "8": "Trigger 8",
+            "9": "Trigger 9",
+            "10": "Trigger 10",
+            "11": "Trigger 11",
+            "12": "Trigger 12",
+            "13": "Trigger 13",
+            "14": "Trigger 14",
+            "15": "Trigger 15",
+            "16": "Trigger 16",
+            "17": "Trigger 17",
+            "18": "Trigger 18",
+            "19": "Trigger 19",
+            "20": "Trigger 20",
+            "21": "Trigger 21",
+            "22": "Trigger 22",
+            "23": "Trigger 23",
+            "24": "Trigger 24",
+            "25": "Trigger 25",
+            "26": "Trigger 26",
+            "27": "Trigger 27",
+            "28": "Trigger 28",
+            "29": "Trigger 29",
+            "30": "Trigger 30",
+            "31": "Trigger 31",
+            "32": "Trigger 32",
+            "33": "Trigger 33",
+            "34": "Trigger 34",
+            "35": "Trigger 35",
+            "36": "Trigger 36",
+            "37": "Trigger 37",
+            "38": "Trigger 38",
+            "39": "Trigger 39",
+            "40": "Trigger 40",
+            "41": "Trigger 41",
+            "42": "Trigger 42",
+            "43": "Trigger 43",
+            "44": "Trigger 44",
+            "45": "Trigger 45",
+            "46": "Trigger 46",
+            "48": "Adjacent Alert Highlight Bottom 1",
+            "49": "Adjacent Alert Highlight Top 1",
+            "50": "Adjacent Alert Highlight Bottom 2",
+            "51": "Adjacent Alert Highlight Top 2",
+            "52": "Adjacent Alert Highlight Bottom 3",
+            "53": "Adjacent Alert Highlight Top 3",
+            "54": "Adjacent Alert Highlight Bottom 4",
+            "55": "Adjacent Alert Highlight Top 4",
+            "56": "Adjacent Alert Highlight Bottom 5",
+            "57": "Adjacent Alert Highlight Top 5",
+            "58": "Count of Alerts",
+            "59": "Extension Line Properties"
+          }
+        },
+        "26": {
+          "name": "EDGE ZONES IMBALANCE SELL rev3 800%DIAG",
+          "short_name": "EDGE ZONES IMBALANCE SELL rev3 800%DIAG",
+          "subgraphs": {
+            "0": "Trigger 0",
+            "1": "Trigger 1",
+            "2": "Trigger 2",
+            "3": "Trigger 3",
+            "4": "Trigger 4",
+            "5": "Trigger 5",
+            "6": "Trigger 6",
+            "7": "Trigger 7",
+            "8": "Trigger 8",
+            "9": "Trigger 9",
+            "10": "Trigger 10",
+            "11": "Trigger 11",
+            "12": "Trigger 12",
+            "13": "Trigger 13",
+            "14": "Trigger 14",
+            "15": "Trigger 15",
+            "16": "Trigger 16",
+            "17": "Trigger 17",
+            "18": "Trigger 18",
+            "19": "Trigger 19",
+            "20": "Trigger 20",
+            "21": "Trigger 21",
+            "22": "Trigger 22",
+            "23": "Trigger 23",
+            "24": "Trigger 24",
+            "25": "Trigger 25",
+            "26": "Trigger 26",
+            "27": "Trigger 27",
+            "28": "Trigger 28",
+            "29": "Trigger 29",
+            "30": "Trigger 30",
+            "31": "Trigger 31",
+            "32": "Trigger 32",
+            "33": "Trigger 33",
+            "34": "Trigger 34",
+            "35": "Trigger 35",
+            "36": "Trigger 36",
+            "37": "Trigger 37",
+            "38": "Trigger 38",
+            "39": "Trigger 39",
+            "40": "Trigger 40",
+            "41": "Trigger 41",
+            "42": "Trigger 42",
+            "43": "Trigger 43",
+            "44": "Trigger 44",
+            "45": "Trigger 45",
+            "46": "Trigger 46",
+            "48": "Adjacent Alert Highlight Bottom 1",
+            "49": "Adjacent Alert Highlight Top 1",
+            "50": "Adjacent Alert Highlight Bottom 2",
+            "51": "Adjacent Alert Highlight Top 2",
+            "52": "Adjacent Alert Highlight Bottom 3",
+            "53": "Adjacent Alert Highlight Top 3",
+            "54": "Adjacent Alert Highlight Bottom 4",
+            "55": "Adjacent Alert Highlight Top 4",
+            "56": "Adjacent Alert Highlight Bottom 5",
+            "57": "Adjacent Alert Highlight Top 5",
+            "58": "Count of Alerts",
+            "59": "Extension Line Properties"
+          }
+        },
+        "27": {
+          "name": "EDGE ZONES IMBALANCE BUY rev3 800%DIAG",
+          "short_name": "EDGE ZONES IMBALANCE BUY rev3 800%DIAG",
+          "subgraphs": {
+            "0": "Trigger 0",
+            "1": "Trigger 1",
+            "2": "Trigger 2",
+            "3": "Trigger 3",
+            "4": "Trigger 4",
+            "5": "Trigger 5",
+            "6": "Trigger 6",
+            "7": "Trigger 7",
+            "8": "Trigger 8",
+            "9": "Trigger 9",
+            "10": "Trigger 10",
+            "11": "Trigger 11",
+            "12": "Trigger 12",
+            "13": "Trigger 13",
+            "14": "Trigger 14",
+            "15": "Trigger 15",
+            "16": "Trigger 16",
+            "17": "Trigger 17",
+            "18": "Trigger 18",
+            "19": "Trigger 19",
+            "20": "Trigger 20",
+            "21": "Trigger 21",
+            "22": "Trigger 22",
+            "23": "Trigger 23",
+            "24": "Trigger 24",
+            "25": "Trigger 25",
+            "26": "Trigger 26",
+            "27": "Trigger 27",
+            "28": "Trigger 28",
+            "29": "Trigger 29",
+            "30": "Trigger 30",
+            "31": "Trigger 31",
+            "32": "Trigger 32",
+            "33": "Trigger 33",
+            "34": "Trigger 34",
+            "35": "Trigger 35",
+            "36": "Trigger 36",
+            "37": "Trigger 37",
+            "38": "Trigger 38",
+            "39": "Trigger 39",
+            "40": "Trigger 40",
+            "41": "Trigger 41",
+            "42": "Trigger 42",
+            "43": "Trigger 43",
+            "44": "Trigger 44",
+            "45": "Trigger 45",
+            "46": "Trigger 46",
+            "48": "Adjacent Alert Highlight Bottom 1",
+            "49": "Adjacent Alert Highlight Top 1",
+            "50": "Adjacent Alert Highlight Bottom 2",
+            "51": "Adjacent Alert Highlight Top 2",
+            "52": "Adjacent Alert Highlight Bottom 3",
+            "53": "Adjacent Alert Highlight Top 3",
+            "54": "Adjacent Alert Highlight Bottom 4",
+            "55": "Adjacent Alert Highlight Top 4",
+            "56": "Adjacent Alert Highlight Bottom 5",
+            "57": "Adjacent Alert Highlight Top 5",
+            "58": "Count of Alerts",
+            "59": "Extension Line Properties"
+          }
+        },
+        "16": {
+          "name": "EDGE ZONES IMBALANCE BUY 600%DIAG",
+          "short_name": "EDGE ZONES IMBALANCE BUY 600%DIAG",
+          "subgraphs": {
+            "0": "Trigger 0",
+            "1": "Trigger 1",
+            "2": "Trigger 2",
+            "3": "Trigger 3",
+            "4": "Trigger 4",
+            "5": "Trigger 5",
+            "6": "Trigger 6",
+            "7": "Trigger 7",
+            "8": "Trigger 8",
+            "9": "Trigger 9",
+            "10": "Trigger 10",
+            "11": "Trigger 11",
+            "12": "Trigger 12",
+            "13": "Trigger 13",
+            "14": "Trigger 14",
+            "15": "Trigger 15",
+            "16": "Trigger 16",
+            "17": "Trigger 17",
+            "18": "Trigger 18",
+            "19": "Trigger 19",
+            "20": "Trigger 20",
+            "21": "Trigger 21",
+            "22": "Trigger 22",
+            "23": "Trigger 23",
+            "24": "Trigger 24",
+            "25": "Trigger 25",
+            "26": "Trigger 26",
+            "27": "Trigger 27",
+            "28": "Trigger 28",
+            "29": "Trigger 29",
+            "30": "Trigger 30",
+            "31": "Trigger 31",
+            "32": "Trigger 32",
+            "33": "Trigger 33",
+            "34": "Trigger 34",
+            "35": "Trigger 35",
+            "36": "Trigger 36",
+            "37": "Trigger 37",
+            "38": "Trigger 38",
+            "39": "Trigger 39",
+            "40": "Trigger 40",
+            "41": "Trigger 41",
+            "42": "Trigger 42",
+            "43": "Trigger 43",
+            "44": "Trigger 44",
+            "45": "Trigger 45",
+            "46": "Trigger 46",
+            "48": "Adjacent Alert Highlight Bottom 1",
+            "49": "Adjacent Alert Highlight Top 1",
+            "50": "Adjacent Alert Highlight Bottom 2",
+            "51": "Adjacent Alert Highlight Top 2",
+            "52": "Adjacent Alert Highlight Bottom 3",
+            "53": "Adjacent Alert Highlight Top 3",
+            "54": "Adjacent Alert Highlight Bottom 4",
+            "55": "Adjacent Alert Highlight Top 4",
+            "56": "Adjacent Alert Highlight Bottom 5",
+            "57": "Adjacent Alert Highlight Top 5",
+            "58": "Count of Alerts",
+            "59": "Extension Line Properties"
+          }
+        },
+        "44": {
+          "name": "EDGE ZONES IMBALANCE SELL 600%DIAG",
+          "short_name": "EDGE ZONES IMBALANCE SELL 600%DIAG",
+          "subgraphs": {
+            "0": "Trigger 0",
+            "1": "Trigger 1",
+            "2": "Trigger 2",
+            "3": "Trigger 3",
+            "4": "Trigger 4",
+            "5": "Trigger 5",
+            "6": "Trigger 6",
+            "7": "Trigger 7",
+            "8": "Trigger 8",
+            "9": "Trigger 9",
+            "10": "Trigger 10",
+            "11": "Trigger 11",
+            "12": "Trigger 12",
+            "13": "Trigger 13",
+            "14": "Trigger 14",
+            "15": "Trigger 15",
+            "16": "Trigger 16",
+            "17": "Trigger 17",
+            "18": "Trigger 18",
+            "19": "Trigger 19",
+            "20": "Trigger 20",
+            "21": "Trigger 21",
+            "22": "Trigger 22",
+            "23": "Trigger 23",
+            "24": "Trigger 24",
+            "25": "Trigger 25",
+            "26": "Trigger 26",
+            "27": "Trigger 27",
+            "28": "Trigger 28",
+            "29": "Trigger 29",
+            "30": "Trigger 30",
+            "31": "Trigger 31",
+            "32": "Trigger 32",
+            "33": "Trigger 33",
+            "34": "Trigger 34",
+            "35": "Trigger 35",
+            "36": "Trigger 36",
+            "37": "Trigger 37",
+            "38": "Trigger 38",
+            "39": "Trigger 39",
+            "40": "Trigger 40",
+            "41": "Trigger 41",
+            "42": "Trigger 42",
+            "43": "Trigger 43",
+            "44": "Trigger 44",
+            "45": "Trigger 45",
+            "46": "Trigger 46",
+            "48": "Adjacent Alert Highlight Bottom 1",
+            "49": "Adjacent Alert Highlight Top 1",
+            "50": "Adjacent Alert Highlight Bottom 2",
+            "51": "Adjacent Alert Highlight Top 2",
+            "52": "Adjacent Alert Highlight Bottom 3",
+            "53": "Adjacent Alert Highlight Top 3",
+            "54": "Adjacent Alert Highlight Bottom 4",
+            "55": "Adjacent Alert Highlight Top 4",
+            "56": "Adjacent Alert Highlight Bottom 5",
+            "57": "Adjacent Alert Highlight Top 5",
+            "58": "Count of Alerts",
+            "59": "Extension Line Properties"
+          }
+        },
+        "19": {
+          "name": "[AS] SD+1",
+          "short_name": "[AS] SD+1",
+          "subgraphs": {
+            "0": "Color Bar",
+            "1": "Extension Lines",
+            "2": "Sum of Alerts"
+          }
+        },
+        "20": {
+          "name": "[AS] SD-1",
+          "short_name": "[AS] SD-1",
+          "subgraphs": {
+            "0": "Color Bar",
+            "1": "Extension Lines",
+            "2": "Sum of Alerts"
+          }
+        },
+        "21": {
+          "name": "[AS] VWAP",
+          "short_name": "[AS] VWAP",
+          "subgraphs": {
+            "0": "Color Bar",
+            "1": "Extension Lines",
+            "2": "Sum of Alerts"
+          }
+        },
+        "4": {
+          "name": "QUOTATION LINE",
+          "short_name": "QUOTATION LINE",
+          "subgraphs": {
+            "0": "CPL"
+          }
+        },
+        "41": {
+          "name": "[AV] DOUBLE ASK",
+          "short_name": "[AV] DOUBLE ASK",
+          "subgraphs": {
+            "0": "DOUBLE ASK",
+            "1": "Extension Lines",
+            "2": "Sum of Alerts"
+          }
+        },
+        "42": {
+          "name": "[AV] DOUBLE BID",
+          "short_name": "[AV] DOUBLE BID",
+          "subgraphs": {
+            "0": "DOUBLE BID",
+            "1": "Extension Lines",
+            "2": "Sum of Alerts"
+          }
+        },
+        "24": {
+          "name": "[AV] COLOR UP",
+          "short_name": "[AV] COLOR UP",
+          "subgraphs": {
+            "0": "Color Bar",
+            "1": "Extension Lines",
+            "2": "Sum of Alerts"
+          }
+        },
+        "30": {
+          "name": "[AV] COLOR UP 2",
+          "short_name": "[AV] COLOR UP 2",
+          "subgraphs": {
+            "0": "Color Bar",
+            "1": "Extension Lines",
+            "2": "Sum of Alerts"
+          }
+        },
+        "25": {
+          "name": "[AV] COLOR DOWN",
+          "short_name": "[AV] COLOR DOWN",
+          "subgraphs": {
+            "0": "Color Bar",
+            "1": "Extension Lines",
+            "2": "Sum of Alerts"
+          }
+        },
+        "31": {
+          "name": "[AV] COLOR DOWN 2",
+          "short_name": "[AV] COLOR DOWN 2",
+          "subgraphs": {
+            "0": "Color Bar",
+            "1": "Extension Lines",
+            "2": "Sum of Alerts"
+          }
+        },
+        "38": {
+          "name": "[AV] LONG DOWN UP BAR ROND JAUNE",
+          "short_name": "[AV] LONG DOWN UP BAR ROND JAUNE",
+          "subgraphs": {
+            "0": "Color Bar",
+            "1": "Extension Lines",
+            "2": "Sum of Alerts"
+          }
+        },
+        "39": {
+          "name": "[AV] LONG UP DOWN BAR ROND JAUNE",
+          "short_name": "[AV] LONG UP DOWN BAR ROND JAUNE",
+          "subgraphs": {
+            "0": "Color Bar",
+            "1": "Extension Lines",
+            "2": "Sum of Alerts"
+          }
+        },
+        "7": {
+          "name": "COLOR BAR",
+          "short_name": "COLOR BAR",
+          "subgraphs": {
+            "0": "Color Bar"
+          }
+        },
+        "32": {
+          "name": "Cumulative Delta Bars - Volume",
+          "short_name": "",
+          "subgraphs": {
+            "0": "Open",
+            "1": "High",
+            "2": "Low",
+            "3": "Close",
+            "4": "Volume",
+            "6": "OHLC Avg",
+            "7": "HLC Avg",
+            "8": "HL Avg"
+          }
+        },
+        "8": {
+          "name": "HIGHER HIGH CURRENT SESSION",
+          "short_name": "HIGHER HIGH CURRENT SESSION",
+          "subgraphs": {
+            "0": "Open",
+            "1": "High",
+            "2": "Low",
+            "3": "Close",
+            "4": "Volume",
+            "6": "OHLC Avg",
+            "7": "HLC Avg",
+            "8": "HL Avg"
+          }
+        },
+        "9": {
+          "name": "LOWER LOW CURRENT SESSION",
+          "short_name": "LOWER LOW CURRENT SESSION",
+          "subgraphs": {
+            "0": "Open",
+            "1": "High",
+            "2": "Low",
+            "3": "Close",
+            "4": "Volume",
+            "6": "OHLC Avg",
+            "7": "HLC Avg",
+            "8": "HL Avg"
+          }
+        },
+        "10": {
+          "name": "[AS] HIGHER HIGH CURRENT SESSION",
+          "short_name": "[AS] HIGHER HIGH CURRENT SESSION",
+          "subgraphs": {
+            "0": "Open",
+            "1": "HH",
+            "2": "Low",
+            "3": "Close",
+            "4": "Volume",
+            "6": "OHLC Avg",
+            "7": "HLC Avg",
+            "8": "HL Avg"
+          }
+        },
+        "11": {
+          "name": "[AS] LOWER LOW CURRENT SESSION",
+          "short_name": "[AS] LOWER LOW CURRENT SESSION",
+          "subgraphs": {
+            "0": "Open",
+            "1": "High",
+            "2": "LL",
+            "3": "Close",
+            "4": "Volume",
+            "6": "OHLC Avg",
+            "7": "HLC Avg",
+            "8": "HL Avg"
+          }
+        },
+        "12": {
+          "name": "HIGHER HIGH CASH SESSION",
+          "short_name": "HIGHER HIGH CASH SESSION",
+          "subgraphs": {
+            "0": "Open",
+            "1": "H",
+            "2": "Low",
+            "3": "Close",
+            "4": "Volume",
+            "6": "OHLC Avg",
+            "7": "HLC Avg",
+            "8": "HL Avg"
+          }
+        },
+        "13": {
+          "name": "LOWER LOW CASH SESSION",
+          "short_name": "LOWER LOW CASH SESSION",
+          "subgraphs": {
+            "0": "Open",
+            "1": "High",
+            "2": "L",
+            "3": "Close",
+            "4": "Volume",
+            "6": "OHLC Avg",
+            "7": "HLC Avg",
+            "8": "HL Avg"
+          }
+        },
+        "14": {
+          "name": "[AS] OPEN 08.30",
+          "short_name": "[AS] OPEN 08.30",
+          "subgraphs": {
+            "0": "O",
+            "1": "High",
+            "2": "L",
+            "3": "Close",
+            "4": "Volume",
+            "6": "OHLC Avg",
+            "7": "HLC Avg",
+            "8": "HL Avg"
+          }
+        },
+        "18": {
+          "name": "[AV] LONG UP BAR",
+          "short_name": "[AV] LONG UP BAR",
+          "subgraphs": {
+            "0": "Color Bar",
+            "1": "Extension Lines",
+            "2": "Sum of Alerts"
+          }
+        },
+        "17": {
+          "name": "[AV] LONG DOWN BAR",
+          "short_name": "[AV] LONG DOWN BAR",
+          "subgraphs": {
+            "0": "Color Bar",
+            "1": "Extension Lines",
+            "2": "Sum of Alerts"
+          }
+        },
+        "40": {
+          "name": "Trading: Profit/Loss Text",
+          "short_name": "",
+          "subgraphs": {}
+        },
+        "15": {
+          "name": "Trading: Position Quantity (T)",
+          "short_name": "",
+          "subgraphs": {
+            "0": "Position Quantity"
+          }
+        }
+      }
+    },
+    "chart_4": {
+      "chart_number": 4,
+      "studies": {
+        "13": {
+          "name": "MULTIPLE VOLUME PROFILE",
+          "short_name": "MULTIPLE VOLUME PROFILE",
+          "subgraphs": {
+            "1": "VPOC",
+            "2": "VAH",
+            "3": "VAL",
+            "4": "Volume Weighted Average Price",
+            "5": "Bid Volume and Ask Volume Colors",
+            "6": "Volume Numbers Text Color and Size",
+            "7": "Volume Bars Outline and Fill Colors",
+            "8": "VA",
+            "10": "Evening Session Volume Bars Outline and Fill Colors",
+            "11": "Trade Weighted Mean Price",
+            "12": "Mean Price + Std Dev",
+            "13": "Mean Price - Std Dev",
+            "14": "Mean Price + 2 * Std Dev",
+            "15": "Mean Price - 2 * Std Dev",
+            "16": "Volume Profile Enclosing Outline",
+            "17": "HVN",
+            "18": "LVN",
+            "19": "Value Area BidVolume and AskVolume Colors",
+            "20": "PointOfControl BidVolume and AskVolume Colors"
+          }
+        },
+        "12": {
+          "name": "MIA - Study Inspector",
+          "short_name": "",
+          "subgraphs": {}
+        },
+        "16": {
+          "name": "Overlay OHLC of NQU25_FUT_CME[M]  30 Min  #26",
+          "short_name": "",
+          "subgraphs": {
+            "0": "Open",
+            "1": "High",
+            "2": "Low",
+            "3": "Last",
+            "6": "OHLC Avg",
+            "7": "HLC Avg",
+            "8": "HL Avg"
+          }
+        },
+        "15": {
+          "name": "Correlation Coefficient",
+          "short_name": "",
+          "subgraphs": {
+            "0": "CC"
+          }
+        },
+        "14": {
+          "name": "Numbers Bars Calculated Values",
+          "short_name": "",
+          "subgraphs": {
+            "0": "Ask Volume Bid Volume Difference",
+            "1": "Ask Volume Bid Volume Total",
+            "2": "Ask Volume Bid Volume Difference Change",
+            "3": "Positive Delta Sum",
+            "4": "Negative Delta Sum",
+            "5": "Ask Volume Total",
+            "6": "Bid Volume Total",
+            "7": "Maximum Ask Volume Bid Volume Difference",
+            "8": "Minimum Ask Volume Bid Volume Difference",
+            "9": "Cumulative Sum Of Ask Volume Bid Volume Difference - Day",
+            "10": "Ask Volume Bid Volume Difference Percent",
+            "11": "Number of Trades",
+            "12": "Total Volume",
+            "13": "Total Volume Bar Difference",
+            "14": "Average Volume Per Trade",
+            "15": "Average Volume Per Price",
+            "16": "Ask Volume Percent",
+            "17": "Bid Volume Percent",
+            "18": "Cumulative Sum Of Ask Volume Bid Volume Difference - All",
+            "19": "Point Of Control Volume",
+            "20": "Cumulative Delta Volume High",
+            "21": "Cumulative Delta Volume Low",
+            "22": "Ask Bid Difference To Max/Min",
+            "23": "Ask Ticks Bid Ticks Difference",
+            "24": "Cumulative Sum Of Ask Ticks Bid Ticks Difference - Day",
+            "25": "Cumulative Delta Trades High",
+            "26": "Cumulative Delta Trades Low",
+            "27": "Maximum Ask Bid Vol Diff to Closing Ask Bid Vol Diff",
+            "28": "Minimum Ask Bid Vol Diff to Closing Ask Bid Vol Diff",
+            "29": "Bar Duration",
+            "30": "Daily Range",
+            "32": "Weekly Range",
+            "33": "Finish AskVol BidVol Diff",
+            "34": "Finish AskVol BidVol Diff %",
+            "35": "Volume / Sec",
+            "36": "High Pullback Ask/Bid Vol Diff",
+            "37": "Low Pullback Ask/Bid Vol Diff",
+            "38": "Cumulative Delta Minus Delta",
+            "39": "Cumulative Volume - Day",
+            "40": "High-Low Range",
+            "41": "Point Of Control Value",
+            "42": "Diagonal Positive Delta Sum",
+            "43": "Diagonal Negative Delta Sum",
+            "44": "Low Bid Volume Percent",
+            "45": "High Ask Volume Percent",
+            "46": "Cumulative Delta Up/Down Tick Volume",
+            "47": "Total Up Tick Volume",
+            "48": "Total Down Tick Volume",
+            "49": "Up Down Tick Volume Difference",
+            "50": "Average Bid Trade Size",
+            "51": "Average Ask Trade Size",
+            "52": "Bid Volume Per Second",
+            "53": "Ask Volume Per Second",
+            "54": "Grid Lines"
+          }
+        },
+        "9": {
+          "name": "Volume Value Area Previous",
+          "short_name": "Volume Value Area Previous",
+          "subgraphs": {
+            "0": "PPOC",
+            "1": "PVAH",
+            "2": "PVAL"
+          }
+        },
+        "8": {
+          "name": "Volume Value Area Lines",
+          "short_name": "",
+          "subgraphs": {
+            "0": "Vol POC",
+            "1": "Vol Value Area High",
+            "2": "Vol Value Area Low"
+          }
+        },
+        "6": {
+          "name": "Cumulative Delta Bars - Volume",
+          "short_name": "",
+          "subgraphs": {
+            "0": "Open",
+            "1": "High",
+            "2": "Low",
+            "3": "Close",
+            "4": "Volume",
+            "6": "OHLC Avg",
+            "7": "HLC Avg",
+            "8": "HL Avg"
+          }
+        },
+        "5": {
+          "name": "Average True Range",
+          "short_name": "",
+          "subgraphs": {
+            "0": "ATR"
+          }
+        },
+        "2": {
+          "name": "PREVIOUS VPOC VAH VAL",
+          "short_name": "PREVIOUS VPOC VAH VAL",
+          "subgraphs": {
+            "1": "PVPOC",
+            "2": "PVAH",
+            "3": "PVAL",
+            "4": "PVWAP",
+            "5": "Bid Volume and Ask Volume Colors",
+            "6": "Volume Numbers Text Color and Size",
+            "7": "Volume Bars Outline and Fill Colors",
+            "8": "VA",
+            "10": "Evening Session Volume Bars Outline and Fill Colors",
+            "11": "Trade Weighted Mean Price",
+            "12": "PSD+1",
+            "13": "PSD-1",
+            "14": "Mean Price + 2 * Std Dev",
+            "15": "Mean Price - 2 * Std Dev",
+            "16": "Volume Profile Enclosing Outline",
+            "17": "HVN",
+            "18": "LVN",
+            "19": "Value Area BidVolume and AskVolume Colors",
+            "20": "PointOfControl BidVolume and AskVolume Colors"
+          }
+        },
+        "1": {
+          "name": "VWAP",
+          "short_name": "VWAP",
+          "subgraphs": {
+            "0": "VWAP",
+            "1": "SD+1",
+            "2": "SD-1",
+            "3": "SD+2",
+            "4": "SD-2",
+            "5": "SD+3",
+            "6": "SD-3",
+            "7": "SD+4",
+            "8": "SD-4"
+          }
+        },
+        "3": {
+          "name": "PREVIOUS VWAP SD+1 SD-1",
+          "short_name": "PREVIOUS VWAP SD+1 SD-1",
+          "subgraphs": {
+            "1": "PVPOC",
+            "2": "PVAH",
+            "3": "PVAL",
+            "4": "PVWAP",
+            "5": "Bid Volume and Ask Volume Colors",
+            "6": "Volume Numbers Text Color and Size",
+            "7": "Volume Bars Outline and Fill Colors",
+            "8": "VA",
+            "10": "Evening Session Volume Bars Outline and Fill Colors",
+            "11": "Trade Weighted Mean Price",
+            "12": "PSD+1",
+            "13": "PSD-1",
+            "14": "Mean Price + 2 * Std Dev",
+            "15": "Mean Price - 2 * Std Dev",
+            "16": "Volume Profile Enclosing Outline",
+            "17": "HVN",
+            "18": "LVN",
+            "19": "Value Area BidVolume and AskVolume Colors",
+            "20": "PointOfControl BidVolume and AskVolume Colors"
+          }
+        },
+        "10": {
+          "name": "HIGHER HIGH CURRENT SESSION",
+          "short_name": "HIGHER HIGH CURRENT SESSION",
+          "subgraphs": {
+            "0": "Open",
+            "1": "HH",
+            "2": "Low",
+            "3": "Close",
+            "4": "Volume",
+            "6": "OHLC Avg",
+            "7": "HLC Avg",
+            "8": "HL Avg"
+          }
+        },
+        "11": {
+          "name": "LOWER LOW CURRENT SESSION",
+          "short_name": "LOWER LOW CURRENT SESSION",
+          "subgraphs": {
+            "0": "Open",
+            "1": "High",
+            "2": "LL",
+            "3": "Close",
+            "4": "Volume",
+            "6": "OHLC Avg",
+            "7": "HLC Avg",
+            "8": "HL Avg"
+          }
+        },
+        "7": {
+          "name": "COLOR BAR",
+          "short_name": "COLOR BAR",
+          "subgraphs": {
+            "0": "Color Bar"
+          }
+        },
+        "4": {
+          "name": "QUOTATION LINE",
+          "short_name": "QUOTATION LINE",
+          "subgraphs": {
+            "0": "CPL"
+          }
+        }
+      }
+    },
+    "chart_10": {
+      "chart_number": 10,
+      "studies": {
+        "1": {
+          "name": "MenthorQ Gamma Levels",
+          "short_name": "",
+          "subgraphs": {
+            "0": "Call Resistance",
+            "1": "Put Support",
+            "2": "HVL",
+            "3": "1D Min",
+            "4": "1D Max",
+            "5": "Call Resistance 0DTE & Gamma Wall 0DTE",
+            "6": "Put Support 0DTE",
+            "7": "HVL 0DTE",
+            "8": "Gamma Wall 0DTE",
+            "9": "GEX 1",
+            "10": "GEX 2",
+            "11": "GEX 3",
+            "12": "GEX 4",
+            "13": "GEX 5",
+            "14": "GEX 6",
+            "15": "GEX 7",
+            "16": "GEX 8",
+            "17": "GEX 9",
+            "18": "GEX 10",
+            "19": "SG20",
+            "20": "SG21",
+            "21": "SG22",
+            "22": "SG23",
+            "23": "SG24",
+            "24": "SG25",
+            "25": "SG26",
+            "26": "SG27",
+            "27": "SG28",
+            "28": "SG29",
+            "29": "SG30",
+            "30": "SG31",
+            "31": "SG32",
+            "32": "SG33",
+            "33": "SG34",
+            "34": "SG35",
+            "35": "SG36",
+            "36": "SG37",
+            "37": "SG38",
+            "38": "SG39",
+            "39": "SG40",
+            "40": "SG41",
+            "41": "SG42",
+            "42": "SG43",
+            "43": "SG44",
+            "44": "SG45",
+            "45": "SG46",
+            "46": "SG47",
+            "47": "SG48",
+            "48": "SG49",
+            "49": "SG50",
+            "50": "SG51",
+            "51": "SG52",
+            "52": "SG53",
+            "53": "SG54",
+            "54": "SG55",
+            "55": "SG56",
+            "56": "SG57",
+            "57": "SG58",
+            "58": "SG59",
+            "59": "SG60"
+          }
+        },
+        "4": {
+          "name": "MIA - Study Inspector",
+          "short_name": "",
+          "subgraphs": {}
+        },
+        "2": {
+          "name": "MenthorQ Swing Levels",
+          "short_name": "",
+          "subgraphs": {
+            "0": "SG1",
+            "1": "SG2",
+            "2": "SG3",
+            "3": "SG4",
+            "4": "SG5",
+            "5": "SG6",
+            "6": "SG7",
+            "7": "SG8",
+            "8": "SG9",
+            "9": "SG10",
+            "10": "SG11",
+            "11": "SG12",
+            "12": "SG13",
+            "13": "SG14",
+            "14": "SG15",
+            "15": "SG16",
+            "16": "SG17",
+            "17": "SG18",
+            "18": "SG19",
+            "19": "SG20",
+            "20": "SG21",
+            "21": "SG22",
+            "22": "SG23",
+            "23": "SG24",
+            "24": "SG25",
+            "25": "SG26",
+            "26": "SG27",
+            "27": "SG28",
+            "28": "SG29",
+            "29": "SG30",
+            "30": "SG31",
+            "31": "SG32",
+            "32": "SG33",
+            "33": "SG34",
+            "34": "SG35",
+            "35": "SG36",
+            "36": "SG37",
+            "37": "SG38",
+            "38": "SG39",
+            "39": "SG40",
+            "40": "SG41",
+            "41": "SG42",
+            "42": "SG43",
+            "43": "SG44",
+            "44": "SG45",
+            "45": "SG46",
+            "46": "SG47",
+            "47": "SG48",
+            "48": "SG49",
+            "49": "SG50",
+            "50": "SG51",
+            "51": "SG52",
+            "52": "SG53",
+            "53": "SG54",
+            "54": "SG55",
+            "55": "SG56",
+            "56": "SG57",
+            "57": "SG58",
+            "58": "SG59",
+            "59": "SG60"
+          }
+        },
+        "3": {
+          "name": "MenthorQ Blind Spots Levels",
+          "short_name": "",
+          "subgraphs": {
+            "0": "BL 1",
+            "1": "BL 2",
+            "2": "BL 3",
+            "3": "BL 4",
+            "4": "BL 5",
+            "5": "BL 6",
+            "6": "BL 7",
+            "7": "BL 8",
+            "8": "BL 9",
+            "9": "BL 10",
+            "10": "SG11",
+            "11": "SG12",
+            "12": "SG13",
+            "13": "SG14",
+            "14": "SG15",
+            "15": "SG16",
+            "16": "SG17",
+            "17": "SG18",
+            "18": "SG19",
+            "19": "SG20",
+            "20": "SG21",
+            "21": "SG22",
+            "22": "SG23",
+            "23": "SG24",
+            "24": "SG25",
+            "25": "SG26",
+            "26": "SG27",
+            "27": "SG28",
+            "28": "SG29",
+            "29": "SG30",
+            "30": "SG31",
+            "31": "SG32",
+            "32": "SG33",
+            "33": "SG34",
+            "34": "SG35",
+            "35": "SG36",
+            "36": "SG37",
+            "37": "SG38",
+            "38": "SG39",
+            "39": "SG40",
+            "40": "SG41",
+            "41": "SG42",
+            "42": "SG43",
+            "43": "SG44",
+            "44": "SG45",
+            "45": "SG46",
+            "46": "SG47",
+            "47": "SG48",
+            "48": "SG49",
+            "49": "SG50",
+            "50": "SG51",
+            "51": "SG52",
+            "52": "SG53",
+            "53": "SG54",
+            "54": "SG55",
+            "55": "SG56",
+            "56": "SG57",
+            "57": "SG58",
+            "58": "SG59",
+            "59": "SG60"
+          }
+        }
+      }
+    }
+  },
+  "studies_by_name": {
+    "HIGHLIGHT CASH SESSION": [
+      {
+        "chart": 3,
+        "study_id": 3,
+        "short_name": "HIGHLIGHT CASH SESSION"
+      }
+    ],
+    "MIA - Study Inspector": [
+      {
+        "chart": 3,
+        "study_id": 45,
+        "short_name": ""
+      },
+      {
+        "chart": 4,
+        "study_id": 12,
+        "short_name": ""
+      },
+      {
+        "chart": 10,
+        "study_id": 4,
+        "short_name": ""
+      }
+    ],
+    "Numbers Bars Calculated Values": [
+      {
+        "chart": 3,
+        "study_id": 33,
+        "short_name": ""
+      },
+      {
+        "chart": 4,
+        "study_id": 14,
+        "short_name": ""
+      }
+    ],
+    "VIX_CGI[M]  1 Min  #8": [
+      {
+        "chart": 3,
+        "study_id": 23,
+        "short_name": ""
+      }
+    ],
+    "Volume Value Area Lines": [
+      {
+        "chart": 3,
+        "study_id": 1,
+        "short_name": ""
+      },
+      {
+        "chart": 4,
+        "study_id": 8,
+        "short_name": ""
+      }
+    ],
+    "Volume Value Area Previous": [
+      {
+        "chart": 3,
+        "study_id": 2,
+        "short_name": "Volume Value Area Previous"
+      },
+      {
+        "chart": 4,
+        "study_id": 9,
+        "short_name": "Volume Value Area Previous"
+      }
+    ],
+    "NEWS 07.15": [
+      {
+        "chart": 3,
+        "study_id": 43,
+        "short_name": "NEWS 07.15"
+      }
+    ],
+    "VWAP": [
+      {
+        "chart": 3,
+        "study_id": 22,
+        "short_name": "VWAP"
+      },
+      {
+        "chart": 4,
+        "study_id": 1,
+        "short_name": "VWAP"
+      }
+    ],
+    "NEWS 07.30": [
+      {
+        "chart": 3,
+        "study_id": 34,
+        "short_name": "NEWS 07.30"
+      }
+    ],
+    "NEWS 08.45": [
+      {
+        "chart": 3,
+        "study_id": 35,
+        "short_name": "NEWS 08.45"
+      }
+    ],
+    "NEWS 09.00": [
+      {
+        "chart": 3,
+        "study_id": 36,
+        "short_name": "NEWS 09.00"
+      }
+    ],
+    "NEWS 09.30": [
+      {
+        "chart": 3,
+        "study_id": 37,
+        "short_name": "NEWS 09.30"
+      }
+    ],
+    "EDGE ZONES IMBALANCE SELL rev1 800%DIAG": [
+      {
+        "chart": 3,
+        "study_id": 28,
+        "short_name": "EDGE ZONES IMBALANCE SELL rev1 800%DIAG"
+      }
+    ],
+    "EDGE ZONES IMBALANCE BUY rev1 800%DIAG": [
+      {
+        "chart": 3,
+        "study_id": 29,
+        "short_name": "EDGE ZONES IMBALANCE BUY rev1 800%DIAG"
+      }
+    ],
+    "EDGE ZONES IMBALANCE SELL rev2 800%DIAG": [
+      {
+        "chart": 3,
+        "study_id": 5,
+        "short_name": "EDGE ZONES IMBALANCE SELL rev2 800%DIAG"
+      }
+    ],
+    "EDGE ZONES IMBALANCE BUY rev2 800%DIAG": [
+      {
+        "chart": 3,
+        "study_id": 6,
+        "short_name": "EDGE ZONES IMBALANCE BUY rev2 800%DIAG"
+      }
+    ],
+    "EDGE ZONES IMBALANCE SELL rev3 800%DIAG": [
+      {
+        "chart": 3,
+        "study_id": 26,
+        "short_name": "EDGE ZONES IMBALANCE SELL rev3 800%DIAG"
+      }
+    ],
+    "EDGE ZONES IMBALANCE BUY rev3 800%DIAG": [
+      {
+        "chart": 3,
+        "study_id": 27,
+        "short_name": "EDGE ZONES IMBALANCE BUY rev3 800%DIAG"
+      }
+    ],
+    "EDGE ZONES IMBALANCE BUY 600%DIAG": [
+      {
+        "chart": 3,
+        "study_id": 16,
+        "short_name": "EDGE ZONES IMBALANCE BUY 600%DIAG"
+      }
+    ],
+    "EDGE ZONES IMBALANCE SELL 600%DIAG": [
+      {
+        "chart": 3,
+        "study_id": 44,
+        "short_name": "EDGE ZONES IMBALANCE SELL 600%DIAG"
+      }
+    ],
+    "[AS] SD+1": [
+      {
+        "chart": 3,
+        "study_id": 19,
+        "short_name": "[AS] SD+1"
+      }
+    ],
+    "[AS] SD-1": [
+      {
+        "chart": 3,
+        "study_id": 20,
+        "short_name": "[AS] SD-1"
+      }
+    ],
+    "[AS] VWAP": [
+      {
+        "chart": 3,
+        "study_id": 21,
+        "short_name": "[AS] VWAP"
+      }
+    ],
+    "QUOTATION LINE": [
+      {
+        "chart": 3,
+        "study_id": 4,
+        "short_name": "QUOTATION LINE"
+      },
+      {
+        "chart": 4,
+        "study_id": 4,
+        "short_name": "QUOTATION LINE"
+      }
+    ],
+    "[AV] DOUBLE ASK": [
+      {
+        "chart": 3,
+        "study_id": 41,
+        "short_name": "[AV] DOUBLE ASK"
+      }
+    ],
+    "[AV] DOUBLE BID": [
+      {
+        "chart": 3,
+        "study_id": 42,
+        "short_name": "[AV] DOUBLE BID"
+      }
+    ],
+    "[AV] COLOR UP": [
+      {
+        "chart": 3,
+        "study_id": 24,
+        "short_name": "[AV] COLOR UP"
+      }
+    ],
+    "[AV] COLOR UP 2": [
+      {
+        "chart": 3,
+        "study_id": 30,
+        "short_name": "[AV] COLOR UP 2"
+      }
+    ],
+    "[AV] COLOR DOWN": [
+      {
+        "chart": 3,
+        "study_id": 25,
+        "short_name": "[AV] COLOR DOWN"
+      }
+    ],
+    "[AV] COLOR DOWN 2": [
+      {
+        "chart": 3,
+        "study_id": 31,
+        "short_name": "[AV] COLOR DOWN 2"
+      }
+    ],
+    "[AV] LONG DOWN UP BAR ROND JAUNE": [
+      {
+        "chart": 3,
+        "study_id": 38,
+        "short_name": "[AV] LONG DOWN UP BAR ROND JAUNE"
+      }
+    ],
+    "[AV] LONG UP DOWN BAR ROND JAUNE": [
+      {
+        "chart": 3,
+        "study_id": 39,
+        "short_name": "[AV] LONG UP DOWN BAR ROND JAUNE"
+      }
+    ],
+    "COLOR BAR": [
+      {
+        "chart": 3,
+        "study_id": 7,
+        "short_name": "COLOR BAR"
+      },
+      {
+        "chart": 4,
+        "study_id": 7,
+        "short_name": "COLOR BAR"
+      }
+    ],
+    "Cumulative Delta Bars - Volume": [
+      {
+        "chart": 3,
+        "study_id": 32,
+        "short_name": ""
+      },
+      {
+        "chart": 4,
+        "study_id": 6,
+        "short_name": ""
+      }
+    ],
+    "HIGHER HIGH CURRENT SESSION": [
+      {
+        "chart": 3,
+        "study_id": 8,
+        "short_name": "HIGHER HIGH CURRENT SESSION"
+      },
+      {
+        "chart": 4,
+        "study_id": 10,
+        "short_name": "HIGHER HIGH CURRENT SESSION"
+      }
+    ],
+    "LOWER LOW CURRENT SESSION": [
+      {
+        "chart": 3,
+        "study_id": 9,
+        "short_name": "LOWER LOW CURRENT SESSION"
+      },
+      {
+        "chart": 4,
+        "study_id": 11,
+        "short_name": "LOWER LOW CURRENT SESSION"
+      }
+    ],
+    "[AS] HIGHER HIGH CURRENT SESSION": [
+      {
+        "chart": 3,
+        "study_id": 10,
+        "short_name": "[AS] HIGHER HIGH CURRENT SESSION"
+      }
+    ],
+    "[AS] LOWER LOW CURRENT SESSION": [
+      {
+        "chart": 3,
+        "study_id": 11,
+        "short_name": "[AS] LOWER LOW CURRENT SESSION"
+      }
+    ],
+    "HIGHER HIGH CASH SESSION": [
+      {
+        "chart": 3,
+        "study_id": 12,
+        "short_name": "HIGHER HIGH CASH SESSION"
+      }
+    ],
+    "LOWER LOW CASH SESSION": [
+      {
+        "chart": 3,
+        "study_id": 13,
+        "short_name": "LOWER LOW CASH SESSION"
+      }
+    ],
+    "[AS] OPEN 08.30": [
+      {
+        "chart": 3,
+        "study_id": 14,
+        "short_name": "[AS] OPEN 08.30"
+      }
+    ],
+    "[AV] LONG UP BAR": [
+      {
+        "chart": 3,
+        "study_id": 18,
+        "short_name": "[AV] LONG UP BAR"
+      }
+    ],
+    "[AV] LONG DOWN BAR": [
+      {
+        "chart": 3,
+        "study_id": 17,
+        "short_name": "[AV] LONG DOWN BAR"
+      }
+    ],
+    "Trading: Profit/Loss Text": [
+      {
+        "chart": 3,
+        "study_id": 40,
+        "short_name": ""
+      }
+    ],
+    "Trading: Position Quantity (T)": [
+      {
+        "chart": 3,
+        "study_id": 15,
+        "short_name": ""
+      }
+    ],
+    "MULTIPLE VOLUME PROFILE": [
+      {
+        "chart": 4,
+        "study_id": 13,
+        "short_name": "MULTIPLE VOLUME PROFILE"
+      }
+    ],
+    "Overlay OHLC of NQU25_FUT_CME[M]  30 Min  #26": [
+      {
+        "chart": 4,
+        "study_id": 16,
+        "short_name": ""
+      }
+    ],
+    "Correlation Coefficient": [
+      {
+        "chart": 4,
+        "study_id": 15,
+        "short_name": ""
+      }
+    ],
+    "Average True Range": [
+      {
+        "chart": 4,
+        "study_id": 5,
+        "short_name": ""
+      }
+    ],
+    "PREVIOUS VPOC VAH VAL": [
+      {
+        "chart": 4,
+        "study_id": 2,
+        "short_name": "PREVIOUS VPOC VAH VAL"
+      }
+    ],
+    "PREVIOUS VWAP SD+1 SD-1": [
+      {
+        "chart": 4,
+        "study_id": 3,
+        "short_name": "PREVIOUS VWAP SD+1 SD-1"
+      }
+    ],
+    "MenthorQ Gamma Levels": [
+      {
+        "chart": 10,
+        "study_id": 1,
+        "short_name": ""
+      }
+    ],
+    "MenthorQ Swing Levels": [
+      {
+        "chart": 10,
+        "study_id": 2,
+        "short_name": ""
+      }
+    ],
+    "MenthorQ Blind Spots Levels": [
+      {
+        "chart": 10,
+        "study_id": 3,
+        "short_name": ""
+      }
+    ]
+  },
+  "studies_by_id": {
+    "3": {
+      "name": "MenthorQ Blind Spots Levels",
+      "short_name": "",
+      "chart": 10
+    },
+    "45": {
+      "name": "MIA - Study Inspector",
+      "short_name": "",
+      "chart": 3
+    },
+    "33": {
+      "name": "Numbers Bars Calculated Values",
+      "short_name": "",
+      "chart": 3
+    },
+    "23": {
+      "name": "VIX_CGI[M]  1 Min  #8",
+      "short_name": "",
+      "chart": 3
+    },
+    "1": {
+      "name": "MenthorQ Gamma Levels",
+      "short_name": "",
+      "chart": 10
+    },
+    "2": {
+      "name": "MenthorQ Swing Levels",
+      "short_name": "",
+      "chart": 10
+    },
+    "43": {
+      "name": "NEWS 07.15",
+      "short_name": "NEWS 07.15",
+      "chart": 3
+    },
+    "22": {
+      "name": "VWAP",
+      "short_name": "VWAP",
+      "chart": 3
+    },
+    "34": {
+      "name": "NEWS 07.30",
+      "short_name": "NEWS 07.30",
+      "chart": 3
+    },
+    "35": {
+      "name": "NEWS 08.45",
+      "short_name": "NEWS 08.45",
+      "chart": 3
+    },
+    "36": {
+      "name": "NEWS 09.00",
+      "short_name": "NEWS 09.00",
+      "chart": 3
+    },
+    "37": {
+      "name": "NEWS 09.30",
+      "short_name": "NEWS 09.30",
+      "chart": 3
+    },
+    "28": {
+      "name": "EDGE ZONES IMBALANCE SELL rev1 800%DIAG",
+      "short_name": "EDGE ZONES IMBALANCE SELL rev1 800%DIAG",
+      "chart": 3
+    },
+    "29": {
+      "name": "EDGE ZONES IMBALANCE BUY rev1 800%DIAG",
+      "short_name": "EDGE ZONES IMBALANCE BUY rev1 800%DIAG",
+      "chart": 3
+    },
+    "5": {
+      "name": "Average True Range",
+      "short_name": "",
+      "chart": 4
+    },
+    "6": {
+      "name": "Cumulative Delta Bars - Volume",
+      "short_name": "",
+      "chart": 4
+    },
+    "26": {
+      "name": "EDGE ZONES IMBALANCE SELL rev3 800%DIAG",
+      "short_name": "EDGE ZONES IMBALANCE SELL rev3 800%DIAG",
+      "chart": 3
+    },
+    "27": {
+      "name": "EDGE ZONES IMBALANCE BUY rev3 800%DIAG",
+      "short_name": "EDGE ZONES IMBALANCE BUY rev3 800%DIAG",
+      "chart": 3
+    },
+    "16": {
+      "name": "Overlay OHLC of NQU25_FUT_CME[M]  30 Min  #26",
+      "short_name": "",
+      "chart": 4
+    },
+    "44": {
+      "name": "EDGE ZONES IMBALANCE SELL 600%DIAG",
+      "short_name": "EDGE ZONES IMBALANCE SELL 600%DIAG",
+      "chart": 3
+    },
+    "19": {
+      "name": "[AS] SD+1",
+      "short_name": "[AS] SD+1",
+      "chart": 3
+    },
+    "20": {
+      "name": "[AS] SD-1",
+      "short_name": "[AS] SD-1",
+      "chart": 3
+    },
+    "21": {
+      "name": "[AS] VWAP",
+      "short_name": "[AS] VWAP",
+      "chart": 3
+    },
+    "4": {
+      "name": "MIA - Study Inspector",
+      "short_name": "",
+      "chart": 10
+    },
+    "41": {
+      "name": "[AV] DOUBLE ASK",
+      "short_name": "[AV] DOUBLE ASK",
+      "chart": 3
+    },
+    "42": {
+      "name": "[AV] DOUBLE BID",
+      "short_name": "[AV] DOUBLE BID",
+      "chart": 3
+    },
+    "24": {
+      "name": "[AV] COLOR UP",
+      "short_name": "[AV] COLOR UP",
+      "chart": 3
+    },
+    "30": {
+      "name": "[AV] COLOR UP 2",
+      "short_name": "[AV] COLOR UP 2",
+      "chart": 3
+    },
+    "25": {
+      "name": "[AV] COLOR DOWN",
+      "short_name": "[AV] COLOR DOWN",
+      "chart": 3
+    },
+    "31": {
+      "name": "[AV] COLOR DOWN 2",
+      "short_name": "[AV] COLOR DOWN 2",
+      "chart": 3
+    },
+    "38": {
+      "name": "[AV] LONG DOWN UP BAR ROND JAUNE",
+      "short_name": "[AV] LONG DOWN UP BAR ROND JAUNE",
+      "chart": 3
+    },
+    "39": {
+      "name": "[AV] LONG UP DOWN BAR ROND JAUNE",
+      "short_name": "[AV] LONG UP DOWN BAR ROND JAUNE",
+      "chart": 3
+    },
+    "7": {
+      "name": "COLOR BAR",
+      "short_name": "COLOR BAR",
+      "chart": 4
+    },
+    "32": {
+      "name": "Cumulative Delta Bars - Volume",
+      "short_name": "",
+      "chart": 3
+    },
+    "8": {
+      "name": "Volume Value Area Lines",
+      "short_name": "",
+      "chart": 4
+    },
+    "9": {
+      "name": "Volume Value Area Previous",
+      "short_name": "Volume Value Area Previous",
+      "chart": 4
+    },
+    "10": {
+      "name": "HIGHER HIGH CURRENT SESSION",
+      "short_name": "HIGHER HIGH CURRENT SESSION",
+      "chart": 4
+    },
+    "11": {
+      "name": "LOWER LOW CURRENT SESSION",
+      "short_name": "LOWER LOW CURRENT SESSION",
+      "chart": 4
+    },
+    "12": {
+      "name": "MIA - Study Inspector",
+      "short_name": "",
+      "chart": 4
+    },
+    "13": {
+      "name": "MULTIPLE VOLUME PROFILE",
+      "short_name": "MULTIPLE VOLUME PROFILE",
+      "chart": 4
+    },
+    "14": {
+      "name": "Numbers Bars Calculated Values",
+      "short_name": "",
+      "chart": 4
+    },
+    "18": {
+      "name": "[AV] LONG UP BAR",
+      "short_name": "[AV] LONG UP BAR",
+      "chart": 3
+    },
+    "17": {
+      "name": "[AV] LONG DOWN BAR",
+      "short_name": "[AV] LONG DOWN BAR",
+      "chart": 3
+    },
+    "40": {
+      "name": "Trading: Profit/Loss Text",
+      "short_name": "",
+      "chart": 3
+    },
+    "15": {
+      "name": "Correlation Coefficient",
+      "short_name": "",
+      "chart": 4
+    }
+  },
+  "key_studies": {
+    "VWAP": {
+      "charts": [
+        3,
+        4,
+        3,
+        4
+      ],
+      "study_ids": [
+        22,
+        1,
+        21,
+        3
+      ]
+    },
+    "VVA": {
+      "charts": [
+        3,
+        4,
+        3,
+        4
+      ],
+      "study_ids": [
+        1,
+        8,
+        2,
+        9
+      ]
+    },
+    "VIX": {
+      "charts": [
+        3
+      ],
+      "study_ids": [
+        23
+      ]
+    },
+    "NBCV": {
+      "charts": [
+        3,
+        4
+      ],
+      "study_ids": [
+        33,
+        14
+      ]
+    },
+    "MenthorQ": {
+      "charts": [
+        10,
+        10,
+        10
+      ],
+      "study_ids": [
+        1,
+        2,
+        3
+      ]
+    },
+    "Correlation": {
+      "charts": [
+        4
+      ],
+      "study_ids": [
+        15
+      ]
+    },
+    "Cumulative_Delta": {
+      "charts": [
+        3,
+        4
+      ],
+      "study_ids": [
+        32,
+        6
+      ]
+    }
+  }
+}

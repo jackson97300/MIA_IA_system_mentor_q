@@ -1,0 +1,18 @@
+{
+  "session": "london_real_data",
+  "description": "Session Londres - Donn\u00e9es R\u00e9elles IBKR",
+  "trading_enabled": true,
+  "data_source": "ibkr_real_data",
+  "options_required": false,
+  "force_trading": true,
+  "skip_options_validation": true,
+  "bypass_options_check": true,
+  "real_data_settings": {
+    "simulation_mode": false,
+    "require_real_data": true,
+    "fallback_disabled": true,
+    "market_data_type": 1,
+    "validate_data_quality": true,
+    "reject_static_data": true
+  }
+}

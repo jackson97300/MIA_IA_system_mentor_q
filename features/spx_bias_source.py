@@ -1011,3 +1011,4 @@ if __name__ == "__main__":
     logger.info("Démarrage test interface SPXBiasSource...")
     asyncio.run(test_spx_bias_source())
 
+

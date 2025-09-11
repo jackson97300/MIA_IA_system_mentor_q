@@ -1,0 +1,28 @@
+SAUVEGARDE OPTIONS SPX - NIVEAUX CRITIQUES
+Date: 2025-08-11 15:27:15
+Session: Avant US
+Fichiers: 13
+
+Données Options SPX Sauvegardées:
+- Gamma Exposure
+- Call/Put Walls
+- Gamma Flip Levels
+- VIX Data
+- Put/Call Ratios
+- Pin Risk Levels
+- Dealer Positioning
+
+Fichiers sauvegardés:
+- data/backups/options_spx_20250811_152715/options_snapshots\spx_data_20250811.csv
+- data/backups/options_spx_20250811_152715/options_snapshots\spx_final.json
+- data/backups/options_spx_20250811_152715/options_snapshots\spx_final_20250811.json
+- data/backups/options_spx_20250811_152715/options_snapshots\spx_final_backup.json
+- data/backups/options_spx_20250811_152715/options_snapshots\spx_hourly_20250810_215447.json
+- data/backups/options_spx_20250811_152715/options_snapshots\spx_hourly_20250810_220246.json
+- data/backups/options_spx_20250811_152715/options_snapshots\spx_hourly_20250810_225447.json
+- data/backups/options_spx_20250811_152715/options_snapshots\spx_hourly_20250810_230246.json
+- data/backups/options_spx_20250811_152715/options_snapshots\spx_hourly_20250810_232447.json
+- data/backups/options_spx_20250811_152715/options_snapshots\spx_hourly_20250810_233246.json
+- data/backups/options_spx_20250811_152715/options_snapshots\spx_hourly_20250811_015349.json
+- data/backups/options_spx_20250811_152715/options_snapshots\spx_options_final_20250811.csv
+- data/backups/options_spx_20250811_152715/options_snapshots\final\spx_final_20250811.csv

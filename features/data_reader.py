@@ -116,7 +116,11 @@ class MIADataReader:
                         data_type = data.get('type', 'unknown')
                         
                         # Pour MenthorQ, créer un snapshot par niveau pour éviter la déduplication
-                        if data_type in ["menthorq", "menthorq_level"]:
+                        if data_type in ["menthorq", "menthorq_level",
+                                         "menthorq_gamma_levels", "menthorq_blind_spots", "menthorq_swing_levels"]:
+                            # Ignorer tout niveau MenthorQ qui ne provient pas du Graph 10
+                            if chart != 10:
+                                continue
                             # Créer un nouveau snapshot pour chaque niveau MenthorQ
                             menthorq_snapshot = MarketDataSnapshot(
                                 timestamp=timestamp,

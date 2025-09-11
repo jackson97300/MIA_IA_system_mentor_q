@@ -1,0 +1,21 @@
+{
+  "VWAP": {
+    "subgraphs": {
+      "Main": 1,
+      "UP1": 2,
+      "DN1": 3,
+      "UP2": 4,
+      "DN2": 5,
+      "UP3": 6,
+      "DN3": 7
+    }
+  },
+  "VVA": {},
+  "VIX": {},
+  "NBCV": {
+    "subgraphs": {}
+  },
+  "MenthorQ": {},
+  "Correlation": {},
+  "Cumulative_Delta": {}
+}

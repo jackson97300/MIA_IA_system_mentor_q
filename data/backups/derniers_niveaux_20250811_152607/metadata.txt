@@ -1,0 +1,9 @@
+SAUVEGARDE DERNIERS NIVEAUX CSV
+Date: 2025-08-11 15:26:07
+Session: Avant US
+Fichiers: 3
+
+Fichiers sauvegardés:
+- data/backups/derniers_niveaux_20250811_152607/options_snapshots\spx_data_20250811.csv
+- data/backups/derniers_niveaux_20250811_152607/options_snapshots\spx_options_final_20250811.csv
+- data/backups/derniers_niveaux_20250811_152607/options_snapshots\final\spx_final_20250811.csv

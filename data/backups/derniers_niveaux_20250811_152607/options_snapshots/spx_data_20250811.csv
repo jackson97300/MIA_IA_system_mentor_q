@@ -1,0 +1,4 @@
+timestamp,vix_level,put_call_ratio,gamma_exposure,dealer_position,gamma_flip_level,data_source
+2025-08-10T22:02:46.374777+00:00,20.5,0.85,75000000000.0,neutral,5400.0,asian_session_test
+2025-08-10T23:02:46.374787+00:00,21.2,0.88,78000000000.0,slightly_long,5410.0,asian_session_test
+2025-08-10T23:32:46.374792+00:00,19.8,0.82,72000000000.0,slightly_short,5390.0,asian_session_test

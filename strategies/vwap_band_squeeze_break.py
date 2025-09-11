@@ -116,3 +116,4 @@ class VwapBandSqueezeBreak:
             }
             
         return None
+
