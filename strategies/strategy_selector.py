@@ -47,6 +47,8 @@ from core.base_types import (
 # Les classes MarketRegime seront importées dynamiquement
 # Utilisation du système de lazy loading
 from features import create_feature_calculator, create_market_regime_detector
+from features.market_regime import MarketRegime, MarketRegimeData
+from features.feature_calculator_optimized import FeatureCalculationResult
 from .trend_strategy import (
     TrendStrategy, TrendSignalData, TrendSignalType,
     create_trend_strategy

@@ -15,14 +15,14 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from automation_modules.sierra_vix_analyzer import (
+from features.sierra_vix_analyzer import (
     SierraVIXAnalyzer, VIXConfig, VIXData, VIXSignal, VIXRegime, 
     VIXTradingImplication, create_scalping_vix_config
 )
-from automation_modules.sierra_dom_integrator import (
+from features.sierra_dom_integrator import (
     SierraDOMIntegrator, DOMBattleNavaleSignal, DOMIntegrationConfig
 )
-from automation_modules.sierra_dom_analyzer import DOMConfig
+from features.sierra_dom_analyzer import DOMConfig
 from core.base_types import MarketData, OrderFlowData
 from core.logger import get_logger
 
@@ -629,7 +629,7 @@ class SierraVIXDOMIntegrator:
 # Factory functions
 def create_scalping_vix_dom_integrator() -> SierraVIXDOMIntegrator:
     """Intégrateur VIX+DOM pour scalping"""
-    from automation_modules.sierra_dom_analyzer import create_scalping_dom_config
+    from features.sierra_dom_analyzer import create_scalping_dom_config
     
     vix_config = create_scalping_vix_config()
     dom_config = create_scalping_dom_config()

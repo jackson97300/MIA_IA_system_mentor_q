@@ -20,7 +20,7 @@ def test_imports():
     
     try:
         print("  📦 Import automation_modules.config_manager...")
-        from automation_modules.config_manager import AutomationConfig
+        from config.automation_config import AutomationConfig
         print("    ✅ OK")
     except Exception as e:
         print(f"    ❌ ERREUR: {e}")

@@ -31,7 +31,7 @@ class ProductionSystemTester:
             print("\n🎯 Test d'intégration complète du système...")
             
             # 1. Configuration
-            from automation_modules.config_manager import AutomationConfig
+            from config.automation_config import AutomationConfig
             self.config = AutomationConfig()
             self.config.simulation_mode = False
             self.config.live_trading = True
@@ -43,7 +43,7 @@ class ProductionSystemTester:
             print("✅ Configuration production: OK")
             
             # 2. Création du système principal
-            from automation_modules.optimized_trading_system import OptimizedTradingSystem
+            from execution.simple_trader import OptimizedTradingSystem
             self.system = OptimizedTradingSystem(self.config)
             print("✅ Système principal créé: OK")
             
@@ -63,27 +63,27 @@ class ProductionSystemTester:
         print("  🔧 Test des modules critiques...")
         
         # Risk Manager
-        from automation_modules.risk_manager import RiskManager
+        from execution.risk_manager import RiskManager
         risk_manager = RiskManager(self.config)
         print("    ✅ Risk Manager: OK")
         
         # Validation Engine
-        from automation_modules.validation_engine import create_validation_engine
+        from features.validation_engine import create_validation_engine
         validation_engine = create_validation_engine(self.config)
         print("    ✅ Validation Engine: OK")
         
         # Trading Executor
-        from automation_modules.trading_executor import create_trading_executor
+        from execution.trading_executor import create_trading_executor
         trading_executor = create_trading_executor(self.config)
         print("    ✅ Trading Executor: OK")
         
         # Performance Tracker
-        from automation_modules.performance_tracker import PerformanceTracker
+        from monitoring.performance_tracker import PerformanceTracker
         performance_tracker = PerformanceTracker()
         print("    ✅ Performance Tracker: OK")
         
         # Confluence Calculator
-        from automation_modules.confluence_calculator import EnhancedConfluenceCalculator
+        from features.confluence_calculator import EnhancedConfluenceCalculator
         confluence_calculator = EnhancedConfluenceCalculator()
         print("    ✅ Confluence Calculator: OK")
     
@@ -105,25 +105,25 @@ class ProductionSystemTester:
             print("✅ Données de marché: OK")
             
             # 2. Calcul de confluence
-            from automation_modules.confluence_calculator import EnhancedConfluenceCalculator
+            from features.confluence_calculator import EnhancedConfluenceCalculator
             calculator = EnhancedConfluenceCalculator()
             confluence_result = calculator.calculate_enhanced_confluence(market_data)
             print("✅ Calcul confluence: OK")
             
             # 3. Validation du signal
-            from automation_modules.validation_engine import create_validation_engine
+            from features.validation_engine import create_validation_engine
             validation_engine = create_validation_engine(self.config)
             validation_result = validation_engine.validate_signal_with_enhanced_filters(market_data)
             print("✅ Validation signal: OK")
             
             # 4. Vérification des risques
-            from automation_modules.risk_manager import RiskManager
+            from execution.risk_manager import RiskManager
             risk_manager = RiskManager(self.config)
             risk_check = risk_manager.check_signal_confidence(0.75)
             print("✅ Vérification risques: OK")
             
             # 5. Simulation d'exécution
-            from automation_modules.trading_executor import create_trading_executor
+            from execution.trading_executor import create_trading_executor
             executor = create_trading_executor(self.config)
             print("✅ Préparation exécution: OK")
             
@@ -173,7 +173,7 @@ class ProductionSystemTester:
             invalid_data = {}
             
             # Test validation avec données vides
-            from automation_modules.validation_engine import create_validation_engine
+            from features.validation_engine import create_validation_engine
             validation_engine = create_validation_engine(self.config)
             try:
                 result = validation_engine.validate_signal_with_enhanced_filters(invalid_data)
@@ -182,7 +182,7 @@ class ProductionSystemTester:
                 print(f"⚠️ Exception attendue: {e}")
             
             # Test risk manager avec valeurs invalides
-            from automation_modules.risk_manager import RiskManager
+            from execution.risk_manager import RiskManager
             risk_manager = RiskManager(self.config)
             try:
                 result = risk_manager.check_signal_confidence(-1.0)
@@ -209,7 +209,7 @@ class ProductionSystemTester:
             print("✅ Configuration valide: OK")
             
             # Test création système avec config
-            from automation_modules.optimized_trading_system import OptimizedTradingSystem
+            from execution.simple_trader import OptimizedTradingSystem
             system = OptimizedTradingSystem(valid_config)
             print("✅ Création système avec config: OK")
             

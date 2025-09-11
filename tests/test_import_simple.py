@@ -40,7 +40,7 @@ modules_to_test = [
 for class_name, module_name in modules_to_test:
     try:
         # Import direct du module
-        module = __import__(f"automation_modules.{module_name}", fromlist=[class_name])
+        module = __import__(f"execution.{module_name}", fromlist=[class_name])
         class_obj = getattr(module, class_name)
         print(f"✅ {class_name} ({module_name}) - OK")
     except Exception as e:
@@ -54,7 +54,7 @@ factory_functions = [
 
 for func_name, module_name in factory_functions:
     try:
-        module = __import__(f"automation_modules.{module_name}", fromlist=[func_name])
+        module = __import__(f"execution.{module_name}", fromlist=[func_name])
         func_obj = getattr(module, func_name)
         print(f"✅ {func_name} ({module_name}) - OK")
     except Exception as e:
@@ -62,14 +62,14 @@ for func_name, module_name in factory_functions:
 
 # Test 4: Import des enums Sierra
 try:
-    from automation_modules.sierra_connector import OrderSide, OrderType, OrderStatus
+    from execution.sierra_connector import OrderSide, OrderType, OrderStatus
     print("✅ Enums Sierra (OrderSide, OrderType, OrderStatus) - OK")
 except Exception as e:
     print(f"❌ Enums Sierra - Erreur: {e}")
 
 # Test 5: Import des fonctions Sierra
 try:
-    from automation_modules.sierra_config import create_optimized_sierra_config, create_trading_strategy_config
+    from config.sierra_config import create_optimized_sierra_config, create_trading_strategy_config
     print("✅ Fonctions Sierra config - OK")
 except Exception as e:
     print(f"❌ Fonctions Sierra config - Erreur: {e}")

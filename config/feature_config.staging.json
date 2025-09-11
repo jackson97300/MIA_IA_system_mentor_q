@@ -1,0 +1,30 @@
+{
+  "vwap": {
+    "max_history": 1536
+  },
+  "volume_profile": {
+    "max_history_size": 3750
+  },
+  "nbcv": {
+    "min_volume": 45
+  },
+  "advanced": {
+    "enabled": true,
+    "tick_momentum": { 
+      "window": 15
+    },
+    "delta_divergence": { 
+      "lookback": 8
+    }
+  },
+  "data_sources": {
+    "max_lines_per_read": 1500,
+    "cache_ttl_seconds": 45
+  },
+  "staging": {
+    "debug_mode": false,
+    "verbose_logging": false,
+    "mock_data_enabled": false,
+    "performance_monitoring": true
+  }
+}

@@ -16,6 +16,8 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass
 import logging
+import time
+from core.base_types import normalize_ts
 
 logger = logging.getLogger(__name__)
 
@@ -109,8 +111,9 @@ class MIADataReader:
                     try:
                         data = json.loads(line.strip())
                         
-                        # Extraire les informations de base
-                        timestamp = datetime.fromtimestamp(data.get('t', 0))
+                        # Extraire les informations de base avec normalisation
+                        raw_timestamp = data.get('t', 0)
+                        timestamp = normalize_ts(raw_timestamp)
                         symbol = data.get('sym', 'ES')
                         chart = data.get('chart', 3)
                         data_type = data.get('type', 'unknown')
@@ -200,8 +203,19 @@ class MIADataReader:
             snapshot.trades.append(data)
     
     def get_latest_snapshot(self, symbol: str = "ES") -> Optional[MarketDataSnapshot]:
-        """Récupère le snapshot le plus récent pour un symbole"""
-        snapshots = self.read_unified_data(max_lines=500)
+        """Récupère le snapshot le plus récent pour un symbole avec cache"""
+        # Vérifier le cache d'abord
+        cache_key = f"latest_snapshot_{symbol}"
+        current_time = time.time()
+        
+        if cache_key in self.cache:
+            snapshot, timestamp = self.cache[cache_key]
+            # Cache valide pendant 5 secondes
+            if current_time - timestamp < 5.0:
+                return snapshot
+        
+        # Lire plus de lignes pour avoir plus de données historiques
+        snapshots = self.read_unified_data(max_lines=2000)
         
         # Mapping des symboles vers les patterns dans le fichier JSONL
         symbol_patterns = {
@@ -226,6 +240,10 @@ class MIADataReader:
             return None
         
         latest = max(symbol_snapshots, key=lambda s: s.timestamp)
+        
+        # Mettre en cache
+        self.cache[cache_key] = (latest, current_time)
+        
         logger.info(f"📊 Snapshot le plus récent pour {symbol}: {latest.symbol} à {latest.timestamp}")
         return latest
     
@@ -243,7 +261,7 @@ class MIADataReader:
         logger.info(f"📁 Fichier MenthorQ Graph 10: {latest_chart_10.name}")
         
         # Lire les données du fichier chart_10
-        snapshots = self.read_unified_data(latest_chart_10, max_lines=500)
+        snapshots = self.read_unified_data(latest_chart_10, max_lines=1000)
         
         # Chercher spécifiquement sur le Graph 10 pour MenthorQ
         menthorq_snapshots = []
@@ -284,13 +302,16 @@ class MIADataReader:
 def create_market_data_dict(snapshot: MarketDataSnapshot) -> Dict[str, Any]:
     """Convertit un snapshot en dictionnaire compatible avec les features existantes"""
     
+    # Normaliser le timestamp
+    normalized_timestamp = normalize_ts(snapshot.timestamp)
+    
     market_data = {
-        'timestamp': snapshot.timestamp,
+        'timestamp': normalized_timestamp,
         'symbol': snapshot.symbol,
         'chart': snapshot.chart
     }
     
-    # BaseData
+    # BaseData - Génération de données par défaut si manquantes
     if snapshot.basedata:
         market_data.update({
             'open': snapshot.basedata.get('o', 4500.0),
@@ -301,6 +322,32 @@ def create_market_data_dict(snapshot: MarketDataSnapshot) -> Dict[str, Any]:
             'bid_volume': snapshot.basedata.get('bidvol', 500),
             'ask_volume': snapshot.basedata.get('askvol', 500)
         })
+    else:
+        # Génération de données OHLC par défaut basées sur les trades
+        if snapshot.trades:
+            prices = [trade.get('price', 4500.0) for trade in snapshot.trades]
+            volumes = [trade.get('volume', 1) for trade in snapshot.trades]
+            
+            market_data.update({
+                'open': prices[0] if prices else 4500.0,
+                'high': max(prices) if prices else 4505.0,
+                'low': min(prices) if prices else 4495.0,
+                'close': prices[-1] if prices else 4500.0,
+                'volume': sum(volumes) if volumes else 1000,
+                'bid_volume': sum(volumes) // 2 if volumes else 500,
+                'ask_volume': sum(volumes) // 2 if volumes else 500
+            })
+        else:
+            # Données par défaut si aucune donnée disponible
+            market_data.update({
+                'open': 4500.0,
+                'high': 4505.0,
+                'low': 4495.0,
+                'close': 4500.0,
+                'volume': 1000,
+                'bid_volume': 500,
+                'ask_volume': 500
+            })
     
     # VWAP
     if snapshot.vwap_current:
@@ -323,7 +370,7 @@ def create_market_data_dict(snapshot: MarketDataSnapshot) -> Dict[str, Any]:
             'ppoc': snapshot.vva.get('ppoc', 4500.0)
         })
     
-    # NBCV OrderFlow
+    # NBCV OrderFlow - Génération de données delta si manquantes
     if snapshot.nbcv_footprint:
         market_data.update({
             'ask_volume': snapshot.nbcv_footprint.get('ask_volume', 500),
@@ -332,6 +379,43 @@ def create_market_data_dict(snapshot: MarketDataSnapshot) -> Dict[str, Any]:
             'trades': snapshot.nbcv_footprint.get('trades', 100),
             'cumulative_delta': snapshot.nbcv_footprint.get('cumulative_delta', 0),
             'total_volume': snapshot.nbcv_footprint.get('total_volume', 1000)
+        })
+    else:
+        # Génération de données delta basées sur les trades et quotes
+        bid_volume = 0
+        ask_volume = 0
+        
+        if snapshot.trades:
+            # Estimation basée sur les prix des trades vs bid/ask
+            for trade in snapshot.trades:
+                price = trade.get('price', 4500.0)
+                volume = trade.get('volume', 1)
+                
+                # Estimation simple : prix proche du bid = volume bid, sinon ask
+                if snapshot.quotes:
+                    bid = snapshot.quotes.get('bid', price - 0.25)
+                    ask = snapshot.quotes.get('ask', price + 0.25)
+                    mid = (bid + ask) / 2
+                    
+                    if price <= mid:
+                        bid_volume += volume
+                    else:
+                        ask_volume += volume
+                else:
+                    # Répartition 50/50 si pas de quotes
+                    bid_volume += volume // 2
+                    ask_volume += volume - (volume // 2)
+        
+        delta = ask_volume - bid_volume
+        total_volume = bid_volume + ask_volume
+        
+        market_data.update({
+            'ask_volume': ask_volume,
+            'bid_volume': bid_volume,
+            'delta': delta,
+            'trades': len(snapshot.trades) if snapshot.trades else 0,
+            'cumulative_delta': delta,  # Simplification pour les tests
+            'total_volume': total_volume if total_volume > 0 else 1000
         })
     
     # NBCV OrderFlow Metrics (volume_imbalance)

@@ -95,7 +95,8 @@ __all__ = [
     'is_module_available',
     'get_integrity_status',
     'start_integrity_monitoring',
-    'stop_integrity_monitoring'
+    'stop_integrity_monitoring',
+    'MarketRegimeDetector'  # Export direct pour compatibilité
 ]
 
 # === LAZY LOADING FUNCTIONS ===
@@ -168,18 +169,18 @@ def _lazy_get_factory(module_name: str) -> Optional[Callable]:
 # === FACTORY FUNCTIONS ===
 
 def create_feature_calculator(config=None):
-    """Factory pour FeatureCalculator avec fallback vers version optimisée"""
-    # Essayer d'abord la version optimisée
-    factory = _lazy_get_factory('feature_calculator_optimized')
+    """Factory pour FeatureCalculator avec version optimisée"""
+    # Utiliser la version optimisée
+    factory = _lazy_get_factory('feature_calculator')
     if factory:
         try:
             return factory(config)
         except Exception as e:
-            logger.warning(f"Version optimisée échouée, fallback standard: {e}")
+            logger.warning(f"Erreur création FeatureCalculator: {e}")
+            return None
     
-    # Fallback vers version standard
-    factory = _lazy_get_factory('feature_calculator')
-    return factory(config) if factory else None
+    logger.error("Factory FeatureCalculator non disponible")
+    return None
 
 def create_market_regime_detector(config=None):
     """Factory pour MarketRegimeDetector"""
@@ -417,3 +418,27 @@ logger.info(f"📈 Module availability: {initial_status['summary']['available_mo
 
 # Configurer le monitoring d'intégrité (sans le démarrer automatiquement)
 _setup_integrity_monitoring()
+
+# Export direct de MarketRegimeDetector pour compatibilité
+def _get_market_regime_detector():
+    """Récupère la classe MarketRegimeDetector"""
+    return _lazy_get_class('market_regime')
+
+# Ajouter MarketRegimeDetector aux exports globaux
+MarketRegimeDetector = _get_market_regime_detector()
+
+# Export direct de ConfluenceAnalyzer pour compatibilité
+def _get_confluence_analyzer():
+    return _lazy_get_class('confluence_analyzer')
+
+ConfluenceAnalyzer = _get_confluence_analyzer()
+
+# === COMPATIBILITÉ LEGACY ===
+# Re-exports pour compat legacy - confluence_calculator
+try:
+    from .confluence_calculator import ConfluenceAnalyzer as LegacyConfluenceAnalyzer, ConfluenceCalculator, ConfluenceZone
+    # Ajouter aux exports globaux
+    __all__.extend(['ConfluenceCalculator', 'ConfluenceZone'])
+except ImportError:
+    # Si le shim n'est pas disponible, ignorer silencieusement
+    pass

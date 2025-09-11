@@ -9,7 +9,7 @@ Tests pour le routeur d'ordres Sierra Chart via DTC.
 import pytest
 import socket
 from unittest.mock import Mock, patch, MagicMock
-from core.sierra_order_router import (
+from execution.sierra_order_router import (
     SierraOrderRouter, 
     OrderResult, 
     OrderRequest,

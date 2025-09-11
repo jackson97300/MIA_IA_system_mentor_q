@@ -107,3 +107,4 @@ class EsNqLeadLagMirror:
             
         return None
 
+

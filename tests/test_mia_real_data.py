@@ -23,7 +23,7 @@ from typing import Dict, Any, Optional
 sys.path.append(str(Path(__file__).parent))
 
 from core.logger import get_logger
-from automation_modules.config_manager import AutomationConfig
+from config.automation_config import AutomationConfig
 
 logger = get_logger(__name__)
 

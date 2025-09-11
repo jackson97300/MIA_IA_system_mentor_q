@@ -802,7 +802,7 @@ class HealthChecker:
 
             elif comp_name == "sierra_connector":
                 try:
-                    from core.sierra_connector import SierraConnector
+                    from execution.sierra_connector import SierraConnector
                     return HealthStatus.HEALTHY
                 except Exception:
                     return HealthStatus.WARNING

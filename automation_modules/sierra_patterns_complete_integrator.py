@@ -25,7 +25,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from core.logger import get_logger
 from core.base_types import MarketData, OrderFlowData
 from core.battle_navale import BattleNavaleDetector, create_battle_navale_detector
-from automation_modules.sierra_battle_navale_integrator import (
+from execution.sierra_battle_navale_integrator import (
     SierraBattleNavaleIntegrator,
     IntegratedSignal,
     IntegrationConfig,

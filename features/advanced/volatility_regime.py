@@ -192,6 +192,30 @@ class VolatilityRegimeCalculator:
         except Exception as e:
             logger.error(f"❌ Erreur ajout données volatilité réelles: {e}")
     
+    def _calculate_atr(self, open_price: float, high: float, low: float, close: float) -> float:
+        """Calcule l'ATR (Average True Range) simple pour une barre"""
+        try:
+            # True Range = max(high-low, abs(high-close_prev), abs(low-close_prev))
+            # Pour une seule barre, on utilise high-low comme approximation
+            true_range = high - low
+            return max(true_range, 0.5)  # Minimum 0.5 pour éviter les valeurs trop faibles
+        except Exception as e:
+            logger.error(f"❌ Erreur calcul ATR: {e}")
+            return 2.0  # Valeur par défaut
+    
+    def add_atr_data(self, atr_value: float) -> None:
+        """Ajoute une valeur ATR à l'historique"""
+        try:
+            self.atr_history.append(atr_value)
+            
+            # Maintenir la taille de l'historique
+            if len(self.atr_history) > self.atr_period * 2:
+                self.atr_history.popleft()
+            
+            logger.debug(f"✅ ATR ajouté: {atr_value:.2f} (historique: {len(self.atr_history)})")
+        except Exception as e:
+            logger.error(f"❌ Erreur ajout ATR: {e}")
+    
     def calculate_volatility_regime(self) -> VolatilityRegimeResult:
         """
         🎯 CALCUL PRINCIPAL: Analyse régime de volatilité
@@ -266,6 +290,16 @@ class VolatilityRegimeCalculator:
         except Exception as e:
             logger.error(f"Erreur calcul régime volatilité: {e}")
             return self._create_default_result(start_time)
+
+    # ✅ Compat API: certaines intégrations appellent add_vix_data()
+    def add_vix_data(self, vix_value: float, timestamp: Optional[float] = None) -> None:
+        """Ajoute une observation VIX dans l'historique."""
+        try:
+            if vix_value is None:
+                return
+            self.vix_history.append(float(vix_value))
+        except Exception:
+            pass
     
     def _calculate_true_range(self, price_data: MarketData) -> float:
         """Calcule True Range pour une barre"""

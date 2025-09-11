@@ -23,24 +23,35 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # === IMPORTS SYSTÈME ===
 try:
     from core.logger import get_logger
-    from features import create_feature_calculator, create_market_regime_detector
+    from features import create_market_regime_detector
+    from features.feature_calculator_optimized import create_feature_calculator_optimized as create_feature_calculator
     from strategies.strategy_selector_integrated import IntegratedStrategySelector, create_integrated_strategy_selector, TradingContext
     from strategies.menthorq_of_bundle import MENTHORQ_STRATEGIES, FAMILY_TAGS
     
-    # === IMPORTS SIERRA CHART ===
-    from core.sierra_connector import SierraConnector, create_sierra_connector
+    # === IMPORTS SIERRA CHART (OPTIMISÉS) ===
+    from execution.imports_optimizer import (
+        get_sierra_connector, get_risk_manager, get_simple_trader, 
+        get_trading_executor, preload_execution_modules, get_execution_import_metrics
+    )
     from core.mia_unifier_stub import UnifiedEmitter, create_unified_emitter
     from core.data_collector_enhanced import DataCollectorEnhanced
     from core.advanced_metrics import AdvancedMetrics
+    from core.mia_bullish import BullishScorer
     SIERRA_AVAILABLE = True
 except ImportError as e:
     print(f"❌ Erreur import: {e}")
     SIERRA_AVAILABLE = False
     # Fallback pour les imports Sierra Chart
-    SierraConnector = None
+    get_sierra_connector = None
+    get_risk_manager = None
+    get_simple_trader = None
+    get_trading_executor = None
+    preload_execution_modules = None
+    get_execution_import_metrics = None
     UnifiedEmitter = None
     DataCollectorEnhanced = None
     AdvancedMetrics = None
+    BullishScorer = None
 
 logger = get_logger(__name__)
 
@@ -66,7 +77,7 @@ FINAL_CONFIG = {
     
     # Performance
     'max_signals_per_day': 12,
-    'processing_timeout_ms': 100,
+    'processing_timeout_ms': 500,  # Augmenté pour permettre l'analyse des 16 stratégies
     
     # Régime detection
     'regime_config': {
@@ -113,6 +124,12 @@ class MIAFinalSystem:
         self.sierra_connector = None
         self.unified_emitter = None
         self.data_collector = None
+        self.bullish_scorer = None
+        
+        # Execution Components
+        self.trading_system = None
+        self.risk_manager = None
+        self.trading_executor = None
         
         # Variables de suivi pour calculs avancés
         self.previous_delta = None
@@ -136,6 +153,13 @@ class MIAFinalSystem:
         logger.info("🚀 Initialisation du système MIA Final avec 16 stratégies + Architecture Multi-Chart Sierra Chart")
         
         try:
+            # Préchargement des modules execution/ pour optimiser les performances
+            if preload_execution_modules:
+                logger.info("🔄 Préchargement des modules execution/...")
+                preload_results = preload_execution_modules()
+                success_count = sum(preload_results.values())
+                logger.info(f"✅ {success_count}/{len(preload_results)} modules execution/ préchargés")
+            
             # Strategy Selector avec toutes les stratégies
             self.strategy_selector = create_integrated_strategy_selector(self.config)
             logger.info("✅ Strategy Selector initialisé avec 16 stratégies")
@@ -169,12 +193,15 @@ class MIAFinalSystem:
     def _initialize_sierra_components(self):
         """Initialise les composants Sierra Chart"""
         try:
-            # Sierra Connector pour lecture des données unifiées
-            self.sierra_connector = create_sierra_connector({
-                'data_path': self.config.get('sierra_data_path', 'D:/MIA_IA_system'),
-                'unified_pattern': self.config.get('sierra_unified_pattern', 'mia_unified_*.jsonl'),
-                'charts': self.config.get('sierra_charts', [3, 4, 8, 10])
-            })
+            # Sierra Connector pour lecture des données unifiées (import optimisé)
+            if get_sierra_connector is not None:
+                self.sierra_connector = get_sierra_connector({
+                    'data_path': self.config.get('sierra_data_path', 'D:/MIA_IA_system'),
+                    'unified_pattern': self.config.get('sierra_unified_pattern', 'mia_unified_*.jsonl'),
+                    'charts': self.config.get('sierra_charts', [3, 4, 8, 10])
+                })
+                if self.sierra_connector:
+                    logger.info("✅ Sierra Connector initialisé (import optimisé)")
             
             # Unified Emitter pour traitement des données
             self.unified_emitter = create_unified_emitter()
@@ -182,7 +209,30 @@ class MIAFinalSystem:
             # Data Collector Enhanced
             self.data_collector = DataCollectorEnhanced(self.config)
             
-            logger.info("✅ Composants Sierra Chart initialisés avec succès")
+            # Bullish Scorer pour scoring OrderFlow en temps réel
+            if BullishScorer is not None:
+                self.bullish_scorer = BullishScorer(chart_id=3, use_vix=True)
+                logger.info("✅ Bullish Scorer initialisé (OrderFlow bias)")
+            else:
+                logger.warning("⚠️ BullishScorer non disponible")
+            
+            # === INITIALISATION COMPOSANTS EXÉCUTION (OPTIMISÉS) ===
+            if get_simple_trader is not None:
+                self.trading_system = get_simple_trader(self.config)
+                if self.trading_system:
+                    logger.info("✅ Trading System initialisé (import optimisé)")
+            
+            if get_risk_manager is not None:
+                self.risk_manager = get_risk_manager(self.config)
+                if self.risk_manager:
+                    logger.info("✅ Risk Manager initialisé (import optimisé)")
+            
+            if get_trading_executor is not None:
+                self.trading_executor = get_trading_executor()
+                if self.trading_executor:
+                    logger.info("✅ Trading Executor initialisé (import optimisé)")
+            
+            logger.info("✅ Composants Sierra Chart et Execution initialisés avec succès")
             
         except Exception as e:
             logger.error(f"❌ Erreur initialisation composants Sierra Chart: {e}")
@@ -200,6 +250,25 @@ class MIAFinalSystem:
         """Crée un contexte de trading à partir des données de marché avec métriques avancées"""
         # Enrichir le market_data avec les métriques avancées
         enriched_market_data = market_data.copy()
+        
+        # === SCORING BULLISH (OrderFlow Bias) ===
+        bullish_score = None
+        if self.bullish_scorer and 'sierra_events' in market_data:
+            # Traiter les événements Sierra Chart avec le BullishScorer
+            for event in market_data.get('sierra_events', []):
+                try:
+                    bullish_result = self.bullish_scorer.ingest(event)
+                    if bullish_result and bullish_result.get('type') == 'mia_bullish':
+                        bullish_score = bullish_result.get('score', 0.5)
+                        logger.debug(f"🎯 Bullish Score: {bullish_score:.3f} (pressure: {bullish_result.get('pressure', 0)}, dr: {bullish_result.get('dr', 0):.4f})")
+                        break
+                except Exception as e:
+                    logger.debug(f"⚠️ Erreur scoring bullish: {e}")
+                    continue
+        
+        # Ajouter le score bullish au contexte
+        if bullish_score is not None:
+            enriched_market_data['bullish_score'] = bullish_score
         
         # Ajouter les métriques avancées si disponibles
         if 'quotes' in market_data:
@@ -361,7 +430,8 @@ class MIAFinalSystem:
                 "timestamp": pd.Timestamp.now(),
                 "sierra_data": latest_data,
                 "chart": latest_data.get("chart", 3),
-                "type": latest_data.get("type", "basedata")
+                "type": latest_data.get("type", "basedata"),
+                "sierra_events": [latest_data]  # Pour le scoring bullish
             }
             
             # Ajouter les données spécifiques selon le type
@@ -535,6 +605,14 @@ class MIAFinalSystem:
             }
         })
         
+        # Ajouter métriques d'import si disponibles
+        if get_execution_import_metrics:
+            try:
+                import_metrics = get_execution_import_metrics()
+                status['import_metrics'] = import_metrics
+            except Exception as e:
+                logger.debug(f"⚠️ Erreur récupération métriques import: {e}")
+        
         return status
     
     def get_performance_report(self) -> Dict[str, Any]:
@@ -689,8 +767,23 @@ async def run_trading_loop(system: MIAFinalSystem):
                     if bd.get('last_wick_ticks', 0) > 5:  # Mèche importante
                         logger.info(f"📏 Mèche importante: {bd['last_wick_ticks']:.1f} ticks")
                 
-                # Ici vous exécuteriez le trade via Sierra Chart DTC
-                # await execute_trade_via_sierra(result['signal'])
+                # Exécution du trade via Sierra Chart DTC
+                if self.trading_executor and self.risk_manager:
+                    try:
+                        # Vérification risk management
+                        if self.risk_manager.check_signal_risk(result['signal']):
+                            # Exécution via TradingExecutor
+                            execution_result = await self.trading_executor.execute_signal(result['signal'])
+                            if execution_result.success:
+                                logger.info(f"✅ Trade exécuté avec succès: {execution_result.order_id}")
+                            else:
+                                logger.warning(f"⚠️ Échec exécution trade: {execution_result.error}")
+                        else:
+                            logger.warning("⚠️ Signal rejeté par risk management")
+                    except Exception as e:
+                        logger.error(f"❌ Erreur exécution trade: {e}")
+                else:
+                    logger.info("🎭 Mode simulation - Trade non exécuté")
             else:
                 # Log des raisons de non-signal
                 reason = result.get('reason', 'no_signal')

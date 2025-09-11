@@ -19,7 +19,7 @@ from typing import Dict, List, Tuple
 # Ajouter le chemin du projet
 sys.path.append(str(Path(__file__).parent))
 
-from features.feature_calculator import FeatureCalculator
+from features.feature_calculator_optimized import FeatureCalculatorOptimized as FeatureCalculator
 from features.spx_options_retriever import SPXOptionsRetriever
 from core.logger import get_logger
 from utils.numeric import approx_eq, approx_le, approx_ge, EPSILON
@@ -233,7 +233,7 @@ class MonotonicityTester:
     
     def _create_test_options_data(self, **kwargs):
         """Créer données options de test"""
-        from features.feature_calculator import OptionsData
+        from features.feature_calculator_optimized import OptionsData
         
         defaults = {
             'call_wall': 5450,

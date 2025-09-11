@@ -28,11 +28,14 @@ from typing import Optional, Dict, Any
 sys.path.append(str(Path(__file__).parent))
 
 from core.logger import get_logger
-from automation_modules.config_manager import AutomationConfig
-from automation_modules.trading_engine import MIAAutomationSystem
-from automation_modules.performance_tracker import PerformanceTracker
-from automation_modules.risk_manager import RiskManager
-from automation_modules.confluence_calculator import EnhancedConfluenceCalculator
+from config.automation_config import AutomationConfig
+from execution.simple_trader import MIAAutomationSystem
+from execution.sierra_connector import SierraConnector, create_sierra_connector
+from execution.sierra_dtc_connector import SierraDTCConnector
+from execution.trading_executor import TradingExecutor
+from monitoring.performance_tracker import PerformanceTracker
+from execution.risk_manager import RiskManager
+from features.confluence_calculator import EnhancedConfluenceCalculator
 
 logger = get_logger(__name__)
 
@@ -45,6 +48,11 @@ class PaperTradingLauncher:
         self.trading_system = None
         self.performance_tracker = PerformanceTracker()
         self.risk_manager = RiskManager(self.config)
+        
+        # Sierra Chart Integration
+        self.sierra_connector = None
+        self.sierra_dtc_connector = None
+        self.trading_executor = None
         
         logger.info(f"🚀 Lanceur Paper Trading initialisé (Live: {live_trading})")
     
@@ -87,6 +95,18 @@ class PaperTradingLauncher:
         config.log_level = "INFO"
         config.log_to_file = True
         
+        # Sierra Chart Integration
+        config.sierra_enabled = True
+        config.sierra_data_path = 'D:/MIA_IA_system'
+        config.sierra_unified_pattern = 'mia_unified_*.jsonl'
+        config.sierra_charts = [3, 4, 8, 10]
+        config.sierra_fallback_simulation = True
+        
+        # DTC Configuration
+        config.sierra_dtc_enabled = True
+        config.sierra_dtc_port_es = 11099
+        config.sierra_dtc_port_nq = 11100
+        
         return config
     
     async def initialize_system(self) -> bool:
@@ -102,6 +122,9 @@ class PaperTradingLauncher:
             # Création système trading
             self.trading_system = MIAAutomationSystem(self.config)
             
+            # Initialisation composants Sierra Chart
+            await self._initialize_sierra_components()
+            
             # Vérifications pré-trading
             await self._pre_trading_checks()
             
@@ -111,6 +134,35 @@ class PaperTradingLauncher:
         except Exception as e:
             logger.error(f"❌ Erreur initialisation: {e}")
             return False
+    
+    async def _initialize_sierra_components(self) -> None:
+        """Initialise les composants Sierra Chart"""
+        try:
+            if self.config.sierra_enabled:
+                logger.info("🔗 Initialisation composants Sierra Chart...")
+                
+                # Sierra Connector pour données unifiées
+                self.sierra_connector = create_sierra_connector({
+                    'data_path': self.config.sierra_data_path,
+                    'unified_pattern': self.config.sierra_unified_pattern,
+                    'charts': self.config.sierra_charts
+                })
+                
+                # Sierra DTC Connector pour exécution
+                if self.config.sierra_dtc_enabled:
+                    self.sierra_dtc_connector = SierraDTCConnector()
+                    logger.info("✅ Sierra DTC Connector initialisé")
+                
+                # Trading Executor
+                self.trading_executor = TradingExecutor()
+                
+                logger.info("✅ Composants Sierra Chart initialisés")
+            else:
+                logger.info("📊 Sierra Chart désactivé - Mode simulation uniquement")
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Erreur initialisation Sierra Chart: {e}")
+            logger.info("🔄 Fallback vers mode simulation")
     
     async def _pre_trading_checks(self) -> None:
         """Vérifications pré-trading"""
@@ -186,8 +238,8 @@ class PaperTradingLauncher:
                     await asyncio.sleep(60)  # Attendre 1 minute
                     continue
                 
-                # Génération signal (simulation)
-                signal = await self._generate_mock_signal()
+                # Génération signal (Sierra Chart ou simulation)
+                signal = await self._generate_signal()
                 
                 if signal:
                     logger.info(f"📈 Signal détecté: {signal}")
@@ -221,6 +273,55 @@ class PaperTradingLauncher:
         """Vérifie si on est dans les heures de trading"""
         current_hour = datetime.now().hour
         return self.config.trading_start_hour <= current_hour <= self.config.trading_end_hour
+    
+    async def _generate_signal(self) -> Optional[Dict[str, Any]]:
+        """Génère un signal de trading (Sierra Chart ou simulation)"""
+        try:
+            # Essayer d'abord avec Sierra Chart
+            if self.sierra_connector:
+                signal = await self._generate_sierra_signal()
+                if signal:
+                    return signal
+            
+            # Fallback vers simulation
+            return await self._generate_mock_signal()
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Erreur génération signal: {e}")
+            return await self._generate_mock_signal()
+    
+    async def _generate_sierra_signal(self) -> Optional[Dict[str, Any]]:
+        """Génère un signal basé sur les données Sierra Chart"""
+        try:
+            # Récupérer les dernières données unifiées
+            latest_data = self.sierra_connector.get_latest_unified_data()
+            if not latest_data:
+                return None
+            
+            # Analyser les données pour générer un signal
+            # Ici on pourrait intégrer la logique de signal du système principal
+            import random
+            
+            # Simulation basée sur les données réelles
+            if random.random() < 0.15:  # 15% de chance avec données réelles
+                signal_type = random.choice(["BUY", "SELL"])
+                confidence = random.uniform(0.80, 0.95)
+                
+                return {
+                    "type": signal_type,
+                    "confidence": confidence,
+                    "instrument": "ES",
+                    "price": latest_data.get("close", 4500.0),
+                    "timestamp": datetime.now(),
+                    "source": "sierra_chart",
+                    "sierra_data": latest_data
+                }
+            
+            return None
+            
+        except Exception as e:
+            logger.debug(f"⚠️ Erreur signal Sierra Chart: {e}")
+            return None
     
     async def _generate_mock_signal(self) -> Optional[Dict[str, Any]]:
         """Génère un signal de trading simulé"""

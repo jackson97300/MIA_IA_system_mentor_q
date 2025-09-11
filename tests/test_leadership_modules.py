@@ -18,7 +18,7 @@ def test_leadership_analyzer():
     
     try:
         from features.leadership_analyzer import create_leadership_analyzer
-        from automation_modules.config_manager import AutomationConfig
+        from config.automation_config import AutomationConfig
         
         config = AutomationConfig()
         analyzer = create_leadership_analyzer(config)
@@ -54,7 +54,7 @@ def test_confluence_integrator():
     
     try:
         from features.confluence_integrator import create_confluence_integrator
-        from automation_modules.config_manager import AutomationConfig
+        from config.automation_config import AutomationConfig
         
         config = AutomationConfig()
         integrator = create_confluence_integrator(config)
@@ -85,7 +85,7 @@ def test_leadership_config():
     
     try:
         from config.leadership_config import LeadershipConfigManager, LeadershipConfig
-        from automation_modules.config_manager import AutomationConfig
+        from config.automation_config import AutomationConfig
         
         # Test LeadershipConfigManager
         config_manager = LeadershipConfigManager()
@@ -120,7 +120,7 @@ def test_volatility_regime():
     
     try:
         from features.advanced.volatility_regime import VolatilityRegimeCalculator
-        from automation_modules.config_manager import AutomationConfig
+        from config.automation_config import AutomationConfig
         
         config = AutomationConfig()
         calculator = VolatilityRegimeCalculator(config)
@@ -152,7 +152,7 @@ def test_integration_leadership():
     try:
         from features.leadership_analyzer import create_leadership_analyzer
         from features.confluence_integrator import create_confluence_integrator
-        from automation_modules.config_manager import AutomationConfig
+        from config.automation_config import AutomationConfig
         
         config = AutomationConfig()
         

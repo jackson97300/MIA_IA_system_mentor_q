@@ -34,7 +34,7 @@ from core.base_types import (
     MarketData, OrderFlowData, TradingSignal, SignalType,
     MarketRegime, SignalStrength, ES_TICK_SIZE, ES_TICK_VALUE
 )
-from features.feature_calculator import (
+from features.feature_calculator_optimized import (
     FeatureCalculationResult, SignalQuality, TRADING_THRESHOLDS
 )
 
@@ -852,7 +852,7 @@ def test_trend_strategy():
     strategy = create_trend_strategy()
 
     # Simulation données
-    from features.feature_calculator import FeatureCalculationResult, SignalQuality
+    from features.feature_calculator_optimized import FeatureCalculationResult, SignalQuality
 
     # Features test (confluence élevée)
     features = FeatureCalculationResult(

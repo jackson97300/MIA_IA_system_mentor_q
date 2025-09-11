@@ -322,3 +322,136 @@ class AdvancedMetrics:
         self.displayed_qty_history.clear()
         self.prev_price = None
         self.prev_gamma_level = None
+
+    def calculate_bull_score(self, 
+                           nbcv_data: Optional[Dict[str, Any]] = None,
+                           vwap_data: Optional[Dict[str, Any]] = None,
+                           vva_data: Optional[Dict[str, Any]] = None,
+                           vix_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Calcule un score bullish/bearish continu multi-facteurs
+        
+        Args:
+            nbcv_data: Données NBCV avec pressure, delta_ratio, ask_percent, bid_percent
+            vwap_data: Données VWAP avec position vs prix actuel
+            vva_data: Données VVA avec position vs value area
+            vix_data: Données VIX avec niveau de volatilité
+            
+        Returns:
+            Dict avec score final et composants détaillés
+        """
+        # ===== 1) Score OrderFlow (40% du poids) =====
+        of_score = self._calculate_orderflow_score(nbcv_data)
+        
+        # ===== 2) Score Position vs VWAP (30% du poids) =====
+        vwap_score = self._calculate_vwap_position(vwap_data)
+        
+        # ===== 3) Score Value Area Context (20% du poids) =====
+        va_score = self._calculate_value_area_context(vva_data)
+        
+        # ===== 4) Score VIX Filter (10% du poids) =====
+        vix_score = self._calculate_vix_filter(vix_data)
+        
+        # ===== Score Final Pondéré =====
+        final_score = (0.4 * of_score + 
+                      0.3 * vwap_score + 
+                      0.2 * va_score + 
+                      0.1 * vix_score)
+        
+        # ===== Classification =====
+        if final_score >= 0.6:
+            sentiment = "BULLISH"
+        elif final_score <= 0.4:
+            sentiment = "BEARISH"
+        else:
+            sentiment = "NEUTRAL"
+        
+        return {
+            "bull_score": final_score,
+            "sentiment": sentiment,
+            "components": {
+                "orderflow": {"score": of_score, "weight": 0.4},
+                "vwap_position": {"score": vwap_score, "weight": 0.3},
+                "value_area": {"score": va_score, "weight": 0.2},
+                "vix_filter": {"score": vix_score, "weight": 0.1}
+            }
+        }
+    
+    def _calculate_orderflow_score(self, nbcv_data: Optional[Dict[str, Any]]) -> float:
+        """Calcule le score OrderFlow basé sur NBCV"""
+        if not nbcv_data:
+            return 0.5  # Neutre si pas de données
+        
+        # Score basé sur la pression OrderFlow
+        pressure = nbcv_data.get('pressure', 0)
+        if pressure == 1:  # BULLISH
+            return 0.8
+        elif pressure == -1:  # BEARISH
+            return 0.2
+        else:  # NEUTRAL
+            # Score basé sur le delta ratio
+            delta_ratio = nbcv_data.get('delta_ratio', 0.0)
+            if abs(delta_ratio) > 0.1:  # Delta significatif
+                return 0.5 + (delta_ratio * 0.3)  # -0.3 à +0.3 autour de 0.5
+            return 0.5
+    
+    def _calculate_vwap_position(self, vwap_data: Optional[Dict[str, Any]]) -> float:
+        """Calcule le score basé sur la position vs VWAP"""
+        if not vwap_data:
+            return 0.5  # Neutre si pas de données
+        
+        # Supposons que vwap_data contient 'v' (VWAP) et 'current_price'
+        vwap = vwap_data.get('v')
+        current_price = vwap_data.get('current_price')
+        
+        if not vwap or not current_price:
+            return 0.5
+        
+        # Score basé sur la distance au VWAP
+        distance_pct = (current_price - vwap) / vwap
+        
+        if distance_pct > 0.002:  # > 0.2% au-dessus
+            return 0.8
+        elif distance_pct < -0.002:  # < -0.2% en-dessous
+            return 0.2
+        else:  # Proche du VWAP
+            return 0.5 + (distance_pct * 50)  # Score proportionnel
+    
+    def _calculate_value_area_context(self, vva_data: Optional[Dict[str, Any]]) -> float:
+        """Calcule le score basé sur la position vs Value Area"""
+        if not vva_data:
+            return 0.5  # Neutre si pas de données
+        
+        # Supposons que vva_data contient VAH, VAL, VPOC et current_price
+        vah = vva_data.get('vah')
+        val = vva_data.get('val')
+        vpoc = vva_data.get('vpoc')
+        current_price = vva_data.get('current_price')
+        
+        if not all([vah, val, vpoc, current_price]):
+            return 0.5
+        
+        # Score basé sur la position dans la Value Area
+        if current_price > vah:  # Au-dessus de VAH
+            return 0.8
+        elif current_price < val:  # En-dessous de VAL
+            return 0.2
+        elif current_price > vpoc:  # Au-dessus du POC
+            return 0.6
+        else:  # En-dessous du POC
+            return 0.4
+    
+    def _calculate_vix_filter(self, vix_data: Optional[Dict[str, Any]]) -> float:
+        """Calcule le score basé sur le filtre VIX"""
+        if not vix_data:
+            return 0.5  # Neutre si pas de données
+        
+        vix = vix_data.get('vix', 20.0)  # Default VIX
+        
+        # Score basé sur le niveau de VIX
+        if vix < 15:  # VIX bas = marché calme = bullish
+            return 0.8
+        elif vix > 30:  # VIX élevé = marché stressé = bearish
+            return 0.2
+        else:  # VIX normal
+            return 0.5

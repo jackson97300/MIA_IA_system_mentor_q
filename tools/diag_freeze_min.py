@@ -97,7 +97,7 @@ def phase_import_core():
 
 def phase_config():
     start = time.perf_counter()
-    cfg_mod = importlib.import_module("automation_modules.config_manager")
+    cfg_mod = importlib.import_module("config.automation_config")
     AutomationConfig = getattr(cfg_mod, "AutomationConfig")
     cfg = AutomationConfig()
     dt = time.perf_counter() - start
@@ -114,10 +114,10 @@ def phase_config():
 
 def phase_light_modules(cfg):
     # N'importe que le minimum et en mode 'live=False'
-    of_mod = importlib.import_module("automation_modules.orderflow_analyzer")
-    val_mod = importlib.import_module("automation_modules.validation_engine")
-    risk_mod = importlib.import_module("automation_modules.risk_manager")
-    exe_mod = importlib.import_module("automation_modules.trading_executor")
+    of_mod = importlib.import_module("features.orderflow_analyzer")
+    val_mod = importlib.import_module("features.validation_engine")
+    risk_mod = importlib.import_module("execution.risk_manager")
+    exe_mod = importlib.import_module("execution.trading_executor")
 
     OrderFlowAnalyzer = getattr(of_mod, "OrderFlowAnalyzer")
     ValidationEngine  = getattr(val_mod, "ValidationEngine")

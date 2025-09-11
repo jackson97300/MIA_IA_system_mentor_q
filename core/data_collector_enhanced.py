@@ -135,7 +135,7 @@ class DataCollectorEnhanced:
             if hasattr(self.config, 'use_real_data') and self.config.use_real_data:
                 # PRIORITÉ 1: Essayer Sierra Chart DTC (plus fiable)
                 try:
-                    from core.sierra_sierra_connector import SierraSierraConnector
+                    from execution.sierra_connector import SierraConnector
                     
                     # Connexion Sierra Chart pour vraies données
                     sierra_connector = SierraConnector()

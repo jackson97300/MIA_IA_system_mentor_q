@@ -78,6 +78,7 @@ class DeltaDivergenceResult:
     calculation_time_ms: float     # Temps calcul
     data_points_analyzed: int      # Points analysés
     volume_confirmation: float     # Confirmation volume globale
+    divergence_type: DivergenceType = DivergenceType.NO_DIVERGENCE  # ✅ Ajout pour compat
     
     # ✅ CORRECTION: Ajout méthodes pour compatibilité dictionnaire
     def get(self, key: str, default=None):
@@ -319,7 +320,8 @@ class DeltaDivergenceDetector:
                 entry_signal=entry_signal,
                 calculation_time_ms=calc_time,
                 data_points_analyzed=periods,
-                volume_confirmation=volume_confirmation
+                volume_confirmation=volume_confirmation,
+                divergence_type=divergence_type
             )
             
             # Cache et stats

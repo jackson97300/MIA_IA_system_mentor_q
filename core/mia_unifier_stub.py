@@ -159,6 +159,11 @@ class UnifiedEmitter:
             self.on_context_update(patch)
 
 
+def create_unified_emitter(on_unified: Optional[Callable[[Dict[str, Any]], None]] = None,
+                           on_context_update: Optional[Callable[[Dict[str, Any]], None]] = None) -> UnifiedEmitter:
+    """Factory pour créer un UnifiedEmitter (compatibilité avec le launcher)."""
+    return UnifiedEmitter(on_unified=on_unified, on_context_update=on_context_update)
+
 ################################################################################
 # Routeur & unification
 ################################################################################

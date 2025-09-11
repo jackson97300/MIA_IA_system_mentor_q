@@ -44,7 +44,7 @@ async def test_signal_optimizations():
         # Test 3: Validation OrderFlow
         logger.info("🎯 Test 3: Validation OrderFlow améliorée")
         
-        from automation_modules.orderflow_analyzer import OrderFlowAnalyzer
+        from features.orderflow_analyzer import OrderFlowAnalyzer
         
         # Créer config de test
         class TestConfig:

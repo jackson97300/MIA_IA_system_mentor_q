@@ -24,6 +24,30 @@ from core.logger import get_logger
 # Configure logging
 logger = get_logger(__name__)
 
+# === TIMESTAMP NORMALIZATION ===
+EXCEL_EPOCH_OFFSET_DAYS = 25569  # 1970-01-01 - 1899-12-30
+SECONDS_PER_DAY = 86400.0
+
+def normalize_ts(ts):
+    """
+    Normalise les timestamps Sierra/Excel vers datetime UTC
+    Gère : Sierra/Excel days, epoch ms, epoch s, datetime
+    """
+    # déjà datetime
+    if hasattr(ts, "tzinfo"):
+        return ts
+    # Sierra/Excel days (ex: 45905.x)
+    if isinstance(ts, (int, float)) and 10000 < ts < 200000:
+        return datetime.fromtimestamp((ts - EXCEL_EPOCH_OFFSET_DAYS) * SECONDS_PER_DAY, tz=timezone.utc)
+    # epoch ms
+    if isinstance(ts, (int, float)) and ts > 1e12:
+        return datetime.fromtimestamp(ts / 1000.0, tz=timezone.utc)
+    # epoch s
+    if isinstance(ts, (int, float)) and ts > 1e9:
+        return datetime.fromtimestamp(ts, tz=timezone.utc)
+    # fallback
+    return datetime.fromtimestamp(0, tz=timezone.utc)
+
 # === TYPES UNIFIÉS POUR MIA_UNIFIED ===
 
 def parse_ts(x: str | datetime) -> datetime:
@@ -707,8 +731,12 @@ class PerformanceReport:
 # === UTILITY FUNCTIONS ===
 
 
-def get_session_phase(timestamp: pd.Timestamp) -> SessionPhase:
+def get_session_phase(timestamp: Union[pd.Timestamp, datetime, float]) -> SessionPhase:
     """Détermine la phase de session actuelle"""
+    # Utiliser la fonction de normalisation unifiée
+    timestamp = normalize_ts(timestamp)
+    
+    # Extraire l'heure
     hour = timestamp.hour
 
     if hour < 4:

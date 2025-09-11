@@ -311,8 +311,13 @@ class SessionOptimizer:
             logger.error(f"Erreur optimisation session: {e}")
             return self._create_default_result(start_time, timestamp)
     
-    def _get_current_session(self, timestamp: datetime) -> TradingSession:
+    def _get_current_session(self, timestamp) -> TradingSession:
         """Détermine la session actuelle selon l'heure"""
+        # Convertir timestamp Unix en datetime si nécessaire
+        if isinstance(timestamp, (int, float)):
+            from datetime import datetime, timezone
+            timestamp = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+        
         # Vérification weekend
         if timestamp.weekday() >= 5:  # Samedi = 5, Dimanche = 6
             return TradingSession.WEEKEND
@@ -345,6 +350,11 @@ class SessionOptimizer:
         """Analyse complète de la session actuelle"""
         current_session = self._get_current_session(timestamp)
         
+        # Convertir timestamp Unix en datetime si nécessaire
+        if isinstance(timestamp, (int, float)):
+            from datetime import datetime, timezone
+            timestamp = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+            
         # Calcul temps dans session
         session_def = self.session_definitions[current_session]
         start_hour = session_def['start_hour']
@@ -499,8 +509,13 @@ class SessionOptimizer:
             # Sessions standard - stable
             return 1.0
     
-    def _calculate_session_confidence(self, timestamp: datetime, session: TradingSession) -> float:
+    def _calculate_session_confidence(self, timestamp, session: TradingSession) -> float:
         """Calcule confiance dans la détection de session"""
+        # Convertir timestamp Unix en datetime si nécessaire
+        if isinstance(timestamp, (int, float)):
+            from datetime import datetime, timezone
+            timestamp = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+            
         # Distance aux transitions
         hour = timestamp.hour + (timestamp.minute / 60.0)
         session_def = self.session_definitions[session]

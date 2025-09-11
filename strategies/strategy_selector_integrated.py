@@ -138,6 +138,8 @@ class SystemPerformance:
     rejected_signals: int = 0
     avg_processing_time: float = 0.0
     current_risk: float = 0.0
+    cache_hits: int = 0
+    cache_misses: int = 0
 
 # === MAIN STRATEGY SELECTOR ===
 
@@ -178,6 +180,11 @@ class IntegratedStrategySelector:
         self.last_fire_ts = defaultdict(lambda: pd.Timestamp(0))
         self.fire_cooldown_sec = self.config.get("pattern_fire_cooldown_sec", 60)
         
+        # Cache de performance pour optimiser les calculs répétitifs
+        self.cache = {}
+        self.cache_ttl = 2.0  # 2 secondes
+        self.last_cache_cleanup = time.time()
+        
         # Paramètres
         self.min_pattern_confidence = self.config.get('min_pattern_confidence', 0.60)
         self.min_confluence_for_execution = self.config.get('min_confluence_execution', 0.70)
@@ -215,24 +222,33 @@ class IntegratedStrategySelector:
                 except Exception as e:
                     logger.warning(f"Erreur analyse régime: {e}")
             
-            # === 2. CALCUL FEATURES (si disponible) ===
+            # === 2. CALCUL FEATURES (si disponible) avec cache ===
             features_result = None
             if self.feature_calculator and trading_context.market_data:
-                try:
-                    features_result = self.feature_calculator.calculate_all_features(
-                        market_data=trading_context.market_data,
-                        structure_data=trading_context.structure_data,
-                        sierra_patterns=trading_context.sierra_patterns,
-                        es_nq_data=trading_context.es_nq_data
-                    )
-                except Exception as e:
-                    logger.warning(f"Erreur calcul features: {e}")
+                # Clé de cache basée sur les données principales
+                cache_key = f"features_{trading_context.price}_{trading_context.timestamp.timestamp()}"
+                features_result = self._get_cached_result(cache_key)
+                
+                if features_result is None:
+                    try:
+                        features_result = self.feature_calculator.calculate_all_features(
+                            market_data=trading_context.market_data,
+                            structure_data=trading_context.structure_data,
+                            sierra_patterns=trading_context.sierra_patterns,
+                            es_nq_data=trading_context.es_nq_data
+                        )
+                        self._cache_result(cache_key, features_result)
+                    except Exception as e:
+                        logger.warning(f"Erreur calcul features: {e}")
             
-            # === 3. EXPLORATION DES PATTERNS ===
+            # === 3. EXPLORATION DES PATTERNS (OPTIMISÉE) ===
             pattern_signals = []
             now_ts = trading_context.timestamp
             
-            for strat in self.pattern_strategies:
+            # Filtrage précoce par régime marché pour éviter les calculs inutiles
+            eligible_strategies = self._filter_strategies_by_regime(regime_data)
+            
+            for strat in eligible_strategies:
                 # Cooldown par stratégie
                 if (now_ts - self.last_fire_ts[strat.name]).total_seconds() < self.fire_cooldown_sec:
                     continue
@@ -252,6 +268,10 @@ class IntegratedStrategySelector:
                 score = self._score_pattern_signal(sig, regime_data, features_result)
                 if score is not None:
                     pattern_signals.append((score, sig))
+                    
+                # Arrêt précoce si on a déjà un signal de haute qualité
+                if pattern_signals and max(pattern_signals, key=lambda x: x[0])[0] > 0.85:
+                    break
             
             # === 4. DÉDOUBLONNAGE PAR FAMILLE ===
             if pattern_signals:
@@ -315,6 +335,82 @@ class IntegratedStrategySelector:
                 final_decision=SignalDecision.REGIME_UNCLEAR,
                 total_processing_time_ms=(time.perf_counter() - start_time) * 1000
             )
+
+    def _filter_strategies_by_regime(self, regime_data) -> List:
+        """Filtre les stratégies selon le régime marché pour optimiser les performances"""
+        if not regime_data or not hasattr(regime_data, 'regime'):
+            return self.pattern_strategies  # Toutes les stratégies si régime inconnu
+        
+        regime_name = getattr(regime_data.regime, 'value', 'UNKNOWN')
+        
+        # Mapping régime → stratégies prioritaires
+        regime_strategy_map = {
+            'STRONG_TREND_BULLISH': [
+                'DealerFlipBreakout', 'LiquiditySweepReversal', 'StackedImbalanceContinuation',
+                'GammaPinReversion', 'VwapBandSqueezeBreak'
+            ],
+            'STRONG_TREND_BEARISH': [
+                'DealerFlipBreakout', 'LiquiditySweepReversal', 'StackedImbalanceContinuation',
+                'GammaPinReversion', 'VwapBandSqueezeBreak'
+            ],
+            'RANGE_BULLISH_BIAS': [
+                'GammaPinReversion', 'CvdDivergenceTrap', 'ProfileGapFill',
+                'ZeroDTEWallSweepReversal', 'GexClusterMeanRevert'
+            ],
+            'RANGE_BEARISH_BIAS': [
+                'GammaPinReversion', 'CvdDivergenceTrap', 'ProfileGapFill',
+                'ZeroDTEWallSweepReversal', 'GexClusterMeanRevert'
+            ],
+            'RANGE_NEUTRAL': [
+                'GammaPinReversion', 'CvdDivergenceTrap', 'ProfileGapFill',
+                'IcebergTrackerFollow', 'EsNqLeadLagMirror'
+            ]
+        }
+        
+        # Stratégies prioritaires pour ce régime
+        priority_strategies = regime_strategy_map.get(regime_name, [])
+        
+        # Filtrer les stratégies
+        filtered_strategies = []
+        for strat in self.pattern_strategies:
+            if strat.name in priority_strategies:
+                filtered_strategies.append(strat)
+        
+        # Si aucune stratégie prioritaire, prendre les 6 premières
+        if not filtered_strategies:
+            filtered_strategies = self.pattern_strategies[:6]
+        
+        return filtered_strategies
+
+    def _get_cached_result(self, cache_key: str) -> Optional[Any]:
+        """Récupère un résultat du cache s'il est encore valide"""
+        if cache_key in self.cache:
+            result, timestamp = self.cache[cache_key]
+            if time.time() - timestamp < self.cache_ttl:
+                self.performance.cache_hits += 1
+                return result
+        
+        self.performance.cache_misses += 1
+        return None
+
+    def _cache_result(self, cache_key: str, result: Any) -> None:
+        """Met en cache un résultat avec timestamp"""
+        self.cache[cache_key] = (result, time.time())
+        
+        # Nettoyage périodique du cache
+        if time.time() - self.last_cache_cleanup > 10.0:  # Toutes les 10 secondes
+            self._cleanup_cache()
+            self.last_cache_cleanup = time.time()
+
+    def _cleanup_cache(self) -> None:
+        """Nettoie le cache des entrées expirées"""
+        current_time = time.time()
+        expired_keys = [
+            key for key, (_, timestamp) in self.cache.items()
+            if current_time - timestamp > self.cache_ttl
+        ]
+        for key in expired_keys:
+            del self.cache[key]
 
     def _create_pattern_context(self, trading_context: TradingContext, features_result: Optional[Any] = None) -> Dict[str, Any]:
         """Crée un contexte standardisé pour les pattern strategies."""

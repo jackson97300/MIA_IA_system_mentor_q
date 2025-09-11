@@ -64,11 +64,13 @@ from core.base_types import (
 from core.trading_types import TradingMode, AutomationStatus
 
 # === STRATEGIES (CERVEAU CENTRAL) ===
-from strategies import get_signal_now, create_signal_generator
+from strategies import get_signal_now
+from strategies.signal_core.factory_functions import create_signal_generator
 from strategies.signal_generator import SignalGenerator
 
 # === FEATURES ===
-from features.feature_calculator import create_feature_calculator
+# Module manquant - utilisation de feature_calculator_optimized
+from features.feature_calculator_optimized import create_feature_calculator_optimized as create_feature_calculator
 
 # 🆕 NOUVEAU: Import Order Book Imbalance (conditionnel)
 try:
@@ -1935,10 +1937,14 @@ if __name__ == "__main__":
 # - Combiné: Amélioration court terme (Order Book) + long terme (Post-Mortem)
 # - Fallback gracieux: Fonctionne parfaitement même sans modules avancés
 
+# Alias pour compatibilité avec les imports existants
+MIAAutomationSystem = SimpleBattleNavaleTrader
+
 # Exportation explicite pour import usine (factory)
 __all__ = [
     "SimpleBattleNavaleTrader",
+    "MIAAutomationSystem",  # 🆕 NOUVEAU: Alias pour compatibilité
     "create_simple_trader", 
     "run_data_collection_session",
-    "ORDER_BOOK_IMBALANCE_AVAILABLE"  # 🆕 NOUVEAU
+    "ORDER_BOOK_IMBALANCE_AVAILABLE"
 ]

@@ -429,8 +429,13 @@ class MarketStateAnalyzer:
         
         return 'neutral'
     
-    def _classify_session(self, clock: datetime) -> str:
+    def _classify_session(self, clock) -> str:
         """Classifie la session de trading (PATCH: timezone-safe)"""
+        # Convertir timestamp Unix en datetime si nécessaire
+        if isinstance(clock, (int, float)):
+            from datetime import datetime, timezone
+            clock = datetime.fromtimestamp(clock, tz=timezone.utc)
+            
         # PATCH: Force Europe/Paris
         if clock.tzinfo is None:
             clock = clock.replace(tzinfo=ZoneInfo("Europe/Paris"))

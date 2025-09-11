@@ -58,6 +58,13 @@ class MarketRegime(Enum):
     TRANSITION = "transition"                        # Changement régime
     UNCLEAR = "unclear"                              # Pas de régime clair
 
+    # ✅ Compat: certains appels traitent MarketRegime comme un dict
+    def get(self, key: str, default=None):
+        """Compatibilité .get(): retourne value pour 'value' sinon défaut."""
+        if key == 'value':
+            return self.value
+        return default
+
 
 class TrendStrength(Enum):
     """Force de la tendance"""
@@ -431,6 +438,86 @@ class MarketRegimeDetector:
         start_time = time.perf_counter()
 
         try:
+            # --- Normalisation robuste : dict/objet -> MarketData complet (OHLC + timestamp)
+            from core.base_types import MarketData as _MD
+
+            def _extract_close_from_dict(d: dict) -> float:
+                md = d.get("market_data", d)
+                for k in ("close", "c", "price"):
+                    v = md.get(k)
+                    if v is not None:
+                        return v
+                q = md.get("quotes") or {}
+                mid = q.get("mid")
+                if mid is not None:
+                    return mid
+                bid, ask = q.get("bid"), q.get("ask")
+                if bid is not None and ask is not None:
+                    return (bid + ask) / 2.0
+                trades = md.get("trades") or []
+                if trades:
+                    return trades[-1].get("price", 0.0)
+                return 0.0
+
+            def _extract_volume_from_dict(d: dict) -> float:
+                md = d.get("market_data", d)
+                v = md.get("volume") or md.get("v")
+                if v is not None:
+                    return v
+                trades = md.get("trades") or []
+                if trades:
+                    return float(sum(t.get("volume", 0) for t in trades[-50:]))
+                return 0.0
+
+            def _extract_timestamp_from_obj(x):
+                if isinstance(x, dict):
+                    return x.get("timestamp") or x.get("t") or (x.get("market_data", {}).get("timestamp") if "market_data" in x else None)
+                return getattr(x, "timestamp", None)
+
+            def _as_market_data(x):
+                if isinstance(x, dict):
+                    symbol = x.get("symbol") or "ES"
+                    close  = _extract_close_from_dict(x)
+                    volume = _extract_volume_from_dict(x)
+                    ts     = _extract_timestamp_from_obj(x)
+                    open_  = x.get("open")  or close
+                    high   = x.get("high")  or close
+                    low    = x.get("low")   or close
+                else:
+                    symbol = getattr(x, "symbol", "ES")
+                    close  = getattr(x, "close", None) or getattr(x, "price", 0.0)
+                    volume = getattr(x, "volume", 0.0)
+                    ts     = getattr(x, "timestamp", None)
+                    open_  = getattr(x, "open", None) or close
+                    high   = getattr(x, "high", None) or close
+                    low    = getattr(x, "low", None)  or close
+                # Normaliser timestamp Excel → Unix puis fallback
+                def _normalize_ts(ts):
+                    if ts is None:
+                        return None
+                    # Gérer les objets Timestamp pandas
+                    if hasattr(ts, 'timestamp'):
+                        return ts.timestamp()
+                    # Gérer les autres types
+                    ts = float(ts)
+                    if ts > 1e12:      # ms
+                        return ts / 1000.0
+                    if 40000 < ts < 80000:  # Excel days (Sierra/SC)
+                        from datetime import datetime, timezone, timedelta
+                        base = datetime(1899, 12, 30, tzinfo=timezone.utc)
+                        return (base + timedelta(days=ts)).timestamp()
+                    return ts
+                
+                ts = _normalize_ts(ts)
+                if ts is None:
+                    from datetime import datetime, timezone
+                    ts = datetime.now(timezone.utc).replace(tzinfo=None)
+                return _MD(symbol=symbol, open=open_, high=high, low=low, close=close, volume=volume, timestamp=ts)
+
+            # ---- dans analyze(...)
+            market_data = _as_market_data(market_data)
+            # À partir d'ici, plus d'accès directs au dict : on utilise market_data.open/high/low/close/volume/timestamp
+
             # Ajout historique
             self.price_history.append(market_data)
             if es_nq_data:

@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from automation_modules.sierra_dom_analyzer import (
+from features.sierra_dom_analyzer import (
     SierraDOMAnalyzer, 
     DOMConfig, 
     DOMSnapshot, 
@@ -24,8 +24,8 @@ from automation_modules.sierra_dom_analyzer import (
     DOMIntensity,
     create_scalping_dom_config
 )
-from automation_modules.sierra_battle_navale_integrator import SierraBattleNavaleIntegrator
-from automation_modules.orderflow_analyzer import OrderFlowAnalyzer
+from execution.sierra_battle_navale_integrator import SierraBattleNavaleIntegrator
+from features.orderflow_analyzer import OrderFlowAnalyzer
 from core.base_types import MarketData, OrderFlowData
 from core.logger import get_logger
 

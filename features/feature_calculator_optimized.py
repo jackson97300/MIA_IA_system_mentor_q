@@ -18,6 +18,7 @@ import asyncio
 import threading
 from typing import Dict, List, Tuple, Optional, Any, Union, Callable
 from dataclasses import dataclass, field
+from config.config_loader import get_feature_config
 from enum import Enum
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -30,7 +31,211 @@ from core.base_types import (
     MarketData, OrderFlowData, TradingFeatures,
     ES_TICK_SIZE, ES_TICK_VALUE, get_session_phase
 )
-from features.config_loader import get_feature_config
+from types import SimpleNamespace
+from datetime import datetime, timezone, timedelta
+from inspect import signature
+
+# === TRADING THRESHOLDS ===
+
+def get_trading_thresholds():
+    """Récupère les seuils depuis la configuration"""
+    config = get_feature_config()
+    thresholds = config.thresholds
+    
+    return {
+        'PREMIUM_SIGNAL': thresholds.premium,    # Premium trade (size ×1.5)
+        'STRONG_SIGNAL': thresholds.strong,      # Strong trade (size ×1.0)
+        'WEAK_SIGNAL': thresholds.weak,          # Weak trade (size ×0.5)
+        'NO_TRADE': thresholds.no_trade,         # No trade (wait)
+    }
+
+TRADING_THRESHOLDS = get_trading_thresholds()
+
+class SignalQuality(Enum):
+    """Qualité du signal trading"""
+    PREMIUM = "premium"     # 85-100%
+    STRONG = "strong"       # 70-84%
+    WEAK = "weak"          # 60-69%
+    NO_TRADE = "no_trade"  # 0-59%
+
+# === HELPERS DE NORMALISATION MARKETDATA ===
+
+def _filter_kwargs_for_cls(cls, d: dict, aliases: dict | None = None) -> dict:
+    """Filtre les kwargs et gère les alias pour une classe donnée"""
+    # remap d'éventuels alias (ex: bin_size → price_bucket_size)
+    if aliases:
+        d = { (aliases.get(k, k)): v for k, v in d.items() }
+    params = signature(cls).parameters
+    return {k: v for k, v in d.items() if k in params}
+
+def _ensure_datetime(ts) -> datetime:
+    """Convertit n'importe quel timestamp en datetime UTC"""
+    if ts is None:
+        return datetime.now(timezone.utc)
+    if isinstance(ts, datetime):
+        return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+    # float/int (epoch sec ou Excel converti)
+    try:
+        tsf = float(ts)
+        return datetime.fromtimestamp(tsf, tz=timezone.utc)
+    except Exception:
+        return datetime.now(timezone.utc)
+
+def _normalize_ts(ts):
+    """Normalise timestamp Excel → Unix."""
+    if ts is None:
+        return None
+    # Gérer les objets Timestamp pandas
+    if hasattr(ts, 'timestamp'):
+        return ts.timestamp()
+    # Gérer les autres types
+    ts = float(ts)
+    if ts > 1e12:      # ms
+        return ts / 1000.0
+    if 40000 < ts < 80000:  # Excel days (Sierra/SC)
+        base = datetime(1899, 12, 30, tzinfo=timezone.utc)
+        return (base + timedelta(days=ts)).timestamp()
+    return ts
+
+def _as_cfg(cfg, defaults: dict):
+    """Convertit dict → objet avec attributs, avec fallbacks par défaut."""
+    if cfg is None:
+        return SimpleNamespace(**defaults)
+    if isinstance(cfg, dict):
+        return SimpleNamespace(**{**defaults, **cfg})
+    # objet: injecter les valeurs par défaut manquantes
+    for k, v in defaults.items():
+        if not hasattr(cfg, k):
+            setattr(cfg, k, v)
+    return cfg
+
+def _clip01(value: float) -> float:
+    """Ramène une valeur dans l'intervalle [0, 1]."""
+    try:
+        if value is None:
+            return 0.0
+        return 0.0 if value < 0.0 else (1.0 if value > 1.0 else float(value))
+    except Exception:
+        return 0.0
+
+def _extract_close_from_dict(d: dict) -> float:
+    """Extrait le prix de clôture depuis un dict de snapshot unifié"""
+    md = d.get("market_data", d)
+    # Priorité aux champs explicites
+    for k in ("close", "c", "price"):
+        v = md.get(k)
+        if v is not None:
+            return v
+    # Quotes.mid, ou moyenne bid/ask si mid absent
+    q = md.get("quotes") or {}
+    mid = q.get("mid")
+    if mid is not None:
+        return mid
+    bid, ask = q.get("bid"), q.get("ask")
+    if bid is not None and ask is not None:
+        return (bid + ask) / 2.0
+    # Dernière transaction
+    trades = md.get("trades") or []
+    if trades:
+        return trades[-1].get("price", 0.0)
+    return 0.0
+
+def _extract_volume_from_dict(d: dict) -> float:
+    """Extrait le volume depuis un dict de snapshot unifié"""
+    md = d.get("market_data", d)
+    v = md.get("volume") or md.get("v")
+    if v is not None:
+        return v
+    # À défaut, somme des volumes des dernières n transactions
+    trades = md.get("trades") or []
+    if trades:
+        return float(sum(t.get("volume", 0) for t in trades[-50:]))
+    return 0.0
+
+def _extract_timestamp_from_obj(x) -> float | None:
+    """Extrait le timestamp depuis un objet ou dict"""
+    if isinstance(x, dict):
+        return x.get("timestamp") or x.get("t") or (x.get("market_data", {}).get("timestamp") if "market_data" in x else None)
+    return getattr(x, "timestamp", None)
+
+def _as_market_data(x):
+    """
+    Convertit un dict/objet arbitraire en core.base_types.MarketData avec OHLC complets.
+    OHLC fallback = close.
+    """
+    from core.base_types import MarketData as _MD
+
+    if isinstance(x, dict):
+        symbol = x.get("symbol") or "ES"
+        close  = _extract_close_from_dict(x)
+        volume = _extract_volume_from_dict(x)
+        ts     = _extract_timestamp_from_obj(x)
+    else:
+        symbol = getattr(x, "symbol", "ES")
+        close  = getattr(x, "close", None) or getattr(x, "price", 0.0)
+        volume = getattr(x, "volume", 0.0)
+        ts     = getattr(x, "timestamp", None)
+
+    # Fallback OHLC cohérents
+    open_ = (x.get("open")  if isinstance(x, dict) else getattr(x, "open", None))  or close
+    high  = (x.get("high")  if isinstance(x, dict) else getattr(x, "high", None))  or close
+    low   = (x.get("low")   if isinstance(x, dict) else getattr(x, "low", None))   or close
+
+    # Normaliser timestamp Excel → Unix puis fallback sur maintenant si absent
+    ts = _normalize_ts(ts)                # -> float (epoch) ou None
+    ts = _ensure_datetime(ts)             # -> toujours datetime (UTC)
+    return _MD(symbol=symbol, open=open_, high=high, low=low, close=close, volume=volume, timestamp=ts)
+
+# === CLASSES DE COMPATIBILITÉ ===
+
+class SignalQuality(Enum):
+    """Qualité du signal"""
+    NO_TRADE = "no_trade"
+    WEAK = "weak"
+    MODERATE = "moderate"
+    STRONG = "strong"
+    VERY_STRONG = "very_strong"
+
+@dataclass
+class FeatureCalculationResult:
+    """Résultat complet calcul features (TECHNIQUE #2 - avec smart_money_strength)"""
+    timestamp: datetime
+
+    # Individual features (0-1) - dow_trend_regime SUPPRIMÉ ❌
+    vwap_trend_signal: float = 0.0
+    sierra_pattern_strength: float = 0.0
+    gamma_levels_proximity: float = 0.0
+    volume_confirmation: float = 0.0
+    options_flow_bias: float = 0.0
+    order_book_imbalance: float = 0.0
+    mtf_confluence_score: float = 0.0      # 🆕 TECHNIQUE #1 ELITE
+    smart_money_strength: float = 0.0  # 🆕 TECHNIQUE #2 ELITE
+
+    # Aggregate metrics
+    confluence_score: float = 0.0
+    signal_quality: SignalQuality = SignalQuality.NO_TRADE
+    position_multiplier: float = 0.0
+
+    # Performance tracking
+    calculation_time_ms: float = 0.0
+
+    def to_trading_features(self) -> TradingFeatures:
+        """Conversion vers TradingFeatures (avec Smart Money)"""
+        return TradingFeatures(
+            timestamp=self.timestamp,
+            battle_navale_signal=self.sierra_pattern_strength,
+            gamma_pin_strength=self.gamma_levels_proximity,
+            headfake_signal=0.0,  # dow_trend_regime supprimé
+            microstructure_anomaly=self.volume_confirmation,
+            market_regime_score=self.vwap_trend_signal,
+            base_quality=0.0,  # level_proximity supprimé pour techniques Elite
+            confluence_score=self.confluence_score,
+            session_context=0.0,  # session_context supprimé pour techniques Elite
+            order_book_imbalance=self.order_book_imbalance,
+            smart_money_score=self.smart_money_strength,      # 🆕 TECHNIQUE #2
+            mtf_confluence_score=self.mtf_confluence_score,   # 🆕 TECHNIQUE #1
+            calculation_time_ms=self.calculation_time_ms
+        )
 
 # 🆕 IMPORTS POUR FONCTIONNALITÉS RÉCENTES
 try:
@@ -167,8 +372,26 @@ class FeatureCalculatorRouter:
     def _create_volume_profile_detector(self, config: Optional[Dict] = None):
         """Factory pour VolumeProfileImbalanceDetector"""
         try:
-            from features.volume_profile_imbalance import VolumeProfileImbalanceDetector
-            return VolumeProfileImbalanceDetector(config)
+            from features.volume_profile_imbalance import VolumeProfileImbalanceDetector, VolumeProfileConfig
+            # Créer config complète avec les paramètres corrects
+            vp_defaults = {
+                "max_history_size": 200,
+                "block_trade_threshold": 500,
+                "institutional_volume_threshold": 1000,
+                "iceberg_detection_threshold": 200,
+                "price_bucket_size": 0.25,   # ← nom attendu dans la plupart des implémentations
+                "min_volume_for_analysis": 100,
+                "lookback_periods": 50,
+                "accumulation_threshold": 0.7,
+                "distribution_threshold": 0.7,
+                "gap_significance_threshold": 0.8,
+                "enable_advanced_detection": True
+            }
+            vp_cfg = _as_cfg(config, vp_defaults)
+            # gérer les alias éventuels venant de configs anciennes
+            ALIASES_VP = {"bin_size": "price_bucket_size"}
+            vp_kwargs = _filter_kwargs_for_cls(VolumeProfileConfig, vp_cfg.__dict__, ALIASES_VP)
+            return VolumeProfileImbalanceDetector(VolumeProfileConfig(**vp_kwargs))
         except Exception as e:
             logger.error(f"Erreur création VolumeProfileDetector: {e}")
             return None
@@ -176,8 +399,24 @@ class FeatureCalculatorRouter:
     def _create_vwap_analyzer(self, config: Optional[Dict] = None):
         """Factory pour VWAPBandsAnalyzer"""
         try:
-            from features.vwap_bands_analyzer import VWAPBandsAnalyzer
-            return VWAPBandsAnalyzer(config)
+            from features.vwap_bands_analyzer import VWAPBandsAnalyzer, VWAPConfig
+            # Créer config complète avec les paramètres corrects
+            vwap_defaults = {
+                "max_history": 100,
+                "vwap_periods": 20,
+                "slope_periods": 10,
+                "sd_multiplier_1": 1.0,
+                "sd_multiplier_2": 2.0,
+                "rejection_threshold": 0.8,
+                "breakout_threshold": 0.7,
+                "trend_slope_threshold": 0.5,
+                "cache_enabled": True
+            }
+            vwap_cfg = _as_cfg(config, vwap_defaults)
+            # alias éventuel d'anciennes configs
+            ALIASES_VWAP = {"enable_advanced_features": "cache_enabled"}
+            vwap_kwargs = _filter_kwargs_for_cls(VWAPConfig, vwap_cfg.__dict__, ALIASES_VWAP)
+            return VWAPBandsAnalyzer(VWAPConfig(**vwap_kwargs))
         except Exception as e:
             logger.error(f"Erreur création VWAPAnalyzer: {e}")
             return None
@@ -439,6 +678,10 @@ class FeatureCalculatorOptimized:
             self._components[component_name] = self.router.get_component(component_name, self.config)
         return self._components.get(component_name)
     
+    def _normalize_market_data(self, market_data: Any) -> MarketData:
+        """Accepte dict ou objet MarketData et retourne un MarketData valide."""
+        return _as_market_data(market_data)
+    
     def calculate_features(self, market_data: MarketData, 
                           order_flow: Optional[OrderFlowData] = None) -> TradingFeatures:
         """
@@ -451,6 +694,7 @@ class FeatureCalculatorOptimized:
         Returns:
             TradingFeatures avec scores calculés
         """
+        market_data = self._normalize_market_data(market_data)
         start_time = time.time()
         
         try:
@@ -479,7 +723,16 @@ class FeatureCalculatorOptimized:
             self.metrics.total_time_ms += calculation_time
             self.metrics.last_calculation_time = calculation_time
             
-            if calculation_time > 1.0:  # Warning si > 1ms
+            # Seuil configurable depuis feature_config (par défaut 750ms)
+            try:
+                # Accès aux attributs de l'objet FeatureConfig
+                if hasattr(self.feature_config, 'real_time_calculation'):
+                    slow_threshold_ms = getattr(self.feature_config.real_time_calculation, 'calculation_timeout_ms', 750)
+                else:
+                    slow_threshold_ms = 750
+            except Exception:
+                slow_threshold_ms = 750
+            if calculation_time > slow_threshold_ms:
                 logger.warning(f"⚠️ Calcul lent: {calculation_time:.2f}ms")
             
             return features
@@ -533,19 +786,23 @@ class FeatureCalculatorOptimized:
                 logger.warning(f"⚠️ Erreur Advanced Features: {e}")
                 results['advanced_features'] = 0.0
         
-        # Calculer le score final pondéré
-        final_score = self._calculate_final_score(results)
+        # Normaliser toutes les features dans [0,1]
+        for k, v in list(results.items()):
+            results[k] = _clip01(v)
+
+        # Calculer le score final pondéré puis clipper
+        final_score = _clip01(self._calculate_final_score(results))
         
         return TradingFeatures(
             timestamp=market_data.timestamp,
-            battle_navale_signal=final_score,
-            gamma_pin_strength=results.get('confluence_score', 0.5),
-            headfake_signal=results.get('order_book_imbalance', 0.5),
-            microstructure_anomaly=results.get('volume_profile_imbalance', 0.5),
-            market_regime_score=results.get('vix_regime', 0.5),
-            base_quality=results.get('smart_money_strength', 0.5),
-            confluence_score=results.get('confluence_score', 0.5),
-            session_context=results.get('vwap_deviation', 0.5),
+            battle_navale_signal=_clip01(final_score),
+            gamma_pin_strength=_clip01(results.get('confluence_score', 0.5)),
+            headfake_signal=_clip01(results.get('order_book_imbalance', 0.5)),
+            microstructure_anomaly=_clip01(results.get('volume_profile_imbalance', 0.5)),
+            market_regime_score=_clip01(results.get('vix_regime', 0.5)),
+            base_quality=_clip01(results.get('smart_money_strength', 0.5)),
+            confluence_score=_clip01(results.get('confluence_score', 0.5)),
+            session_context=_clip01(results.get('vwap_deviation', 0.5)),
             calculation_time_ms=self.metrics.last_calculation_time
         )
     
@@ -695,6 +952,12 @@ class FeatureCalculatorOptimized:
         self.cache.clear()
         self.router.clear_cache()
         logger.info("🧹 Caches vidés")
+
+    def calculate_all_features(self, market_data: Any, *args, **kwargs) -> TradingFeatures:
+        """Shim de compatibilité pour anciens appels.
+        Délègue à calculate_features().
+        """
+        return self.calculate_features(market_data, kwargs.get('order_flow'))
 
 # === FACTORY FUNCTION ===
 

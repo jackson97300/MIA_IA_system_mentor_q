@@ -19,8 +19,8 @@ def test_wrappers_orderflow():
     
     try:
         # Import du module
-        from automation_modules.orderflow_analyzer import OrderFlowAnalyzer
-        from automation_modules.config_manager import AutomationConfig
+        from features.orderflow_analyzer import OrderFlowAnalyzer
+        from config.automation_config import AutomationConfig
         
         print("✅ Import modules: OK")
         
@@ -120,8 +120,8 @@ def test_integration_system():
     
     try:
         # Simuler un appel depuis le système principal
-        from automation_modules.orderflow_analyzer import OrderFlowAnalyzer
-        from automation_modules.config_manager import AutomationConfig
+        from features.orderflow_analyzer import OrderFlowAnalyzer
+        from config.automation_config import AutomationConfig
         
         config = AutomationConfig()
         analyzer = OrderFlowAnalyzer(config)

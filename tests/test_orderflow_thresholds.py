@@ -11,8 +11,8 @@ from pathlib import Path
 # Ajouter le chemin du projet
 sys.path.append(str(Path(__file__).parent))
 
-from automation_modules.orderflow_analyzer import OrderFlowAnalyzer, OrderFlowData
-from automation_modules.config_manager import AutomationConfig
+from features.orderflow_analyzer import OrderFlowAnalyzer, OrderFlowData
+from config.automation_config import AutomationConfig
 from core.logger import get_logger
 
 logger = get_logger(__name__)

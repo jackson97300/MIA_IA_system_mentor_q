@@ -23,7 +23,7 @@ async def diagnostic_orderflow():
         # 1. Test import des modules
         logger.info("📦 Test 1: Import des modules...")
         from core.ibkr_connector import IBKRConnector
-        from automation_modules.orderflow_analyzer import OrderFlowAnalyzer
+        from features.orderflow_analyzer import OrderFlowAnalyzer
         from config.automation_config import AutomationConfig
         logger.info("✅ Import des modules réussi")
         

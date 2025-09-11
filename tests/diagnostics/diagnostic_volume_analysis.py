@@ -17,8 +17,8 @@ sys.path.append(str(Path(__file__).parent))
 
 from core.logger import get_logger
 from core.ibkr_connector import IBKRConnector
-from automation_modules.orderflow_analyzer import OrderFlowAnalyzer
-from automation_modules.config_manager import AutomationConfig
+from features.orderflow_analyzer import OrderFlowAnalyzer
+from config.automation_config import AutomationConfig
 
 logger = get_logger(__name__)
 

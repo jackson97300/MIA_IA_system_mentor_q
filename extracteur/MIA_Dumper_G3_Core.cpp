@@ -227,13 +227,13 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
 
     // ---- Inputs pour la pression OrderFlow (NBCV) ----
     sc.Input[17].Name = "OF: Min Total Volume";
-    sc.Input[17].SetFloat(200.0);       // ex. 200 contrats
+    sc.Input[17].SetFloat(75.0);        // Optimisé pour intraday (75 contrats)
 
     sc.Input[18].Name = "OF: Min |Delta Ratio|";
-    sc.Input[18].SetFloat(0.15);         // 15%
+    sc.Input[18].SetFloat(0.075);        // 7.5% (plus sensible)
 
     sc.Input[19].Name = "OF: Min Ask/Bid or Bid/Ask Ratio";
-    sc.Input[19].SetFloat(1.60);           // 1.6x
+    sc.Input[19].SetFloat(1.25);         // 1.25x (plus sensible)
 
     return;
   }

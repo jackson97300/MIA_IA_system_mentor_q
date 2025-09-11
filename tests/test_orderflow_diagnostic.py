@@ -13,7 +13,7 @@ from datetime import datetime
 sys.path.append(str(Path(__file__).parent))
 
 from core.logger import get_logger
-from automation_modules.orderflow_analyzer import OrderFlowAnalyzer, OrderFlowData
+from features.orderflow_analyzer import OrderFlowAnalyzer, OrderFlowData
 
 logger = get_logger(__name__)
 

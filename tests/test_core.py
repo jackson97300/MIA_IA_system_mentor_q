@@ -24,7 +24,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from core.logger import get_logger
 from core.base_types import MarketData, SignalType, MarketRegime, OrderFlowData
 from core.ibkr_connector import IBKRConnector
-from core.sierra_connector import SierraConnector
+from execution.sierra_connector import SierraConnector
 from core.battle_navale import BattleNavale
 from core.patterns_detector import ElitePatternsDetector
 from core.signal_explainer import SignalExplainer

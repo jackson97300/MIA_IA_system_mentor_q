@@ -1,0 +1,308 @@
+# MIA_IA_SYSTEM - Constants Centralisées
+# ======================================
+# Version: Production Ready v1.0
+# 
+# Toutes les constantes et "magic numbers" du système
+# - Seuils de trading
+# - Tailles de fenêtres
+# - Multiplicateurs
+# - Paramètres de performance
+# - Configuration des features
+#
+# IMPACT: Élimination des "magic numbers" dispersés
+
+# === CONSTANTES DE TRADING ===
+trading:
+  # Symboles et contrats
+  symbols:
+    primary: "ES"
+    secondary: "NQ"
+    vix: "VIX"
+    menthorq: "MenthorQ"
+  
+  # Tailles de ticks
+  tick_sizes:
+    es: 0.25
+    nq: 0.25
+    vix: 0.01
+  
+  # Valeurs de ticks
+  tick_values:
+    es: 12.50
+    nq: 5.00
+    vix: 1.00
+  
+  # Marges requises
+  margin_requirements:
+    es: 10000.0
+    nq: 15000.0
+    vix: 5000.0
+
+# === CONSTANTES DE RISQUE ===
+risk:
+  # Seuils de position
+  position_limits:
+    max_size: 10.0
+    min_size: 1.0
+    max_concurrent: 3
+  
+  # Seuils de perte
+  loss_limits:
+    max_daily: 1000.0
+    max_drawdown: 0.15
+    risk_per_trade: 0.02
+  
+  # Seuils de stop/target
+  stop_target:
+    stop_loss_ticks: 8
+    take_profit_ticks: 16
+    trailing_stop_ticks: 4
+  
+  # Corrélation
+  correlation:
+    max_correlation: 0.7
+    correlation_window: 20
+
+# === CONSTANTES DE FEATURES ===
+features:
+  # VWAP
+  vwap:
+    max_history: 2048
+    bands_stdev: [1.0, 2.0, 3.0]
+    session_reset: "RTH"
+    update_frequency_ms: 100
+  
+  # Volume Profile
+  volume_profile:
+    max_history_size: 5000
+    bin_ticks: 4
+    lookback_minutes: 60
+    min_volume_threshold: 100
+  
+  # NBCV
+  nbcv:
+    min_volume: 60
+    min_delta_ratio_pct: 7.5
+    min_ask_bid_ratio: 1.2
+    pressure_threshold: 0.6
+  
+  # VIX
+  vix:
+    low_threshold: 15.0
+    high_threshold: 25.0
+    extreme_threshold: 40.0
+    use_chart_8_close: true
+  
+  # Order Book
+  order_book:
+    max_depth: 10
+    imbalance_threshold: 0.6
+    smoothing_factor: 0.2
+  
+  # Advanced Features
+  advanced:
+    tick_momentum:
+      window: 20
+      volume_weight: 0.6
+      price_weight: 0.4
+    
+    delta_divergence:
+      lookback: 10
+      threshold: 0.7
+      min_volume: 50
+    
+    volatility_regime:
+      atr_length: 20
+      vix_low: 15.0
+      vix_high: 25.0
+      regime_threshold: 0.5
+    
+    session_optimizer:
+      timezone: "EST"
+      session_phases: ["pre_market", "rth", "post_market"]
+
+# === CONSTANTES DE CONFLUENCE ===
+confluence:
+  # Seuils de qualité
+  quality_thresholds:
+    high: 0.8
+    medium: 0.6
+    low: 0.4
+    no_trade: 0.2
+  
+  # Tolérance
+  tolerance_ticks: 3.0
+  
+  # Leadership
+  leadership:
+    correlation_min: 0.7
+    volume_ratio_min: 0.3
+    volatility_max: 0.02
+    leadership_window: 5
+  
+  # Poids des features
+  feature_weights:
+    mtf_confluence_score: 0.25
+    smart_money_strength: 0.20
+    order_book_imbalance: 0.15
+    volume_profile_imbalance: 0.15
+    vwap_deviation: 0.10
+    vix_regime: 0.10
+    nbcv_orderflow: 0.05
+
+# === CONSTANTES DE PERFORMANCE ===
+performance:
+  # Timeouts
+  timeouts:
+    processing_ms: 500
+    execution_ms: 5000
+    fill_timeout_ms: 10000
+    connection_timeout_s: 30
+  
+  # Cache
+  cache:
+    ttl_seconds: 60
+    max_size: 1000
+    cleanup_interval_s: 300
+  
+  # Threading
+  threading:
+    max_workers: 4
+    thread_pool_size: 8
+    queue_size: 100
+  
+  # Memory
+  memory:
+    max_snapshots: 2000
+    cleanup_threshold: 0.8
+    gc_interval_s: 60
+
+# === CONSTANTES DE MENTHORQ ===
+menthorq:
+  # Seuils de proximité
+  proximity_ticks:
+    gamma: 10.0
+    blind_spot: 5.0
+    swing_level: 15.0
+  
+  # Configuration
+  config:
+    data_ttl_seconds: 300
+    ema_alpha: 0.3
+    min_levels_required: 3
+    max_levels: 20
+  
+  # Seuils de volume
+  volume_thresholds:
+    min_volume: 100
+    large_trade: 500
+    block_trade: 1000
+
+# === CONSTANTES DE MONITORING ===
+monitoring:
+  # Logging
+  logging:
+    max_file_size_mb: 100
+    retention_days: 30
+    rotation_count: 5
+  
+  # Health checks
+  health_checks:
+    interval_seconds: 60
+    timeout_seconds: 10
+    max_failures: 3
+  
+  # Alerts
+  alerts:
+    email_enabled: false
+    sms_enabled: false
+    webhook_enabled: false
+    console_enabled: true
+  
+  # Metrics
+  metrics:
+    collection_interval_s: 30
+    retention_hours: 24
+    export_enabled: false
+
+# === CONSTANTES DE DONNÉES ===
+data:
+  # Sources
+  sources:
+    unified_file_path: "D:\\MIA_IA_system"
+    max_lines_per_read: 2000
+    cache_ttl_seconds: 60
+  
+  # Formats
+  formats:
+    timestamp_format: "%Y-%m-%d %H:%M:%S"
+    date_format: "%Y-%m-%d"
+    time_format: "%H:%M:%S"
+  
+  # Validation
+  validation:
+    min_ohlc_consistency: true
+    max_price_deviation: 0.1
+    min_volume_threshold: 1
+
+# === CONSTANTES DE STRATÉGIES ===
+strategies:
+  # Pattern strategies
+  pattern_strategies:
+    max_patterns: 16
+    min_confidence: 0.6
+    max_risk: 0.05
+  
+  # 15min + 1hour strategy
+  strategy_15min_1hour:
+    timeframes:
+      weights:
+        "15min": 0.6
+        "1hour": 0.4
+    confluence_rule: "ADAPTIVE"
+    min_confidence: 0.7
+  
+  # Leadership
+  leadership:
+    correlation_threshold: 0.7
+    volume_ratio_threshold: 0.3
+    leadership_window: 5
+
+# === CONSTANTES DE SÉCURITÉ ===
+security:
+  # Authentification
+  auth:
+    session_timeout_minutes: 60
+    max_login_attempts: 3
+    lockout_duration_minutes: 15
+  
+  # Chiffrement
+  encryption:
+    key_rotation_days: 30
+    algorithm: "AES-256"
+  
+  # Audit
+  audit:
+    log_all_actions: true
+    retention_days: 90
+    export_enabled: false
+
+# === CONSTANTES DE DÉVELOPPEMENT ===
+development:
+  # Debug
+  debug:
+    enabled: false
+    verbose_logging: false
+    performance_profiling: false
+  
+  # Testing
+  testing:
+    mock_data_enabled: true
+    test_timeout_seconds: 30
+    coverage_threshold: 0.8
+  
+  # Hot reload
+  hot_reload:
+    enabled: false
+    watch_directories: ["config", "features", "strategies"]
+    reload_delay_ms: 1000

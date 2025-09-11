@@ -1,0 +1,83 @@
+{
+  "vwap": {
+    "max_history": 2048,
+    "bands_stdev": [1.0, 2.0],
+    "session_reset": "RTH"
+  },
+  "volume_profile": {
+    "max_history_size": 5000,
+    "bin_ticks": 4,
+    "lookback_minutes": 60
+  },
+  "order_book_imbalance": {
+    "depth": 5,
+    "smoothing": 0.2
+  },
+  "nbcv": {
+    "min_volume": 60,
+    "min_delta_ratio_pct": 7.5,
+    "min_ask_bid_ratio": 1.2
+  },
+  "vix": {
+    "use_chart_8_close": true,
+    "low": 15.0,
+    "high": 25.0
+  },
+  "advanced": {
+    "enabled": true,
+    "tick_momentum": { 
+      "window": 20, 
+      "volume_weight": 0.6 
+    },
+    "delta_divergence": { 
+      "lookback": 10, 
+      "threshold": 0.7 
+    },
+    "volatility_regime": { 
+      "atr_len": 20, 
+      "vix_low": 15.0, 
+      "vix_high": 25.0 
+    }
+  },
+  "confluence": {
+    "tolerance_ticks": 3.0,
+    "quality_thresholds": {
+      "high": 0.8,
+      "medium": 0.6,
+      "low": 0.4
+    },
+    "leadership_gates": {
+      "correlation_min": 0.7,
+      "volume_ratio_min": 0.3,
+      "volatility_max": 0.02
+    }
+  },
+  "menthorq": {
+    "gamma_proximity_ticks": 10.0,
+    "blind_spot_proximity_ticks": 5.0,
+    "swing_level_proximity_ticks": 15.0,
+    "data_ttl_seconds": 300,
+    "ema_alpha": 0.3,
+    "min_levels_required": 3
+  },
+  "feature_weights": {
+    "mtf_confluence_score": 0.25,
+    "smart_money_strength": 0.20,
+    "order_book_imbalance": 0.15,
+    "volume_profile_imbalance": 0.15,
+    "vwap_deviation": 0.10,
+    "vix_regime": 0.10,
+    "nbcv_orderflow": 0.05
+  },
+  "thresholds": {
+    "premium": 0.8,
+    "strong": 0.6,
+    "weak": 0.4,
+    "no_trade": 0.2
+  },
+  "data_sources": {
+    "unified_file_path": "D:\\MIA_IA_system",
+    "max_lines_per_read": 2000,
+    "cache_ttl_seconds": 60
+  }
+}

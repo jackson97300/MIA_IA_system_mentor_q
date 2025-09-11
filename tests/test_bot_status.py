@@ -22,13 +22,13 @@ def test_imports():
         print(f"❌ Erreur import random: {e}")
     
     try:
-        from automation_modules.trading_engine import MIAAutomationSystem
+        from execution.simple_trader import MIAAutomationSystem
         print("✅ MIAAutomationSystem importé")
     except ImportError as e:
         print(f"❌ Erreur import MIAAutomationSystem: {e}")
     
     try:
-        from automation_modules.optimized_trading_system import OptimizedTradingSystem
+        from execution.simple_trader import OptimizedTradingSystem
         print("✅ OptimizedTradingSystem importé")
     except ImportError as e:
         print(f"❌ Erreur import OptimizedTradingSystem: {e}")
@@ -53,7 +53,7 @@ def test_trading_engine():
     
     try:
         from config.automation_config import create_paper_trading_config
-        from automation_modules.trading_engine import MIAAutomationSystem
+        from execution.simple_trader import MIAAutomationSystem
         
         config = create_paper_trading_config()
         engine = MIAAutomationSystem(config)

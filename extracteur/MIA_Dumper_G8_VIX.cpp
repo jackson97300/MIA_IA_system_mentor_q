@@ -210,5 +210,12 @@ SCSFExport scsf_MIA_Dumper_G8_VIX(SCStudyInterfaceRef sc)
                t, i, open, high, low, close, volume, sc.ChartNumber);
       WriteToSpecializedFile(sc.ChartNumber, "vix", j);
     }
+
+    // ========== EVENT VIX UNIFIÉ ==========
+    // Event spécialisé pour le scoring/filtrage IA
+    SCString vix_event;
+    vix_event.Format("{\"t\":%.6f,\"type\":\"vix_close\",\"vix\":%.6f,\"chart\":%d}",
+                     t, close, sc.ChartNumber);
+    WriteToSpecializedFile(sc.ChartNumber, "vix_close", vix_event);
   }
 }

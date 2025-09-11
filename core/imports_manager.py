@@ -237,7 +237,7 @@ def get_confluence_analyzer():
 
 def get_feature_calculator():
     """Import paresseux du FeatureCalculator"""
-    factory = import_manager.lazy_import('features.feature_calculator', 'FeatureCalculator')
+    factory = import_manager.lazy_import('features.feature_calculator_optimized', 'FeatureCalculatorOptimized')
     return factory()
 
 def get_battle_navale_detector():
@@ -247,12 +247,12 @@ def get_battle_navale_detector():
 
 def get_risk_manager():
     """Import paresseux du RiskManager"""
-    factory = import_manager.lazy_import('automation_modules.risk_manager', 'RiskManager')
+    factory = import_manager.lazy_import('execution.risk_manager', 'RiskManager')
     return factory()
 
 def get_trading_engine():
     """Import paresseux du TradingEngine"""
-    factory = import_manager.lazy_import('automation_modules.trading_engine', 'MIAAutomationSystem')
+    factory = import_manager.lazy_import('execution.simple_trader', 'MIAAutomationSystem')
     return factory()
 
 def get_performance_tracker():
@@ -416,7 +416,7 @@ def validate_all_imports() -> Dict[str, str]:
         ('core.logger', 'get_logger'),
         ('core.base_types', 'MarketData'),
         ('core.battle_navale', 'BattleNavaleDetector'),
-        ('features.feature_calculator', 'FeatureCalculator'),
+        ('features.feature_calculator_optimized', 'FeatureCalculatorOptimized'),
         ('automation_modules.trading_engine', 'MIAAutomationSystem'),
         ('strategies.signal_generator', 'SignalGenerator'),
         ('features.sierra_connector', 'SierraConnector'),
