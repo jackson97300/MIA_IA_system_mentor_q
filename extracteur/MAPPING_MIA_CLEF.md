@@ -52,15 +52,15 @@
 - **SG 2**: "PVAL" (Previous VAL)
 
 ### **NBCV** - Study ID: 14
-- **SG 0**: "Ask Volume Bid Volume Difference" (Delta)
-- **SG 5**: "Ask Volume Total"
-- **SG 6**: "Bid Volume Total"
-- **SG 9**: "Cumulative Sum Of Ask Volume Bid Volume Difference - Day"
-- **SG 10**: "Ask Volume Bid Volume Difference Percent" (Delta %)
-- **SG 11**: "Number of Trades"
-- **SG 16**: "Ask Volume Percent" (Ask %)
-- **SG 17**: "Bid Volume Percent" (Bid %)
-- **SG 12**: "Total Volume"
+- **i:0**: "Ask Volume Bid Volume Difference" (Delta)
+- **i:5**: "Ask Volume Total"
+- **i:6**: "Bid Volume Total"
+- **i:9**: "Cumulative Sum Of Ask Volume Bid Volume Difference - Day"
+- **i:10**: "Ask Volume Bid Volume Difference Percent" (Delta %)
+- **i:11**: "Number of Trades"
+- **i:12**: "Total Volume"
+- **i:16**: "Ask Volume Percent" (Ask %) ← SG17 dans interface
+- **i:17**: "Bid Volume Percent" (Bid %) ← SG18 dans interface
 
 ### **Correlation** - Study ID: 15
 - **SG 0**: "CC" (Correlation Coefficient)
@@ -76,12 +76,12 @@
 ### **ATR** - Study ID: 5
 - **SG 0**: "ATR" (Average True Range)
 
-### **Volume Profile** - Study ID: 13
+### **Volume Profile** - Study ID: 14
 - **SG 1**: "VPOC" (Volume POC)
 - **SG 2**: "VAH" (Value Area High)
 - **SG 3**: "VAL" (Value Area Low)
-- **SG 17**: "HVN" (High Volume Nodes)
-- **SG 18**: "LVN" (Low Volume Nodes)
+- **SG 17**: "HVN" (High Volume Nodes) ✅ **DONNÉES VALIDES**
+- **SG 18**: "LVN" (Low Volume Nodes) ✅ **DONNÉES VALIDES**
 
 ---
 

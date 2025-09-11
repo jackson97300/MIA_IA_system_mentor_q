@@ -234,7 +234,7 @@ SCSFExport scsf_MIA_Dumper_G4_Studies(SCStudyInterfaceRef sc)
     sc.Input[20].Name = "Export Volume Profile (0/1)";
     sc.Input[20].SetInt(1);
     sc.Input[21].Name = "Volume Profile Study ID";
-    sc.Input[21].SetInt(13); // ID 13 pour Volume Profile
+    sc.Input[21].SetInt(14); // ID 14 pour Volume Profile (HVN/LVN valides)
     sc.Input[22].Name = "Export VPOC/VAH/VAL (0/1)";
     sc.Input[22].SetInt(1);
     sc.Input[23].Name = "Export HVN/LVN (0/1)";

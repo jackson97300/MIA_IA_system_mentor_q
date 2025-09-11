@@ -46,6 +46,9 @@ Placez chaque étude sur SON chart :
 - ✅ NBCV
 - ✅ Cumulative Delta Bars
 - ✅ Correlation ES/NQ
+- ✅ ATR (Average True Range)
+- ✅ Volume Profile (VPOC/VAH/VAL)
+- ✅ HVN/LVN (High/Low Volume Nodes) - **Study ID 14**
 
 #### **Chart 8 (VIX) → MIA Dumper G8 VIX**
 - ✅ VIX Close (lecture directe du chart)
