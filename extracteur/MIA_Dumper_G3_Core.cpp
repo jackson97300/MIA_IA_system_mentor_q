@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <string>
 #include <vector>
+#include <algorithm>
 using std::fabs;
 
 // ========== UTILITAIRES COMMUNS ==========
@@ -44,6 +45,72 @@ static void WriteToSpecializedFile(int chartNumber, const char* dataType, const 
     fprintf(f, "%s\n", line.GetChars()); 
     fclose(f); 
   }
+}
+
+
+// ========== DÉDUPLICATION INTELLIGENTE AMÉLIORÉE ==========
+// Structure pour la déduplication par (sym, t, i)
+struct LastKey { 
+  double t = 0.0; // timestamp
+  double i = -1;  // bar index
+};
+
+// Structures pour la détection de changement d'état
+struct LastBasedata {
+  double c=0, o=0, h=0, l=0;
+  double bidvol=0, askvol=0, v=0;
+};
+
+struct LastVWAP {
+  double vwap=0, up1=0, dn1=0, up2=0, dn2=0, up3=0, dn3=0;
+};
+
+struct LastVVA {
+  double vah=0, val=0, vpoc=0, pvah=0, pval=0, ppoc=0;
+};
+
+struct LastNBCV {
+  double askVolume=0, bidVolume=0, delta=0, totalVolume=0;
+  double deltaPct=0, askPct=0, bidPct=0;
+  int pressure=0;
+};
+
+// Maps de déduplication par symbole
+static std::unordered_map<std::string, LastKey> g_LastKeyBySym;
+static std::unordered_map<std::string, LastBasedata> g_LastBaseBySym;
+static std::unordered_map<std::string, LastVWAP> g_LastVWAPBySym;
+static std::unordered_map<std::string, LastVVA> g_LastVVABySym;
+static std::unordered_map<std::string, LastNBCV> g_LastNBCVBySym;
+
+// ========== FILTRAGE DES VOLUMES ==========
+static double CapVolume(double volume, double median, double iqr, double multiplier) {
+  if (multiplier <= 1.0) return volume; // Pas de filtrage
+  
+  double threshold = median + (multiplier * iqr);
+  if (volume > threshold) {
+    return threshold; // Cap à la limite
+  }
+  return volume;
+}
+
+// ========== DÉTECTION DE CHANGEMENT ==========
+static inline bool has_changed(double a, double b, double eps=1e-9) {
+  return fabs(a-b) > eps;
+}
+
+// Fonction de déduplication améliorée
+static bool ShouldWriteData(const char* symbol, double timestamp, double barIndex) {
+  std::string symKey = std::string(symbol);
+  LastKey& lk = g_LastKeyBySym[symKey];
+  
+  // Vérifier si (sym, t, i) identique
+  bool same_ti = (fabs(lk.t - timestamp) < 1e-9) && (fabs(lk.i - barIndex) < 1e-9);
+  
+  // Mettre à jour la clé
+  lk.t = timestamp;
+  lk.i = barIndex;
+  
+  return !same_ti; // Écrire si différent
 }
 
 // Anti-duplication simple par (chart, type, key)
@@ -101,7 +168,34 @@ static bool ReadSubgraph(SCStudyInterfaceRef& sc, int studyID, int subgraphIndex
 
 // Helper pour valider qu'une étude a des données valides
 static bool ValidateStudyData(const SCFloatArray& array, int index) {
-  return array.GetArraySize() > index && array[index] != 0.0;
+  return array.GetArraySize() > index && !std::isnan(array[index]) && !std::isinf(array[index]);
+}
+
+// Helper pour déboguer les Study IDs et subgraphs
+static void DebugStudyInfo(SCStudyInterfaceRef& sc, int studyID, const char* studyName, int subgraphIndex, const char* subgraphName) {
+  if (studyID <= 0) {
+    SCString msg;
+    msg.Format("DEBUG: %s - Study ID %d INVALID", studyName, studyID);
+    sc.AddMessageToLog(msg, 1);
+    return;
+  }
+  
+  SCFloatArray testArray;
+  bool success = ReadSubgraph(sc, studyID, subgraphIndex, testArray);
+  
+  SCString msg;
+  msg.Format("DEBUG: %s - ID=%d, SG%d(%s) - Success=%d, Size=%d", 
+             studyName, studyID, subgraphIndex, subgraphName, success, testArray.GetArraySize());
+  sc.AddMessageToLog(msg, 1);
+  
+  if (success && testArray.GetArraySize() > 0) {
+    int lastIndex = testArray.GetArraySize() - 1;
+    double lastValue = testArray[lastIndex];
+    SCString valMsg;
+    valMsg.Format("DEBUG: %s - Last value[%d]=%.6f, Valid=%d", 
+                  studyName, lastIndex, lastValue, ValidateStudyData(testArray, lastIndex));
+    sc.AddMessageToLog(valMsg, 1);
+  }
 }
 
 // ========== DÉTECTION DE SUPPORT SEQUENCE ==========
@@ -197,7 +291,7 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
     sc.Input[6].Name = "VVA Current Study ID";
     sc.Input[6].SetInt(1); // Study ID 1 pour VVA Current
     sc.Input[7].Name = "VVA Previous Study ID";
-    sc.Input[7].SetInt(2); // Study ID 2 pour VVA Previous
+    sc.Input[7].SetInt(8); // Study ID 8 pour VVA Previous (test)
 
     // --- Inputs PVWAP ---
     sc.Input[8].Name = "Export PVWAP (0/1)";
@@ -225,15 +319,21 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
     sc.Input[16].Name = "Cumulative Delta Subgraph Index";
     sc.Input[16].SetInt(3);
 
+    // --- Inputs Volume Filtering ---
+    sc.Input[17].Name = "Enable Volume Filtering (0/1)";
+    sc.Input[17].SetInt(1);
+    sc.Input[18].Name = "Volume Cap Multiplier (1.0=off, 6.0=IQR)";
+    sc.Input[18].SetFloat(6.0);
+
     // ---- Inputs pour la pression OrderFlow (NBCV) ----
-    sc.Input[17].Name = "OF: Min Total Volume";
-    sc.Input[17].SetFloat(75.0);        // Optimisé pour intraday (75 contrats)
+    sc.Input[19].Name = "OF: Min Total Volume";
+    sc.Input[19].SetFloat(75.0);        // Optimisé pour intraday (75 contrats)
 
-    sc.Input[18].Name = "OF: Min |Delta Ratio|";
-    sc.Input[18].SetFloat(0.075);        // 7.5% (plus sensible)
+    sc.Input[20].Name = "OF: Min |Delta Ratio|";
+    sc.Input[20].SetFloat(0.075);        // 7.5% (plus sensible)
 
-    sc.Input[19].Name = "OF: Min Ask/Bid or Bid/Ask Ratio";
-    sc.Input[19].SetFloat(1.25);         // 1.25x (plus sensible)
+    sc.Input[21].Name = "OF: Min Ask/Bid or Bid/Ask Ratio";
+    sc.Input[21].SetFloat(1.25);         // 1.25x (plus sensible)
 
     return;
   }
@@ -283,35 +383,111 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
       }
   };
 
-  // ---- BaseData (chaque tick) ----
+  // ---- BaseData (avec déduplication améliorée) ----
   if (sc.ArraySize > 0) {
     const int i = sc.ArraySize - 1;
     const double t = sc.BaseDateTimeIn[i].GetAsDouble();
+    const double barIndex = (double)i;
+    const char* symbol = sc.Symbol.GetChars();
+    
+    // Récupérer les valeurs actuelles
     const double o = sc.BaseDataIn[SC_OPEN][i];
     const double h = sc.BaseDataIn[SC_HIGH][i];
     const double l = sc.BaseDataIn[SC_LOW][i];
     const double c = sc.BaseDataIn[SC_LAST][i];
-    const double v = sc.BaseDataIn[SC_VOLUME][i];
-    const double bvol = sc.BaseDataIn[SC_BIDVOL][i];
-    const double avol = sc.BaseDataIn[SC_ASKVOL][i];
+    double v = sc.BaseDataIn[SC_VOLUME][i];
+    double bvol = sc.BaseDataIn[SC_BIDVOL][i];
+    double avol = sc.BaseDataIn[SC_ASKVOL][i];
 
-    SCString j;
-    j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"basedata\",\"i\":%d,\"o\":%.8f,\"h\":%.8f,\"l\":%.8f,\"c\":%.8f,\"v\":%.0f,\"bidvol\":%.0f,\"askvol\":%.0f,\"chart\":%d}",
-      t, sc.Symbol.GetChars(), i, o, h, l, c, v, bvol, avol, sc.ChartNumber);
-    WriteToSpecializedFile(sc.ChartNumber, "basedata", j);
+    // Appliquer le filtrage des volumes si activé
+    if (sc.Input[17].GetInt() != 0) {
+      static double volume_median = 0.0;
+      static double volume_iqr = 0.0;
+      static bool stats_initialized = false;
+      
+      // Calculer les statistiques de volume sur les 100 dernières barres
+      if (!stats_initialized && sc.ArraySize >= 10) {
+        std::vector<double> volumes;
+        int start = ((int)sc.ArraySize - 100 > 0) ? (int)sc.ArraySize - 100 : 0;
+        for (int j = start; j < sc.ArraySize; ++j) {
+          volumes.push_back(sc.BaseDataIn[SC_VOLUME][j]);
+        }
+        std::sort(volumes.begin(), volumes.end());
+        volume_median = volumes[volumes.size() / 2];
+        double q1 = volumes[volumes.size() / 4];
+        double q3 = volumes[3 * volumes.size() / 4];
+        volume_iqr = q3 - q1;
+        stats_initialized = true;
+      }
+      
+      if (stats_initialized && volume_iqr > 0) {
+        double multiplier = sc.Input[18].GetFloat();
+        v = CapVolume(v, volume_median, volume_iqr, multiplier);
+        bvol = CapVolume(bvol, volume_median, volume_iqr, multiplier);
+        avol = CapVolume(avol, volume_median, volume_iqr, multiplier);
+      }
+    }
+
+    // Détection de changement d'état
+    std::string symKey = std::string(symbol);
+    LastBasedata& lb = g_LastBaseBySym[symKey];
+    bool payload_changed = 
+      has_changed(c, lb.c) || has_changed(o, lb.o) || has_changed(h, lb.h) || has_changed(l, lb.l) ||
+      has_changed(bvol, lb.bidvol) || has_changed(avol, lb.askvol) || has_changed(v, lb.v);
+
+    // Vérifier clôture de barre
+    int barStatus = sc.GetBarHasClosedStatus(i);
+    bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
+
+    // Vérifier déduplication (sym, t, i)
+    bool should_write = ShouldWriteData(symbol, t, barIndex);
+
+    // Écrire si : changement de payload OU clôture de barre OU nouvelle clé
+    if ((should_write && payload_changed) || bar_closed) {
+      SCString j;
+      j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"basedata\",\"i\":%d,\"o\":%.8f,\"h\":%.8f,\"l\":%.8f,\"c\":%.8f,\"v\":%.0f,\"bidvol\":%.0f,\"askvol\":%.0f,\"chart\":%d}",
+        t, symbol, i, o, h, l, c, v, bvol, avol, sc.ChartNumber);
+      WriteToSpecializedFile(sc.ChartNumber, "basedata", j);
+      
+      // Mettre à jour les dernières valeurs
+      lb.c = c; lb.o = o; lb.h = h; lb.l = l; 
+      lb.bidvol = bvol; lb.askvol = avol; lb.v = v;
+    }
   }
 
-  // ---- VWAP export (chaque tick) ----
+  // ---- VWAP export (avec déduplication améliorée) ----
   if (sc.Input[2].GetInt() != 0 && sc.ArraySize > 0) {
     static int vwapID = -2; // -2: à résoudre, -1: introuvable, >0: OK
     const int i = sc.ArraySize - 1;
     const double t = sc.BaseDateTimeIn[i].GetAsDouble();
+    const double barIndex = (double)i;
+    const char* symbol = sc.Symbol.GetChars();
+    
+    // DEBUG: Log VWAP attempt
+    SCString debugMsg;
+    debugMsg.Format("DEBUG G3: VWAP attempt - Input[2]=%d, ArraySize=%d, i=%d, vwapID=%d", 
+                   sc.Input[2].GetInt(), sc.ArraySize, i, vwapID);
+    sc.AddMessageToLog(debugMsg, 1);
   
     if (vwapID == -2) {
       int cand[3];
       cand[0] = sc.Input[3].GetInt(); // ID forcé
       cand[1] = ResolveStudyID(sc, sc.ChartNumber, "Volume Weighted Average Price", 0);
       cand[2] = ResolveStudyID(sc, sc.ChartNumber, "VWAP (Volume Weighted Average Price)", 0);
+      
+      // DEBUG: Log candidate IDs
+      SCString debugMsg2;
+      debugMsg2.Format("DEBUG G3: VWAP candidates - [0]=%d, [1]=%d, [2]=%d", cand[0], cand[1], cand[2]);
+      sc.AddMessageToLog(debugMsg2, 1);
+      
+      // DEBUG: Test each candidate in detail
+      for (int k = 0; k < 3; k++) {
+        if (cand[k] > 0) {
+          SCString candName;
+          candName.Format("VWAP_CAND_%d", k);
+          DebugStudyInfo(sc, cand[k], candName.GetChars(), VWAP_SG_MAIN, "MAIN");
+        }
+      }
   
       vwapID = -1;
       for (int k = 0; k < 3; ++k) {
@@ -319,17 +495,30 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
           SCFloatArray test;
           if (ReadSubgraph(sc, cand[k], VWAP_SG_MAIN, test)) {
             if (ValidateStudyData(test, i)) { 
-              vwapID = cand[k]; 
-              break; 
+              vwapID = cand[k];
+              SCString debugMsg3;
+              debugMsg3.Format("DEBUG G3: VWAP found - ID=%d, ArraySize=%d", vwapID, test.GetArraySize());
+              sc.AddMessageToLog(debugMsg3, 1);
+              break;
             }
           }
         }
+      }
+      
+      if (vwapID == -1) {
+        sc.AddMessageToLog("DEBUG G3: VWAP NOT FOUND - No valid study data", 1);
       }
     }
   
     if (vwapID > 0) {
       SCFloatArray VWAP, UP1, DN1, UP2, DN2, UP3, DN3;
       ReadSubgraph(sc, vwapID, VWAP_SG_MAIN, VWAP);
+      
+      // DEBUG: Log VWAP data reading
+      SCString debugMsg4;
+      debugMsg4.Format("DEBUG G3: VWAP data read - ArraySize=%d, Value[%d]=%.6f", 
+                      VWAP.GetArraySize(), i, (VWAP.GetArraySize() > i) ? VWAP[i] : -999.0);
+      sc.AddMessageToLog(debugMsg4, 1);
       
       int bands = sc.Input[4].GetInt();
       if (bands >= 1) {
@@ -346,6 +535,8 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
       }
 
       if (ValidateStudyData(VWAP, i)) {
+        sc.AddMessageToLog("DEBUG G3: VWAP validation PASSED", 1);
+        // Récupérer les valeurs actuelles
         double v   = NormalizePx(sc, VWAP[i]);
         double up1 = (ValidateStudyData(UP1, i) ? NormalizePx(sc, UP1[i]) : 0);
         double dn1 = (ValidateStudyData(DN1, i) ? NormalizePx(sc, DN1[i]) : 0);
@@ -354,22 +545,64 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
         double up3 = (ValidateStudyData(UP3, i) ? NormalizePx(sc, UP3[i]) : 0);
         double dn3 = (ValidateStudyData(DN3, i) ? NormalizePx(sc, DN3[i]) : 0);
 
-        SCString j;
-        j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"vwap\",\"src\":\"study\",\"i\":%d,\"v\":%.8f,\"up1\":%.8f,\"dn1\":%.8f,\"up2\":%.8f,\"dn2\":%.8f,\"up3\":%.8f,\"dn3\":%.8f,\"chart\":%d}",
-                 t, sc.Symbol.GetChars(), i, v, up1, dn1, up2, dn2, up3, dn3, sc.ChartNumber);
-        WriteToSpecializedFile(sc.ChartNumber, "vwap", j);
+        // Détection de changement d'état
+        std::string symKey = std::string(symbol);
+        LastVWAP& lv = g_LastVWAPBySym[symKey];
+        bool payload_changed = 
+          has_changed(v, lv.vwap) || has_changed(up1, lv.up1) || has_changed(dn1, lv.dn1) ||
+          has_changed(up2, lv.up2) || has_changed(dn2, lv.dn2) || has_changed(up3, lv.up3) || has_changed(dn3, lv.dn3);
+
+        // Vérifier clôture de barre
+        int barStatus = sc.GetBarHasClosedStatus(i);
+        bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
+
+        // Vérifier déduplication (sym, t, i)
+        bool should_write = ShouldWriteData(symbol, t, barIndex);
+
+        // Écrire si : changement de payload OU clôture de barre OU nouvelle clé
+        // TEMPORAIRE: Désactiver la déduplication pour test
+        if ((should_write && payload_changed) || bar_closed) {
+          SCString debugMsg5;
+          debugMsg5.Format("DEBUG G3: VWAP WRITING - should_write=%d, payload_changed=%d, bar_closed=%d", 
+                          should_write, payload_changed, bar_closed);
+          sc.AddMessageToLog(debugMsg5, 1);
+          
+          SCString j;
+          j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"vwap\",\"src\":\"study\",\"i\":%d,\"v\":%.8f,\"up1\":%.8f,\"dn1\":%.8f,\"up2\":%.8f,\"dn2\":%.8f,\"up3\":%.8f,\"dn3\":%.8f,\"chart\":%d}",
+                   t, symbol, i, v, up1, dn1, up2, dn2, up3, dn3, sc.ChartNumber);
+          WriteToSpecializedFile(sc.ChartNumber, "vwap", j);
+          sc.AddMessageToLog("DEBUG G3: VWAP FILE WRITTEN", 1);
+          
+          // Mettre à jour les dernières valeurs
+          lv.vwap = v; lv.up1 = up1; lv.dn1 = dn1; lv.up2 = up2; lv.dn2 = dn2; lv.up3 = up3; lv.dn3 = dn3;
+        }
       }
     }
   }
 
-  // ========== VVA (Volume Value Area Lines) ==========
+  // ========== VVA (Volume Value Area Lines) - avec déduplication améliorée ==========
   if (sc.Input[5].GetInt() != 0 && sc.ArraySize > 0)
   {
     const int i = sc.ArraySize - 1;
     const double t = sc.BaseDateTimeIn[i].GetAsDouble();
+    const double barIndex = (double)i;
+    const char* symbol = sc.Symbol.GetChars();
 
     const int id_curr = sc.Input[6].GetInt();
     const int id_prev = sc.Input[7].GetInt();
+    
+    // DEBUG: Test VVA Study IDs
+    DebugStudyInfo(sc, id_curr, "VVA_CURRENT", VVA_SG_POC, "POC");
+    DebugStudyInfo(sc, id_prev, "VVA_PREVIOUS", VVA_SG_POC, "POC");
+    
+    // DEBUG: Test d'autres Study IDs potentiels pour VVA Previous
+    for (int test_id = 1; test_id <= 10; test_id++) {
+      if (test_id != id_curr && test_id != id_prev) {
+        SCString testName;
+        testName.Format("VVA_TEST_%d", test_id);
+        DebugStudyInfo(sc, test_id, testName.GetChars(), VVA_SG_POC, "POC");
+      }
+    }
 
     auto read_vva = [&](int id, double& vah, double& val, double& vpoc)
     {
@@ -390,54 +623,96 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
     read_vva(id_curr, vah, val, vpoc);
     read_vva(id_prev, pvah, pval, ppoc);
 
-    SCString j;
-    j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"vva\",\"i\":%d,"
-             "\"vah\":%.8f,\"val\":%.8f,\"vpoc\":%.8f,"
-             "\"pvah\":%.8f,\"pval\":%.8f,\"ppoc\":%.8f,"
-             "\"id_curr\":%d,\"id_prev\":%d,\"chart\":%d}",
-             t, sc.Symbol.GetChars(), i,
-             vah, val, vpoc, pvah, pval, ppoc, id_curr, id_prev, sc.ChartNumber);
-    WriteToSpecializedFile(sc.ChartNumber, "vva", j);
+    // Détection de changement d'état
+    std::string symKey = std::string(symbol);
+    LastVVA& lv = g_LastVVABySym[symKey];
+    bool payload_changed = 
+      has_changed(vah, lv.vah) || has_changed(val, lv.val) || has_changed(vpoc, lv.vpoc) ||
+      has_changed(pvah, lv.pvah) || has_changed(pval, lv.pval) || has_changed(ppoc, lv.ppoc);
+
+    // Vérifier clôture de barre
+    int barStatus = sc.GetBarHasClosedStatus(i);
+    bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
+
+    // Vérifier déduplication (sym, t, i)
+    bool should_write = ShouldWriteData(symbol, t, barIndex);
+
+    // Écrire si : changement de payload OU clôture de barre OU nouvelle clé
+    if ((should_write && payload_changed) || bar_closed) {
+      SCString j;
+      j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"vva\",\"i\":%d,"
+               "\"vah\":%.8f,\"val\":%.8f,\"vpoc\":%.8f,"
+               "\"pvah\":%.8f,\"pval\":%.8f,\"ppoc\":%.8f,"
+               "\"id_curr\":%d,\"id_prev\":%d,\"chart\":%d}",
+               t, symbol, i,
+               vah, val, vpoc, pvah, pval, ppoc, id_curr, id_prev, sc.ChartNumber);
+      WriteToSpecializedFile(sc.ChartNumber, "vva", j);
+      
+      // Mettre à jour les dernières valeurs
+      lv.vah = vah; lv.val = val; lv.vpoc = vpoc;
+      lv.pvah = pvah; lv.pval = pval; lv.ppoc = ppoc;
+    }
   }
 
   // ========== PVWAP (Previous VWAP) ==========
+  
   if (sc.Input[8].GetInt() != 0 && sc.ArraySize > 0 && sc.VolumeAtPriceForBars)
   {
     const int last = sc.ArraySize - 1;
     static int last_pvwap_bar = -1;
 
-    if (last != last_pvwap_bar)
+
+    // Force l'exécution au moins une fois par session
+    static bool pvwap_executed_today = false;
+    if (last != last_pvwap_bar || !pvwap_executed_today)
     {
       last_pvwap_bar = last;
+      pvwap_executed_today = true;
 
-      // Trouver le début de la session du jour
+      // Trouver le début de la session du jour - LOGIQUE ALTERNATIVE
       int currStart = last;
-      while (currStart > 0 && !sc.IsNewTradingDay(currStart)) currStart--;
+      int maxLookback = 1000; // Limiter la recherche
+      int lookbackCount = 0;
+      
+      while (currStart > 0 && !sc.IsNewTradingDay(currStart) && lookbackCount < maxLookback) {
+        currStart--;
+        lookbackCount++;
+      }
+      
+      // Si pas de session trouvée, utiliser une plage fixe (ex: 500 barres précédentes)
+      if (currStart <= 0) {
+        currStart = (last > 500) ? (last - 500) : 0;
+      }
+
 
       if (currStart > 0) {
-        // La veille = [prevStart .. currStart-1]
+        // La veille = [prevStart .. currStart-1] - LOGIQUE SIMPLIFIÉE
         int prevEnd = currStart - 1;
-        int prevStart = prevEnd;
-        while (prevStart > 0 && !sc.IsNewTradingDay(prevStart)) prevStart--;
+        int prevStart = (prevEnd > 500) ? (prevEnd - 500) : 0; // Plage fixe de 500 barres
+        
 
         // Accumuler VAP sur la veille
         double sumV  = 0.0;
         double sumPV = 0.0;
         double sumP2V = 0.0;
 
+        int totalVAPElements = 0;
         for (int b = prevStart; b <= prevEnd; ++b) {
           int N = sc.VolumeAtPriceForBars->GetSizeAtBarIndex(b);
           for (int k = 0; k < N; ++k) {
             const s_VolumeAtPriceV2* v = nullptr;
             if (sc.VolumeAtPriceForBars->GetVAPElementAtIndex(b, k, &v) && v) {
-              double p = NormalizePx(sc, sc.BaseDataIn[SC_LAST][b]);
+              // Utiliser le VRAI prix du VAP element, pas le Close du bar
+              double p = NormalizePx(sc, v->PriceInTicks * sc.TickSize);
               double vol = (double)v->Volume;
               sumV   += vol;
               sumPV  += p * vol;
               sumP2V += p * p * vol;
+              totalVAPElements++;
             }
           }
         }
+        
 
         if (sumV > 0.0) {
           double pvwap = sumPV / sumV;
@@ -452,6 +727,7 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
           if (nb >= 1) { up1 = pvwap + 0.5 * sigma; dn1 = pvwap - 0.5 * sigma; }
           if (nb >= 2) { up2 = pvwap + 1.0 * sigma; dn2 = pvwap - 1.0 * sigma; }
 
+
           SCString j;
           j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"pvwap\",\"i\":%d,\"prev_start\":%d,\"prev_end\":%d,"
                    "\"pvwap\":%.8f,\"up1\":%.8f,\"dn1\":%.8f,\"up2\":%.8f,\"dn2\":%.8f,\"chart\":%d}",
@@ -463,101 +739,123 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
     }
   }
 
-  // ===== NBCV FOOTPRINT =====
+  // ===== NBCV FOOTPRINT (avec déduplication améliorée) =====
   if (sc.Input[10].GetInt() != 0 && sc.ArraySize > 0)
   {
     const int i = sc.ArraySize - 1;
-    static int s_last_nbcv_bar = -1;
+    const double t = sc.BaseDateTimeIn[i].GetAsDouble();
+    const double barIndex = (double)i;
+    const char* symbol = sc.Symbol.GetChars();
     
-    if (i != s_last_nbcv_bar)
-    {
-      s_last_nbcv_bar = i;
+    const int nbcv_id = sc.Input[11].GetInt();
+    
+    // DEBUG: Test NBCV Study ID
+    DebugStudyInfo(sc, nbcv_id, "NBCV", 0, "ASK_VOL");
+    
+    if (nbcv_id > 0) {
+      // ----------------- NBCV: lecture des subgraphs -----------------
+      SCFloatArray askVolArr, bidVolArr, deltaArr, tradesArr, cumDeltaArr, totalVolArr;
+      SCFloatArray deltaPercentArr, askPercentArr, bidPercentArr;
       
-      const int nbcv_id = sc.Input[11].GetInt();
+      // Base
+      ReadSubgraph(sc, nbcv_id, NBCV_SG_ASK_VOLUME, askVolArr);        // Ask Volume
+      ReadSubgraph(sc, nbcv_id, NBCV_SG_BID_VOLUME, bidVolArr);        // Bid Volume
+      ReadSubgraph(sc, nbcv_id, NBCV_SG_DELTA,      deltaArr);         // Delta
+      ReadSubgraph(sc, nbcv_id, NBCV_SG_TRADES,     tradesArr);        // Trades (optionnel)
+      ReadSubgraph(sc, nbcv_id, NBCV_SG_CUMULATIVE, cumDeltaArr);      // Cum Delta (optionnel)
+      ReadSubgraph(sc, nbcv_id, NBCV_SG_TOTAL_VOLUME, totalVolArr);      // Total Volume
       
-      if (nbcv_id > 0) {
-        // ----------------- NBCV: lecture des subgraphs -----------------
-        SCFloatArray askVolArr, bidVolArr, deltaArr, tradesArr, cumDeltaArr, totalVolArr;
-        SCFloatArray deltaPercentArr, askPercentArr, bidPercentArr;
+      // Ratios pré-calculés Sierra
+      ReadSubgraph(sc, nbcv_id, NBCV_SG_DELTA_PCT, deltaPercentArr);  // Delta %
+      ReadSubgraph(sc, nbcv_id, NBCV_SG_ASK_PCT, askPercentArr);    // Ask %
+      ReadSubgraph(sc, nbcv_id, NBCV_SG_BID_PCT, bidPercentArr);    // Bid %
+
+      if (ValidateStudyData(askVolArr, i) && ValidateStudyData(bidVolArr, i)) {
         
-        // Base
-        ReadSubgraph(sc, nbcv_id, NBCV_SG_ASK_VOLUME, askVolArr);        // Ask Volume
-        ReadSubgraph(sc, nbcv_id, NBCV_SG_BID_VOLUME, bidVolArr);        // Bid Volume
-        ReadSubgraph(sc, nbcv_id, NBCV_SG_DELTA,      deltaArr);         // Delta
-        ReadSubgraph(sc, nbcv_id, NBCV_SG_TRADES,     tradesArr);        // Trades (optionnel)
-        ReadSubgraph(sc, nbcv_id, NBCV_SG_CUMULATIVE, cumDeltaArr);      // Cum Delta (optionnel)
-        ReadSubgraph(sc, nbcv_id, NBCV_SG_TOTAL_VOLUME, totalVolArr);      // Total Volume
-        
-        // Ratios pré-calculés Sierra
-        ReadSubgraph(sc, nbcv_id, NBCV_SG_DELTA_PCT, deltaPercentArr);  // Delta %
-        ReadSubgraph(sc, nbcv_id, NBCV_SG_ASK_PCT, askPercentArr);    // Ask %
-        ReadSubgraph(sc, nbcv_id, NBCV_SG_BID_PCT, bidPercentArr);    // Bid %
+        // Lecture sécurisée des données
+        double askVolume     = ValidateStudyData(askVolArr, i)       ? askVolArr[i]       : 0.0;
+        double bidVolume     = ValidateStudyData(bidVolArr, i)       ? bidVolArr[i]       : 0.0;
+        double delta         = ValidateStudyData(deltaArr, i)        ? deltaArr[i]        : (askVolume - bidVolume);
+        double totalVolume   = ValidateStudyData(totalVolArr, i)     ? totalVolArr[i]     : (askVolume + bidVolume);
+        double numberOfTrades = ValidateStudyData(tradesArr, i)      ? tradesArr[i]       : 0.0;
+        double cumulativeDelta = ValidateStudyData(cumDeltaArr, i)   ? cumDeltaArr[i]     : 0.0;
 
-        if (ValidateStudyData(askVolArr, i) && ValidateStudyData(bidVolArr, i)) {
-          const double t = sc.BaseDateTimeIn[i].GetAsDouble();
-          
-          // Lecture sécurisée des données
-          double askVolume     = ValidateStudyData(askVolArr, i)       ? askVolArr[i]       : 0.0;
-          double bidVolume     = ValidateStudyData(bidVolArr, i)       ? bidVolArr[i]       : 0.0;
-          double delta         = ValidateStudyData(deltaArr, i)        ? deltaArr[i]        : (askVolume - bidVolume);
-          double totalVolume   = ValidateStudyData(totalVolArr, i)     ? totalVolArr[i]     : (askVolume + bidVolume);
-          double numberOfTrades = ValidateStudyData(tradesArr, i)      ? tradesArr[i]       : 0.0;
-          double cumulativeDelta = ValidateStudyData(cumDeltaArr, i)   ? cumDeltaArr[i]     : 0.0;
+        // Pourcentages Sierra -> normalisés [0..1]
+        double askPct = ValidateStudyData(askPercentArr, i)    ? (askPercentArr[i]   / 100.0) : 0.0;
+        double bidPct = ValidateStudyData(bidPercentArr, i)    ? (bidPercentArr[i]   / 100.0) : 0.0;
+        double dltPct = ValidateStudyData(deltaPercentArr, i)  ? (deltaPercentArr[i] / 100.0) : 0.0;
 
-          // Pourcentages Sierra -> normalisés [0..1]
-          double askPct = ValidateStudyData(askPercentArr, i)    ? (askPercentArr[i]   / 100.0) : 0.0;
-          double bidPct = ValidateStudyData(bidPercentArr, i)    ? (bidPercentArr[i]   / 100.0) : 0.0;
-          double dltPct = ValidateStudyData(deltaPercentArr, i)  ? (deltaPercentArr[i] / 100.0) : 0.0;
+        // Fallback si SG 16/17/10 indispo (rare, mais safe)
+        if (!ValidateStudyData(askPercentArr, i) || !ValidateStudyData(bidPercentArr, i)) {
+          // Recalcule simples sur base des volumes
+          if (totalVolume > 0.0) {
+            askPct = (askVolume / totalVolume);
+            bidPct = (bidVolume / totalVolume);
+          }
+        }
+        if (!ValidateStudyData(deltaPercentArr, i) && totalVolume > 0.0) {
+          dltPct = (delta / totalVolume);
+        }
 
-          // Fallback si SG 16/17/10 indispo (rare, mais safe)
-          if (!ValidateStudyData(askPercentArr, i) || !ValidateStudyData(bidPercentArr, i)) {
-            // Recalcule simples sur base des volumes
-            if (totalVolume > 0.0) {
-              askPct = (askVolume / totalVolume);
-              bidPct = (bidVolume / totalVolume);
+        // Ratios croisés
+        const double bidAskRatio = (askPct > 0.0) ? (bidPct / askPct) : 0.0;
+        const double askBidRatio = (bidPct > 0.0) ? (askPct / bidPct) : 0.0;
+
+        // Seuils configurables
+        const double min_vol   = sc.Input[19].GetFloat();  // Min Total Volume
+        const double th_ratio  = sc.Input[20].GetFloat();  // Min |Delta Ratio|
+        const double th_ratioR = sc.Input[21].GetFloat();  // Min Ask/Bid or Bid/Ask Ratio
+
+        // ----------------- Logique Bull/Bear -----------------
+        int pressure_bullish = 0;
+        int pressure_bearish = 0;
+
+        if (totalVolume >= min_vol) {
+          // Signe du delta = côté dominant brut
+          if (delta > 0.0) {
+            // Acheteurs dominants
+            if (fabs(dltPct) >= th_ratio || askBidRatio >= th_ratioR) {
+              pressure_bullish = 1;
+            }
+          } else if (delta < 0.0) {
+            // Vendeurs dominants
+            if (fabs(dltPct) >= th_ratio || bidAskRatio >= th_ratioR) {
+              pressure_bearish = 1;
             }
           }
-          if (!ValidateStudyData(deltaPercentArr, i) && totalVolume > 0.0) {
-            dltPct = (delta / totalVolume);
-          }
+        }
 
-          // Ratios croisés
-          const double bidAskRatio = (askPct > 0.0) ? (bidPct / askPct) : 0.0;
-          const double askBidRatio = (bidPct > 0.0) ? (askPct / bidPct) : 0.0;
+        // Drapeau unifié
+        int of_pressure = 0; // 1=BULL, -1=BEAR, 0=NEUTRAL
+        if (pressure_bullish) of_pressure = 1;
+        else if (pressure_bearish) of_pressure = -1;
 
-          // Seuils configurables
-          const double min_vol   = sc.Input[17].GetFloat();  // Min Total Volume
-          const double th_ratio  = sc.Input[18].GetFloat();  // Min |Delta Ratio|
-          const double th_ratioR = sc.Input[19].GetFloat();  // Min Ask/Bid or Bid/Ask Ratio
+        // Détection de changement d'état
+        std::string symKey = std::string(symbol);
+        LastNBCV& ln = g_LastNBCVBySym[symKey];
+        bool payload_changed = 
+          has_changed(askVolume, ln.askVolume) || has_changed(bidVolume, ln.bidVolume) ||
+          has_changed(delta, ln.delta) || has_changed(totalVolume, ln.totalVolume) ||
+          has_changed(dltPct, ln.deltaPct) || has_changed(askPct, ln.askPct) || has_changed(bidPct, ln.bidPct) ||
+          (of_pressure != ln.pressure);
 
-          // ----------------- Logique Bull/Bear -----------------
-          int pressure_bullish = 0;
-          int pressure_bearish = 0;
+        // Vérifier clôture de barre
+        int barStatus = sc.GetBarHasClosedStatus(i);
+        bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
 
-          if (totalVolume >= min_vol) {
-            // Signe du delta = côté dominant brut
-            if (delta > 0.0) {
-              // Acheteurs dominants
-              if (fabs(dltPct) >= th_ratio || askBidRatio >= th_ratioR) {
-                pressure_bullish = 1;
-              }
-            } else if (delta < 0.0) {
-              // Vendeurs dominants
-              if (fabs(dltPct) >= th_ratio || bidAskRatio >= th_ratioR) {
-                pressure_bearish = 1;
-              }
-            }
-          }
+        // Vérifier déduplication (sym, t, i)
+        bool should_write = ShouldWriteData(symbol, t, barIndex);
 
-          // Drapeau unifié
-          int of_pressure = 0; // 1=BULL, -1=BEAR, 0=NEUTRAL
-          if (pressure_bullish) of_pressure = 1;
-          else if (pressure_bearish) of_pressure = -1;
-
+        // Écrire si : changement de payload OU clôture de barre OU nouvelle clé
+        if ((should_write && payload_changed) || bar_closed) {
           SCString j;
           j.Format(R"({"t":%.6f,"sym":"%s","type":"nbcv_footprint","i":%d,"ask_volume":%.0f,"bid_volume":%.0f,"delta":%.0f,"trades":%.0f,"cumulative_delta":%.0f,"total_volume":%.0f,"delta_ratio":%.6f,"ask_percent":%.6f,"bid_percent":%.6f,"bid_ask_ratio":%.6f,"ask_bid_ratio":%.6f,"pressure_bullish":%d,"pressure_bearish":%d,"pressure":%d,"chart":%d})",
-                   t, sc.Symbol.GetChars(), i, askVolume, bidVolume, delta, numberOfTrades, cumulativeDelta, totalVolume, dltPct, askPct, bidPct, bidAskRatio, askBidRatio, pressure_bullish, pressure_bearish, of_pressure, sc.ChartNumber);
+                   t, symbol, i, askVolume, bidVolume, delta, numberOfTrades, cumulativeDelta, totalVolume, dltPct, askPct, bidPct, bidAskRatio, askBidRatio, pressure_bullish, pressure_bearish, of_pressure, sc.ChartNumber);
           WriteToSpecializedFile(sc.ChartNumber, "nbcv", j);
+          
+          // Mettre à jour les dernières valeurs
+          ln.askVolume = askVolume; ln.bidVolume = bidVolume; ln.delta = delta; ln.totalVolume = totalVolume;
+          ln.deltaPct = dltPct; ln.askPct = askPct; ln.bidPct = bidPct; ln.pressure = of_pressure;
         }
       }
     }
@@ -652,11 +950,24 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
       ReadSubgraph(sc, deltaStudyID, deltaSG, deltaData);
       
       if (ValidateStudyData(deltaData, i)) {
-        const double delta = deltaData[i];
-        SCString j;
-        j.Format("{\"t\":%.6f,\"type\":\"cumulative_delta\",\"i\":%d,\"close\":%.6f,\"study\":%d,\"sg\":%d,\"chart\":%d}",
-                 t, i, delta, deltaStudyID, deltaSG, sc.ChartNumber);
-        WriteToSpecializedFile(sc.ChartNumber, "cumulative_delta", j);
+        const double barIndex = (double)i;
+        const char* symbol = sc.Symbol.GetChars();
+        
+        // Vérifier déduplication (sym, t, i)
+        bool should_write = ShouldWriteData(symbol, t, barIndex);
+        
+        // Vérifier clôture de barre
+        int barStatus = sc.GetBarHasClosedStatus(i);
+        bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
+        
+        // Écrire si : nouvelle clé OU clôture de barre
+        if (should_write || bar_closed) {
+          const double delta = deltaData[i];
+          SCString j;
+          j.Format("{\"t\":%.6f,\"type\":\"cumulative_delta\",\"i\":%d,\"close\":%.6f,\"study\":%d,\"sg\":%d,\"chart\":%d}",
+                   t, i, delta, deltaStudyID, deltaSG, sc.ChartNumber);
+          WriteToSpecializedFile(sc.ChartNumber, "cumulative_delta", j);
+        }
       }
     }
   }

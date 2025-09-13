@@ -1,0 +1,177 @@
+{
+  "date": "20250912",
+  "total_files_processed": 21,
+  "total_records": 1210881,
+  "total_duplicates": 1174669,
+  "overall_duplicate_rate": 97.00945014415124,
+  "file_stats": {
+    "chart_3_basedata_20250912.jsonl": {
+      "file": "chart_3_basedata_20250912.jsonl",
+      "total_records": 57714,
+      "duplicates": 51986,
+      "valid_records": 5728,
+      "duplicate_rate": 90.07519839207124,
+      "output_file": ".\\chart_3_basedata_20250912_deduplicated.jsonl"
+    },
+    "chart_3_cumulative_delta_20250912.jsonl": {
+      "file": "chart_3_cumulative_delta_20250912.jsonl",
+      "total_records": 57714,
+      "duplicates": 57321,
+      "valid_records": 393,
+      "duplicate_rate": 99.31905603493087,
+      "output_file": ".\\chart_3_cumulative_delta_20250912_deduplicated.jsonl"
+    },
+    "chart_3_depth_20250912.jsonl": {
+      "file": "chart_3_depth_20250912.jsonl",
+      "total_records": 154275,
+      "duplicates": 153882,
+      "valid_records": 393,
+      "duplicate_rate": 99.74526008750607,
+      "output_file": ".\\chart_3_depth_20250912_deduplicated.jsonl"
+    },
+    "chart_3_nbcv_20250912.jsonl": {
+      "file": "chart_3_nbcv_20250912.jsonl",
+      "total_records": 105,
+      "duplicates": 1,
+      "valid_records": 104,
+      "duplicate_rate": 0.9523809523809524,
+      "output_file": ".\\chart_3_nbcv_20250912_deduplicated.jsonl"
+    },
+    "chart_3_pvwap_20250912.jsonl": {
+      "file": "chart_3_pvwap_20250912.jsonl",
+      "total_records": 281,
+      "duplicates": 0,
+      "valid_records": 281,
+      "duplicate_rate": 0.0,
+      "output_file": ".\\chart_3_pvwap_20250912_deduplicated.jsonl"
+    },
+    "chart_3_quote_20250912.jsonl": {
+      "file": "chart_3_quote_20250912.jsonl",
+      "total_records": 141868,
+      "duplicates": 120008,
+      "valid_records": 21860,
+      "duplicate_rate": 84.5913102320467,
+      "output_file": ".\\chart_3_quote_20250912_deduplicated.jsonl"
+    },
+    "chart_3_vva_20250912.jsonl": {
+      "file": "chart_3_vva_20250912.jsonl",
+      "total_records": 57721,
+      "duplicates": 57328,
+      "valid_records": 393,
+      "duplicate_rate": 99.3191386150621,
+      "output_file": ".\\chart_3_vva_20250912_deduplicated.jsonl"
+    },
+    "chart_3_vwap_20250912.jsonl": {
+      "file": "chart_3_vwap_20250912.jsonl",
+      "total_records": 57723,
+      "duplicates": 57296,
+      "valid_records": 427,
+      "duplicate_rate": 99.26026020823588,
+      "output_file": ".\\chart_3_vwap_20250912_deduplicated.jsonl"
+    },
+    "chart_4_atr_20250912.jsonl": {
+      "file": "chart_4_atr_20250912.jsonl",
+      "total_records": 57622,
+      "duplicates": 57608,
+      "valid_records": 14,
+      "duplicate_rate": 99.97570372427198,
+      "output_file": ".\\chart_4_atr_20250912_deduplicated.jsonl"
+    },
+    "chart_4_correlation_20250912.jsonl": {
+      "file": "chart_4_correlation_20250912.jsonl",
+      "total_records": 16129,
+      "duplicates": 16125,
+      "valid_records": 4,
+      "duplicate_rate": 99.9751999503999,
+      "output_file": ".\\chart_4_correlation_20250912_deduplicated.jsonl"
+    },
+    "chart_4_cumulative_delta_20250912.jsonl": {
+      "file": "chart_4_cumulative_delta_20250912.jsonl",
+      "total_records": 57624,
+      "duplicates": 57610,
+      "valid_records": 14,
+      "duplicate_rate": 99.9757045675413,
+      "output_file": ".\\chart_4_cumulative_delta_20250912_deduplicated.jsonl"
+    },
+    "chart_4_hvn_lvn_20250912.jsonl": {
+      "file": "chart_4_hvn_lvn_20250912.jsonl",
+      "total_records": 57539,
+      "duplicates": 57525,
+      "valid_records": 14,
+      "duplicate_rate": 99.97566867689741,
+      "output_file": ".\\chart_4_hvn_lvn_20250912_deduplicated.jsonl"
+    },
+    "chart_4_nbcv_20250912.jsonl": {
+      "file": "chart_4_nbcv_20250912.jsonl",
+      "total_records": 57447,
+      "duplicates": 57433,
+      "valid_records": 14,
+      "duplicate_rate": 99.97562971086393,
+      "output_file": ".\\chart_4_nbcv_20250912_deduplicated.jsonl"
+    },
+    "chart_4_ohlc_20250912.jsonl": {
+      "file": "chart_4_ohlc_20250912.jsonl",
+      "total_records": 57626,
+      "duplicates": 57612,
+      "valid_records": 14,
+      "duplicate_rate": 99.97570541075208,
+      "output_file": ".\\chart_4_ohlc_20250912_deduplicated.jsonl"
+    },
+    "chart_4_pvwap_20250912.jsonl": {
+      "file": "chart_4_pvwap_20250912.jsonl",
+      "total_records": 57627,
+      "duplicates": 57613,
+      "valid_records": 14,
+      "duplicate_rate": 99.97570583233554,
+      "output_file": ".\\chart_4_pvwap_20250912_deduplicated.jsonl"
+    },
+    "chart_4_volume_profile_20250912.jsonl": {
+      "file": "chart_4_volume_profile_20250912.jsonl",
+      "total_records": 56782,
+      "duplicates": 51134,
+      "valid_records": 5648,
+      "duplicate_rate": 90.05318586876123,
+      "output_file": ".\\chart_4_volume_profile_20250912_deduplicated.jsonl"
+    },
+    "chart_4_vva_previous_20250912.jsonl": {
+      "file": "chart_4_vva_previous_20250912.jsonl",
+      "total_records": 57630,
+      "duplicates": 57616,
+      "valid_records": 14,
+      "duplicate_rate": 99.9757070969981,
+      "output_file": ".\\chart_4_vva_previous_20250912_deduplicated.jsonl"
+    },
+    "chart_4_vwap_20250912.jsonl": {
+      "file": "chart_4_vwap_20250912.jsonl",
+      "total_records": 57631,
+      "duplicates": 57617,
+      "valid_records": 14,
+      "duplicate_rate": 99.97570751852301,
+      "output_file": ".\\chart_4_vwap_20250912_deduplicated.jsonl"
+    },
+    "chart_8_vix_20250912.jsonl": {
+      "file": "chart_8_vix_20250912.jsonl",
+      "total_records": 57707,
+      "duplicates": 57656,
+      "valid_records": 51,
+      "duplicate_rate": 99.9116225068016,
+      "output_file": ".\\chart_8_vix_20250912_deduplicated.jsonl"
+    },
+    "chart_8_vix_close_20250912.jsonl": {
+      "file": "chart_8_vix_close_20250912.jsonl",
+      "total_records": 57708,
+      "duplicates": 57672,
+      "valid_records": 36,
+      "duplicate_rate": 99.93761696818466,
+      "output_file": ".\\chart_8_vix_close_20250912_deduplicated.jsonl"
+    },
+    "chart_10_menthorq_20250912.jsonl": {
+      "file": "chart_10_menthorq_20250912.jsonl",
+      "total_records": 34408,
+      "duplicates": 33626,
+      "valid_records": 782,
+      "duplicate_rate": 97.72727272727273,
+      "output_file": ".\\chart_10_menthorq_20250912_deduplicated.jsonl"
+    }
+  }
+}

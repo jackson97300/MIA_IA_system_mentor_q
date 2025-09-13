@@ -26,6 +26,20 @@ from core.logger import get_logger
 from features.menthorq_dealers_bias import create_menthorq_dealers_bias_analyzer
 from features.menthorq_integration import get_menthorq_confluence
 
+# 🆕 Import configuration centralisée
+try:
+    from config.menthorq_rules_loader import get_menthorq_rules, is_hard_rule_enabled, get_leadership_threshold
+    MENTHORQ_RULES_AVAILABLE = True
+except ImportError:
+    MENTHORQ_RULES_AVAILABLE = False
+
+# 🆕 Import filtre de leadership amélioré
+try:
+    from features.leadership_zmom import LeadershipZMom
+    ENHANCED_LEADERSHIP_FILTER_AVAILABLE = True
+except ImportError:
+    ENHANCED_LEADERSHIP_FILTER_AVAILABLE = False
+
 # 🆕 Imports Advanced Features
 try:
     from features.advanced import AdvancedFeaturesSuite, create_advanced_features_suite
@@ -475,6 +489,97 @@ class ConfluenceIntegrator:
     def _apply_leadership_filter(self, final_score: float, leadership_gate: float) -> bool:
         """🛡️ Filtre de leadership pour éviter les signaux contre-tendance"""
         try:
+            # 🆕 Utiliser le filtre amélioré si disponible
+            if ENHANCED_LEADERSHIP_FILTER_AVAILABLE:
+                return self._apply_leadership_filter_enhanced(final_score, leadership_gate)
+            elif MENTHORQ_RULES_AVAILABLE:
+                return self._apply_leadership_filter_with_config(final_score, leadership_gate)
+            else:
+                return self._apply_leadership_filter_legacy(final_score, leadership_gate)
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur filtre leadership: {e}")
+            return True
+    
+    def _apply_leadership_filter_enhanced(self, final_score: float, leadership_gate: float) -> bool:
+        """🛡️ Filtre de leadership amélioré avec blocage explicite"""
+        try:
+            # Récupérer le filtre amélioré
+            enhanced_filter = LeadershipZMom()
+            
+            # Récupérer les données du leader
+            leader = self._get_current_leader()
+            leader_trend = self._get_leader_trend(leader) if leader else None
+            
+            # Récupérer les données VIX (simulées pour l'instant)
+            vix_level = 20.0  # TODO: Récupérer depuis les données réelles
+            vix_regime = "normal"  # TODO: Calculer depuis les données réelles
+            
+            # Appliquer le filtre amélioré
+            filter_result = enhanced_filter.filter_signal(
+                signal_score=final_score,
+                leadership_gate=leadership_gate,
+                leader=leader,
+                leader_trend=leader_trend,
+                vix_level=vix_level,
+                vix_regime=vix_regime
+            )
+            
+            # Log du résultat
+            if filter_result.is_blocked:
+                logger.warning(f"🛡️ Signal bloqué par filtre amélioré: {filter_result.block_message}")
+                logger.warning(f"🛡️ Raison: {filter_result.block_reason.value if filter_result.block_reason else 'Unknown'}")
+            else:
+                logger.debug(f"🛡️ Signal autorisé par filtre amélioré: {filter_result.block_message}")
+            
+            return not filter_result.is_blocked
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur filtre leadership amélioré: {e}")
+            return True
+    
+    def _apply_leadership_filter_with_config(self, final_score: float, leadership_gate: float) -> bool:
+        """🛡️ Filtre de leadership avec configuration centralisée"""
+        try:
+            # Vérifier si la règle de blocage contra-trend est activée
+            if not is_hard_rule_enabled('leadership_contra_trend'):
+                logger.debug("🛡️ Règle leadership_contra_trend désactivée - tous les signaux acceptés")
+                return True
+            
+            # Récupérer les seuils de la configuration
+            leadership_threshold = get_leadership_threshold('strong')  # 0.7 par défaut
+            signal_threshold = get_leadership_threshold('moderate')    # 0.5 par défaut
+            
+            # Si le leadership est faible, on accepte tous les signaux
+            if leadership_gate < signal_threshold:
+                logger.debug(f"🛡️ Leadership faible ({leadership_gate:.3f} < {signal_threshold:.3f}) - signal accepté")
+                return True
+            
+            # Si le leadership est fort, on filtre les signaux contre-tendance
+            if leadership_gate >= leadership_threshold:
+                # Signal fort contre-tendance = REJET
+                if abs(final_score) >= signal_threshold:
+                    # Vérifier si c'est contre-tendance du leader
+                    if self._is_against_leader_trend(final_score, leadership_gate):
+                        logger.warning(f"🛡️ Signal contre-tendance du leader rejeté: score={final_score:.3f}, gate={leadership_gate:.3f}")
+                        logger.warning(f"🛡️ Seuils config: leadership={leadership_threshold:.3f}, signal={signal_threshold:.3f}")
+                        return False
+                    else:
+                        logger.debug(f"🛡️ Signal aligné avec le leader: score={final_score:.3f}, gate={leadership_gate:.3f}")
+                else:
+                    logger.debug(f"🛡️ Signal trop faible pour être contre-tendance: score={final_score:.3f}")
+            else:
+                logger.debug(f"🛡️ Leadership modéré ({leadership_gate:.3f} < {leadership_threshold:.3f}) - signal accepté")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur filtre leadership avec config: {e}")
+            return True
+    
+    def _apply_leadership_filter_legacy(self, final_score: float, leadership_gate: float) -> bool:
+        """🛡️ Filtre de leadership legacy (sans configuration centralisée)"""
+        try:
             # Si le leadership est faible, on accepte tous les signaux
             if leadership_gate < 0.5:
                 return True
@@ -491,7 +596,7 @@ class ConfluenceIntegrator:
             return True
             
         except Exception as e:
-            logger.error(f"❌ Erreur filtre leadership: {e}")
+            logger.error(f"❌ Erreur filtre leadership legacy: {e}")
             return True
     
     def _is_against_leader_trend(self, final_score: float, leadership_gate: float) -> bool:
@@ -500,21 +605,32 @@ class ConfluenceIntegrator:
             # Récupérer le leader actuel
             leader = self._get_current_leader()
             if not leader:
+                logger.debug("🛡️ Aucun leader détecté - pas de contre-tendance")
                 return False
             
             # Récupérer la tendance du leader
             leader_trend = self._get_leader_trend(leader)
             if not leader_trend:
+                logger.debug(f"🛡️ Tendance du leader {leader} non calculable - pas de contre-tendance")
                 return False
             
             # Vérifier la cohérence
             signal_direction = 1 if final_score > 0 else -1
             leader_direction = 1 if leader_trend > 0 else -1
             
+            # 🆕 Utiliser la configuration centralisée pour le seuil de leadership
+            if MENTHORQ_RULES_AVAILABLE:
+                leadership_threshold = get_leadership_threshold('strong')  # 0.7 par défaut
+            else:
+                leadership_threshold = 0.7  # Fallback legacy
+            
             # Si directions opposées et leadership fort = contre-tendance
-            if signal_direction != leader_direction and leadership_gate >= 0.7:
+            if signal_direction != leader_direction and leadership_gate >= leadership_threshold:
+                logger.warning(f"🛡️ Contre-tendance détectée: signal={signal_direction}, leader={leader_direction}, gate={leadership_gate:.3f}")
+                logger.warning(f"🛡️ Leader: {leader}, tendance: {leader_trend:.3f}, score: {final_score:.3f}")
                 return True
             
+            logger.debug(f"🛡️ Signal aligné avec le leader: signal={signal_direction}, leader={leader_direction}")
             return False
             
         except Exception as e:
@@ -679,18 +795,32 @@ class ConfluenceIntegrator:
                     'total_signals': 0, 
                     'valid_signals': 0,
                     'avg_score': 0.0,
-                    'validation_rate': 0.0
+                    'validation_rate': 0.0,
+                    'contra_trend_blocked': 0,
+                    'contra_trend_block_rate': 0.0
                 }
             
             total_signals = len(self.confluence_history)
             avg_score = sum(r['result'].final_score for r in self.confluence_history) / total_signals
             valid_signals = sum(1 for r in self.confluence_history if r['result'].is_valid)
             
+            # 🆕 Calculer les statistiques de blocage contra-trend
+            contra_trend_blocked = 0
+            for r in self.confluence_history:
+                result = r['result']
+                # Si le signal n'est pas valide et a un score élevé, c'est probablement un blocage contra-trend
+                if not result.is_valid and abs(result.final_score) >= 0.5 and result.leadership_gate >= 0.7:
+                    contra_trend_blocked += 1
+            
+            contra_trend_block_rate = contra_trend_blocked / total_signals if total_signals > 0 else 0.0
+            
             return {
                 'total_signals': total_signals,
                 'valid_signals': valid_signals,
                 'avg_score': avg_score,
-                'validation_rate': valid_signals / total_signals if total_signals > 0 else 0.0
+                'validation_rate': valid_signals / total_signals if total_signals > 0 else 0.0,
+                'contra_trend_blocked': contra_trend_blocked,
+                'contra_trend_block_rate': contra_trend_block_rate
             }
             
         except Exception as e:
@@ -699,13 +829,76 @@ class ConfluenceIntegrator:
                 'total_signals': 0, 
                 'valid_signals': 0,
                 'avg_score': 0.0,
-                'validation_rate': 0.0
+                'validation_rate': 0.0,
+                'contra_trend_blocked': 0,
+                'contra_trend_block_rate': 0.0
+            }
+    
+    def get_enhanced_leadership_filter_stats(self) -> Dict[str, Any]:
+        """🆕 Retourne les statistiques du filtre de leadership amélioré"""
+        try:
+            if not ENHANCED_LEADERSHIP_FILTER_AVAILABLE:
+                return {
+                    'enhanced_filter_available': False,
+                    'message': 'Filtre de leadership amélioré non disponible'
+                }
+            
+            enhanced_filter = LeadershipZMom()
+            stats = enhanced_filter.get_filter_stats()
+            
+            return {
+                'enhanced_filter_available': True,
+                'total_signals': stats.total_signals,
+                'blocked_signals': stats.blocked_signals,
+                'block_rate': stats.block_rate,
+                'block_reasons': stats.block_reasons,
+                'leadership_distribution': stats.leadership_distribution,
+                'vix_regime_blocks': stats.vix_regime_blocks,
+                'avg_leadership_gate': stats.avg_leadership_gate,
+                'avg_signal_score': stats.avg_signal_score
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur récupération stats filtre amélioré: {e}")
+            return {
+                'enhanced_filter_available': False,
+                'error': str(e)
             }
     
     def reset_confluence_history(self) -> None:
         """Reset l'historique de confluence"""
         self.confluence_history.clear()
         logger.info("🔄 Historique confluence reseté")
+    
+    def get_leadership_filter_config(self) -> Dict[str, Any]:
+        """🆕 Retourne la configuration du filtre de leadership"""
+        try:
+            if MENTHORQ_RULES_AVAILABLE:
+                return {
+                    'config_available': True,
+                    'contra_trend_enabled': is_hard_rule_enabled('leadership_contra_trend'),
+                    'leadership_threshold_strong': get_leadership_threshold('strong'),
+                    'leadership_threshold_moderate': get_leadership_threshold('moderate'),
+                    'leadership_threshold_min': get_leadership_threshold('min'),
+                    'config_source': 'menthorq_rules.json'
+                }
+            else:
+                return {
+                    'config_available': False,
+                    'contra_trend_enabled': True,  # Legacy par défaut
+                    'leadership_threshold_strong': 0.7,
+                    'leadership_threshold_moderate': 0.5,
+                    'leadership_threshold_min': 0.4,
+                    'config_source': 'legacy_hardcoded'
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Erreur récupération config leadership: {e}")
+            return {
+                'config_available': False,
+                'contra_trend_enabled': False,
+                'error': str(e)
+            }
     
     # 🆕 MÉTHODES DE SYNCHRONISATION ES/NQ
     

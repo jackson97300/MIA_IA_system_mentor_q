@@ -33,6 +33,10 @@ from core.battle_navale import BattleNavaleAnalyzer
 from strategies.trend_strategy import TrendStrategy
 from strategies.range_strategy import RangeStrategy
 
+# 🆕 Import de la méthode MenthorQ-Distance avec Leadership
+from features.leadership_zmom import LeadershipZMom
+from core.menthorq_distance_trading import MenthorQDistanceTrader
+
 logger = get_logger(__name__)
 
 # ===== SIGNAL GENERATOR CORE =====
@@ -115,6 +119,10 @@ class SignalGenerator:
         # 🆕 PHASE 3: Connection MTF Elite avec Battle Navale
         self.confluence_analyzer.set_battle_navale_analyzer(self.battle_navale)
         logger.info("[OK] 🚀 Elite MTF Confluence connectée avec Battle Navale")
+        
+        # 🆕 MenthorQ Distance Trader avec Leadership Z-Momentum
+        self.menthorq_distance_trader = MenthorQDistanceTrader()
+        logger.info("[OK] 🎯 MenthorQ Distance Trader avec Leadership Z-Momentum initialisé")
 
     def _initialize_strategies(self):
         """Initialise les stratégies de trading"""
@@ -231,6 +239,57 @@ class SignalGenerator:
         except Exception as e:
             logger.error(f"Erreur génération signal: {e}")
             return self._create_error_signal(market_data, str(e))
+
+    # 🆕 MÉTHODE MENTHORQ-DISTANCE AVEC LEADERSHIP Z-MOMENTUM
+    
+    def decide_mq_distance(self, row_es: Dict[str, Any], row_nq: Dict[str, Any], config: Optional[Dict] = None) -> Optional[Dict[str, Any]]:
+        """
+        Méthode MenthorQ-Distance avec Leadership Z-Momentum intégrée
+        
+        Architecture :
+        1. MenthorQ décide (décideur principal)
+        2. MIA Bullish valide (biais interne bidirectionnel)
+        3. Leadership Z-Momentum gate + bonus
+        4. OrderFlow valide (timing)
+        5. Structure contextuelle
+        6. Fusion des scores + modulateurs
+        7. E/U/L
+        
+        Args:
+            row_es: Ligne unified ES (mia_unifier)
+            row_nq: Ligne unified NQ (mia_unifier)
+            config: Configuration avec tolérances, seuils, pondérations
+            
+        Returns:
+            Dict avec signal final ou None si pas de trade
+        """
+        if not config:
+            config = {
+                "tick_size": 0.25,
+                "mq_tolerance_ticks": {"gamma_wall": 3, "hvl": 5, "gex": 5},
+                "mia_threshold": 0.20,
+                "entry_threshold": 0.70,
+                "weights": {"mq": 0.55, "of": 0.30, "structure": 0.15}
+            }
+        
+        try:
+            # Utiliser la méthode intégrée du MenthorQ Distance Trader
+            signal = self.menthorq_distance_trader.decide_mq_distance_integrated(
+                row_es=row_es,
+                row_nq=row_nq,
+                config=config
+            )
+            
+            if signal:
+                logger.info(f"🎯 Signal MenthorQ-Distance: {signal['action']} (Score: {signal['score']})")
+                logger.info(f"   Leadership: LS={signal['leadership']['ls']}, Bonus={signal['leadership']['bonus']}")
+                logger.info(f"   E/U/L: Entry={signal['eul']['entry']}, Stop={signal['eul']['stop']}")
+            
+            return signal
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur dans decide_mq_distance: {e}")
+            return None
 
     def _analyze_all_components(self,
                                 market_data: MarketData,

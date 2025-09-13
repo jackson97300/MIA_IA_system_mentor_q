@@ -16,29 +16,29 @@ using std::fabs;
 // ========== UTILITAIRES COMMUNS ==========
 
 // Création du répertoire de sortie
-static void EnsureOutDir() {
+static void EnsureOutDir(const char* baseDir = "D:\\MIA_IA_system") {
 #ifdef _WIN32
-  CreateDirectoryA("D:\\MIA_IA_system", NULL);
+  CreateDirectoryA(baseDir, NULL);
 #endif
 }
 
 // Génération du nom de fichier quotidien par chart et type
-static SCString DailyFilenameForChartType(int chartNumber, const char* dataType) {
+static SCString DailyFilenameForChartType(int chartNumber, const char* dataType, const char* baseDir = "D:\\MIA_IA_system") {
   time_t now = time(NULL);
   struct tm* lt = localtime(&now);
   int y = lt ? (lt->tm_year + 1900) : 1970;
   int m = lt ? (lt->tm_mon + 1) : 1;
   int d = lt ? lt->tm_mday : 1;
   SCString filename;
-  filename.Format("D:\\MIA_IA_system\\chart_%d_%s_%04d%02d%02d.jsonl", 
-                  chartNumber, dataType, y, m, d);
+  filename.Format("%s\\chart_%d_%s_%04d%02d%02d.jsonl", 
+                  baseDir, chartNumber, dataType, y, m, d);
   return filename;
 }
 
 // Écriture dans le fichier spécialisé
-static void WriteToSpecializedFile(int chartNumber, const char* dataType, const SCString& line) {
-  EnsureOutDir();
-  const SCString filename = DailyFilenameForChartType(chartNumber, dataType);
+static void WriteToSpecializedFile(int chartNumber, const char* dataType, const SCString& line, const char* baseDir = "D:\\MIA_IA_system") {
+  EnsureOutDir(baseDir);
+  const SCString filename = DailyFilenameForChartType(chartNumber, dataType, baseDir);
   FILE* f = fopen(filename.GetChars(), "a");
   if (f) { 
     fprintf(f, "%s\n", line.GetChars()); 
@@ -46,7 +46,43 @@ static void WriteToSpecializedFile(int chartNumber, const char* dataType, const 
   }
 }
 
-// Anti-duplication simple par (chart, type, key)
+// ========== DÉDUPLICATION INTELLIGENTE AMÉLIORÉE ==========
+// Structure pour la déduplication par (sym, t, i)
+struct LastKey { 
+  double t = 0.0; // timestamp
+  double i = -1;  // bar index
+};
+
+// Structures pour la détection de changement d'état
+struct LastMenthorQ {
+  std::unordered_map<std::string, double> last_values; // level_type -> price
+};
+
+// Maps de déduplication par symbole
+static std::unordered_map<std::string, LastKey> g_LastKeyBySym;
+static std::unordered_map<std::string, LastMenthorQ> g_LastMenthorQBySym;
+
+// ========== DÉTECTION DE CHANGEMENT ==========
+static inline bool has_changed(double a, double b, double eps=1e-9) {
+  return fabs(a-b) > eps;
+}
+
+// Fonction de déduplication améliorée
+static bool ShouldWriteData(const char* symbol, double timestamp, double barIndex) {
+  std::string symKey = std::string(symbol);
+  LastKey& lk = g_LastKeyBySym[symKey];
+  
+  // Vérifier si (sym, t, i) identique
+  bool same_ti = (fabs(lk.t - timestamp) < 1e-9) && (fabs(lk.i - barIndex) < 1e-9);
+  
+  // Mettre à jour la clé
+  lk.t = timestamp;
+  lk.i = barIndex;
+  
+  return !same_ti; // Écrire si différent
+}
+
+// Anti-duplication simple par (chart, type, key) - KEPT FOR COMPATIBILITY
 static void WriteIfChanged(int chartNumber, const char* dataType, const std::string& key, const SCString& line) {
   static std::unordered_map<std::string, std::string> s_last_by_key;
   auto it = s_last_by_key.find(key);
@@ -101,7 +137,7 @@ static bool ReadSubgraph(SCStudyInterfaceRef& sc, int studyID, int subgraphIndex
 
 // Helper pour valider qu'une étude a des données valides
 static bool ValidateStudyData(const SCFloatArray& array, int index) {
-  return array.GetArraySize() > index && array[index] != 0.0;
+  return array.GetArraySize() > index && !std::isnan(array[index]) && !std::isinf(array[index]);
 }
 
 // ========== DÉTECTION DE SUPPORT SEQUENCE ==========
@@ -248,6 +284,21 @@ SCSFExport scsf_MIA_Dumper_G10_MenthorQ(SCStudyInterfaceRef sc)
       {
         if (studyId <= 0) return;
         int iDest = i;
+        const double t = cur_time.GetAsDouble();
+        const double barIndex = (double)i;
+        const char* symbol = sc.Symbol.GetChars();
+
+        // Vérifier déduplication (sym, t, i)
+        bool should_write = ShouldWriteData(symbol, t, barIndex);
+
+        // Vérifier clôture de barre
+        int barStatus = sc.GetBarHasClosedStatus(i);
+        bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
+
+        // Détection de changement d'état
+        std::string symKey = std::string(symbol);
+        LastMenthorQ& lm = g_LastMenthorQBySym[symKey];
+        bool any_changed = false;
 
         for (int sg = 0; sg < sgCount; ++sg)
         {
@@ -268,17 +319,32 @@ SCSFExport scsf_MIA_Dumper_G10_MenthorQ(SCStudyInterfaceRef sc)
             if (val != 0.0)
             {
               double p = NormalizePx(sc, val);
-              SCString j;
               SCString levelType = level_type_for(studyId, sg);
-              j.Format("{\"t\":%.6f,\"sym\":\"%s[M]  1 Min  #%d\",\"type\":\"menthorq_level\",\"level_type\":\"%s\",\"price\":%.2f,\"subgraph\":%d,\"study_id\":%d,\"bar\":%d,\"chart\":%d}",
-                       cur_time.GetAsDouble(), sc.Symbol.GetChars(), sc.ChartNumber, levelType.GetChars(), p, sg, studyId, iOut, sc.ChartNumber);
-              WriteToSpecializedFile(sc.ChartNumber, "menthorq", j);
+              std::string levelKey = std::string(levelType.GetChars());
+              
+              // Vérifier changement pour ce niveau
+              bool level_changed = has_changed(p, lm.last_values[levelKey]);
+              if (level_changed) {
+                any_changed = true;
+                lm.last_values[levelKey] = p;
+              }
+
+              // Écrire si : changement de niveau OU clôture de barre OU nouvelle clé
+              if ((should_write && level_changed) || bar_closed) {
+                SCString j;
+                j.Format("{\"t\":%.6f,\"sym\":\"%s[M]  1 Min  #%d\",\"type\":\"menthorq_level\",\"level_type\":\"%s\",\"price\":%.2f,\"subgraph\":%d,\"study_id\":%d,\"bar\":%d,\"chart\":%d}",
+                         t, symbol, sc.ChartNumber, levelType.GetChars(), p, sg, studyId, iOut, sc.ChartNumber);
+                WriteToSpecializedFile(sc.ChartNumber, "menthorq", j);
+              }
             }
             else
             {
-              SCString d; d.Format("{\"t\":%.6f,\"type\":\"menthorq_diag\",\"chart\":%d,\"study\":%d,\"sg\":%d,\"msg\":\"no_value\"}",
-                                   cur_time.GetAsDouble(), sc.ChartNumber, studyId, sg);
-              WriteToSpecializedFile(sc.ChartNumber, "menthorq", d);
+              // Diagnostic seulement si nouvelle clé ou clôture
+              if (should_write || bar_closed) {
+                SCString d; d.Format("{\"t\":%.6f,\"type\":\"menthorq_diag\",\"chart\":%d,\"study\":%d,\"sg\":%d,\"msg\":\"no_value\"}",
+                                     t, sc.ChartNumber, studyId, sg);
+                WriteToSpecializedFile(sc.ChartNumber, "menthorq", d);
+              }
             }
           }
         }

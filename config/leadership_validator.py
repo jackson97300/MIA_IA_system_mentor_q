@@ -24,7 +24,7 @@ except Exception:
     import logging
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    logger = logging.getLogger("features.leadership_validator")
+    logger = logging.getLogger("features.leadership_zmom")
 
 @dataclass
 class ValidationResult:
@@ -106,7 +106,7 @@ def _corr_es_nq(es: pd.DataFrame, nq: pd.DataFrame, lookback: int = 20) -> float
         return 0.0
     return max(-1.0, min(1.0, corr))
 
-class LeadershipValidator:
+class LeadershipZMom:
     """
     Valide un biais/instrument en s’appuyant sur ES/NQ et quelques règles.
     """

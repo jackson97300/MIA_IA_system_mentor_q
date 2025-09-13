@@ -1,0 +1,232 @@
+{
+  "gaps": {
+    "chart_3": {
+      "chart_3_basedata_20250912.jsonl": {
+        "total_gaps": 0,
+        "max_gap_seconds": 0,
+        "avg_gap_seconds": 0,
+        "total_records": 22,
+        "time_span_hours": 4.051111110230623e-06
+      },
+      "chart_3_vwap_20250912.jsonl": {
+        "total_gaps": 0,
+        "max_gap_seconds": 0,
+        "avg_gap_seconds": 0,
+        "total_records": 22,
+        "time_span_hours": 4.051111110230623e-06
+      },
+      "chart_3_vva_20250912.jsonl": {
+        "total_gaps": 0,
+        "max_gap_seconds": 0,
+        "avg_gap_seconds": 0,
+        "total_records": 22,
+        "time_span_hours": 4.051111110230623e-06
+      },
+      "chart_3_nbcv_20250912.jsonl": {
+        "total_gaps": 0,
+        "max_gap_seconds": 0,
+        "avg_gap_seconds": 0,
+        "total_records": 8,
+        "time_span_hours": 3.6652777776503676e-06
+      }
+    },
+    "chart_4": {},
+    "chart_8": {
+      "chart_8_vix_20250912.jsonl": {
+        "total_gaps": 0,
+        "max_gap_seconds": 0,
+        "avg_gap_seconds": 0,
+        "total_records": 12927,
+        "time_span_hours": 2.507694444324847e-05
+      }
+    },
+    "chart_10": {
+      "chart_10_menthorq_20250912.jsonl": {
+        "total_gaps": 0,
+        "max_gap_seconds": 0,
+        "avg_gap_seconds": 0,
+        "total_records": 2494,
+        "time_span_hours": 2.411249999972319e-05
+      }
+    }
+  },
+  "outliers": {
+    "chart_3_basedata": {
+      "o": {
+        "count": 0,
+        "percentage": 0.0,
+        "bounds": [
+          6584.625,
+          6591.625
+        ]
+      },
+      "h": {
+        "count": 0,
+        "percentage": 0.0,
+        "bounds": [
+          6584.78125,
+          6591.53125
+        ]
+      },
+      "l": {
+        "count": 0,
+        "percentage": 0.0,
+        "bounds": [
+          6584.625,
+          6591.625
+        ]
+      },
+      "c": {
+        "count": 0,
+        "percentage": 0.0,
+        "bounds": [
+          6584.78125,
+          6591.53125
+        ]
+      },
+      "v": {
+        "count": 2,
+        "percentage": 9.090909090909092,
+        "threshold": 52.14999999999999
+      },
+      "bidvol": {
+        "count": 2,
+        "percentage": 9.090909090909092,
+        "threshold": 14.899999999999999
+      },
+      "askvol": {
+        "count": 2,
+        "percentage": 9.090909090909092,
+        "threshold": 37.55
+      }
+    },
+    "chart_8_vix": {
+      "vix": {
+        "count": 0,
+        "percentage": 0.0,
+        "valid_range": [
+          5,
+          150
+        ],
+        "min_value": 14.63,
+        "max_value": 14.71
+      }
+    },
+    "chart_10_menthorq": {
+      "price": {
+        "count": 0,
+        "percentage": 0.0,
+        "expected_range": [
+          6000,
+          7000
+        ],
+        "min_value": 6378.25,
+        "max_value": 6675.0
+      }
+    }
+  },
+  "menthorq_anomalies": {
+    "missing_data": {
+      "sym": {
+        "count": "258",
+        "percentage": 10.344827586206897
+      },
+      "level_type": {
+        "count": "258",
+        "percentage": 10.344827586206897
+      },
+      "price": {
+        "count": "258",
+        "percentage": 10.344827586206897
+      },
+      "subgraph": {
+        "count": "258",
+        "percentage": 10.344827586206897
+      },
+      "study_id": {
+        "count": "258",
+        "percentage": 10.344827586206897
+      },
+      "bar": {
+        "count": "258",
+        "percentage": 10.344827586206897
+      }
+    },
+    "level_types": {
+      "call_resistance": 86,
+      "put_support": 86,
+      "hvl": 86,
+      "1d_min": 86,
+      "1d_max": 86,
+      "put_support_0dte": 86,
+      "hvl_0dte": 86,
+      "gex_1": 86,
+      "gex_2": 86,
+      "gex_3": 86,
+      "gex_4": 86,
+      "gex_5": 86,
+      "gex_6": 86,
+      "gex_7": 86,
+      "gex_8": 86,
+      "gex_9": 86,
+      "gex_10": 86,
+      "blind_spot_0": 86,
+      "blind_spot_1": 86,
+      "blind_spot_2": 86,
+      "blind_spot_3": 86,
+      "blind_spot_4": 86,
+      "blind_spot_5": 86,
+      "blind_spot_6": 86,
+      "blind_spot_7": 86,
+      "blind_spot_8": 86
+    },
+    "price_stats": {
+      "count": 2236,
+      "min": 6378.25,
+      "max": 6675.0,
+      "mean": 6568.201923076923,
+      "std": 69.94820057469619
+    }
+  },
+  "synchronization_issues": {
+    "chart_4_vs_chart_3": {
+      "start_offset_seconds": -0.0048610000012558885,
+      "end_offset_seconds": -0.019444999998086132,
+      "data_count": 1
+    },
+    "chart_8_vs_chart_3": {
+      "start_offset_seconds": -0.15902700000151526,
+      "end_offset_seconds": -0.08333400000265101,
+      "data_count": 12927
+    },
+    "chart_10_vs_chart_3": {
+      "start_offset_seconds": -0.15555500000482425,
+      "end_offset_seconds": -0.08333400000265101,
+      "data_count": 2494
+    }
+  },
+  "data_consistency": {
+    "volume_consistency": {
+      "outliers": 0,
+      "total_records": 22,
+      "outlier_rate": 0.0,
+      "max_deviation": 0.0
+    }
+  },
+  "summary": {
+    "total_issues": 3,
+    "critical_issues": [],
+    "warnings": [
+      "Outliers \u00e9lev\u00e9s 9.1% dans chart_3_basedata.v",
+      "Outliers \u00e9lev\u00e9s 9.1% dans chart_3_basedata.bidvol",
+      "Outliers \u00e9lev\u00e9s 9.1% dans chart_3_basedata.askvol"
+    ],
+    "recommendations": [
+      "\u26a0\ufe0f  AM\u00c9LIORATION RECOMMAND\u00c9E - Probl\u00e8mes mineurs d\u00e9tect\u00e9s",
+      "\ud83d\udcca Impl\u00e9menter un syst\u00e8me de monitoring en temps r\u00e9el",
+      "\ud83d\udd04 Ajouter un syst\u00e8me de reconnection automatique Sierra Chart",
+      "\ud83d\udee1\ufe0f  Mettre en place des filtres de validation des donn\u00e9es",
+      "\ud83d\udcc8 Cr\u00e9er un dashboard de qualit\u00e9 des donn\u00e9es"
+    ]
+  }
+}

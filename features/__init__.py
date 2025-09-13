@@ -67,8 +67,8 @@ FEATURE_MODULES = {
     },
     'leadership_analyzer': {
         'path': '.leadership_analyzer',
-        'class': 'LeadershipAnalyzer',
-        'factory': 'create_leadership_analyzer'
+        'class': 'LeadershipZMom',
+        'factory': 'LeadershipZMom'
     },
     'market_state_analyzer': {
         'path': '.market_state_analyzer',
@@ -88,7 +88,7 @@ __all__ = [
     'create_vwap_bands_analyzer',
     'create_menthorq_integration',
     'create_menthorq_dealers_bias_analyzer',
-    'create_leadership_analyzer',
+    'LeadershipZMom',
     'create_market_state_analyzer',
     'get_features_status',
     'get_module_status',
@@ -222,8 +222,8 @@ def create_menthorq_dealers_bias_analyzer(config=None):
     factory = _lazy_get_factory('menthorq_dealers_bias')
     return factory(config) if factory else None
 
-def create_leadership_analyzer(config=None):
-    """Factory pour LeadershipAnalyzer"""
+def LeadershipZMom(config=None):
+    """Factory pour LeadershipZMom"""
     factory = _lazy_get_factory('leadership_analyzer')
     return factory(config) if factory else None
 

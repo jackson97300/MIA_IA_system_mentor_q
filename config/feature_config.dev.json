@@ -1,29 +1,96 @@
 {
   "vwap": {
-    "max_history": 1024
+    "max_history": 1024,
+    "bands_stdev": [1.0, 2.0],
+    "session_reset": "RTH"
   },
   "volume_profile": {
-    "max_history_size": 2500
+    "max_history_size": 2500,
+    "bin_ticks": 4,
+    "lookback_minutes": 30
+  },
+  "order_book_imbalance": {
+    "depth": 3,
+    "smoothing": 0.2
   },
   "nbcv": {
-    "min_volume": 30
+    "min_volume": 30,
+    "min_delta_ratio_pct": 5.0,
+    "min_ask_bid_ratio": 1.1
+  },
+  "vix": {
+    "use_chart_8_close": true,
+    "low": 12.0,
+    "high": 30.0
   },
   "advanced": {
     "enabled": true,
     "tick_momentum": { 
-      "window": 10
+      "window": 10, 
+      "volume_weight": 0.5 
     },
     "delta_divergence": { 
-      "lookback": 5
+      "lookback": 5, 
+      "threshold": 0.6 
+    },
+    "volatility_regime": { 
+      "atr_len": 14, 
+      "vix_low": 12.0, 
+      "vix_high": 30.0 
     }
   },
+  "confluence": {
+    "tolerance_ticks": 5.0,
+    "quality_thresholds": {
+      "high": 0.7,
+      "medium": 0.5,
+      "low": 0.3
+    },
+    "leadership_gates": {
+      "correlation_min": 0.6,
+      "volume_ratio_min": 0.2,
+      "volatility_max": 0.03
+    }
+  },
+  "menthorq": {
+    "gamma_proximity_ticks": 15.0,
+    "blind_spot_proximity_ticks": 8.0,
+    "swing_level_proximity_ticks": 20.0,
+    "data_ttl_seconds": 180,
+    "ema_alpha": 0.2,
+    "min_levels_required": 2
+  },
+  "feature_weights": {
+    "mtf_confluence_score": 0.20,
+    "smart_money_strength": 0.15,
+    "order_book_imbalance": 0.15,
+    "volume_profile_imbalance": 0.15,
+    "vwap_deviation": 0.15,
+    "vix_regime": 0.10,
+    "nbcv_orderflow": 0.10
+  },
+  "thresholds": {
+    "premium": 0.7,
+    "strong": 0.5,
+    "weak": 0.3,
+    "no_trade": 0.1
+  },
   "data_sources": {
+    "unified_file_path": "D:\\MIA_IA_system",
     "max_lines_per_read": 1000,
     "cache_ttl_seconds": 30
   },
-  "development": {
-    "debug_mode": true,
-    "verbose_logging": true,
-    "mock_data_enabled": true
+  "environment": "development",
+  "trading": {
+    "mode": "simulation",
+    "max_position_size": 1,
+    "daily_loss_limit": 100.0,
+    "risk_per_trade": 0.01
+  },
+  "safety": {
+    "kill_switch_enabled": true,
+    "max_latency_ms": 2000,
+    "max_data_gap_minutes": 10,
+    "max_drawdown_pct": 10.0
   }
 }

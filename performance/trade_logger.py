@@ -47,7 +47,7 @@ logger = get_logger(__name__)
 
 @dataclass
 class TradeRecord:
-    """Structure complète d'un trade loggé"""
+    """Structure complète d'un trade loggé enrichie"""
     # Trade identity
     trade_id: str
     timestamp: datetime
@@ -59,18 +59,50 @@ class TradeRecord:
     price: float
     quantity: int
 
-    # Features snapshot (8D model)
+    # 🆕 Score et composants détaillés
+    final_score: float            # Score final de trading (0.0-1.0)
+    score_components: Dict[str, float]  # Composants détaillés (menthorq, battle_navale, vix)
+    confidence_level: float       # Niveau de confiance (0.0-1.0)
+    signal_strength: str          # VERY_STRONG/STRONG/MODERATE/WEAK/VERY_WEAK
+
+    # 🆕 Distances aux niveaux critiques
+    distances: Dict[str, float]   # Distances en ticks aux niveaux MenthorQ
+    blind_spots_proximity: float  # Distance au Blind Spot le plus proche
+    gamma_levels_proximity: float # Distance au niveau Gamma le plus proche
+    swing_levels_proximity: float # Distance au niveau Swing le plus proche
+
+    # 🆕 Raisons de décision
+    decision_reasons: List[str]   # Raisons explicites de la décision
+    hard_rules_triggered: List[str]  # Règles dures déclenchées
+    leadership_filter_result: str # Résultat du filtre de leadership
+    contra_trend_blocked: bool    # Signal contra-trend bloqué ?
+
+    # 🆕 Latence et performance
+    calculation_latency_ms: float # Temps de calcul du score
+    decision_latency_ms: float    # Temps total de décision
+    execution_latency_ms: float   # Temps d'exécution (si disponible)
+
+    # 🆕 Régime VIX détaillé
+    vix_level: float             # Niveau VIX au moment du trade
+    vix_regime: str              # Régime VIX (normal/high_vix/extreme)
+    vix_policy: str              # Policy VIX (normal/low/high/extreme)
+    staleness_quality: str       # Qualité des données (GOOD/WARNING/CRITICAL)
+
+    # Features snapshot (8D model) - conservé pour compatibilité
     features_snapshot: Dict[str, float]
 
     # Strategy context
     strategy_mode: str            # TREND/RANGE/BREAKOUT
     pattern_detected: List[str]   # Battle navale, Gamma pin, etc.
-    confidence_score: float       # 0.0-1.0
+    confidence_score: float       # 0.0-1.0 (legacy)
 
     # Market context
     market_regime: str            # BULL/BEAR/SIDEWAYS
     volatility_regime: str        # LOW/NORMAL/HIGH
     session_phase: str            # OPEN/MID/CLOSE
+
+    # 🆕 Audit trail complet
+    audit_trail: Dict[str, Any]   # Trace complète pour audit
 
     # Outcome (filled later)
     outcome: Optional[Dict] = None
@@ -129,7 +161,7 @@ class TradeLogger:
         self.pattern_index: Dict[str, List[str]] = defaultdict(list)
         self.daily_stats: Dict[date, Dict] = {}
 
-        # Validation config
+        # Validation config - Mode adaptatif selon les données disponibles
         self.validation_rules = {
             'required_features': [
                 'vwap_trend_signal', 'sierra_pattern_strength',
@@ -139,7 +171,9 @@ class TradeLogger:
             ],
             'price_range_check': True,
             'feature_range_check': True,
-            'pattern_validation': True
+            'pattern_validation': True,
+            'adaptive_validation': True,  # 🆕 Validation adaptative
+            'strict_mode': False          # 🆕 Mode strict désactivé par défaut
         }
 
         self._initialize_logging()
@@ -162,10 +196,10 @@ class TradeLogger:
 
     def log_trade(self, trade_data: Dict[str, Any]) -> str:
         """
-        LOG TRADE avec contexte complet
+        LOG TRADE avec contexte complet enrichi
 
         Args:
-            trade_data: Données complètes du trade
+            trade_data: Données complètes du trade avec nouveaux champs
 
         Returns:
             str: Trade ID généré
@@ -181,7 +215,7 @@ class TradeLogger:
                 logger.error(f"Données trade invalides: {trade_id}")
                 return None
 
-            # Création TradeRecord
+            # Création TradeRecord enrichi
             trade_record = TradeRecord(
                 trade_id=trade_id,
                 timestamp=datetime.now(timezone.utc),
@@ -193,18 +227,50 @@ class TradeLogger:
                 price=float(trade_data.get('price', 0.0)),
                 quantity=int(trade_data.get('quantity', 1)),
 
-                # Features snapshot (8D model)
+                # 🆕 Score et composants détaillés
+                final_score=float(trade_data.get('final_score', 0.5)),
+                score_components=trade_data.get('score_components', {}),
+                confidence_level=float(trade_data.get('confidence_level', 0.5)),
+                signal_strength=trade_data.get('signal_strength', 'MODERATE'),
+
+                # 🆕 Distances aux niveaux critiques
+                distances=trade_data.get('distances', {}),
+                blind_spots_proximity=float(trade_data.get('blind_spots_proximity', 999.0)),
+                gamma_levels_proximity=float(trade_data.get('gamma_levels_proximity', 999.0)),
+                swing_levels_proximity=float(trade_data.get('swing_levels_proximity', 999.0)),
+
+                # 🆕 Raisons de décision
+                decision_reasons=trade_data.get('decision_reasons', []),
+                hard_rules_triggered=trade_data.get('hard_rules_triggered', []),
+                leadership_filter_result=trade_data.get('leadership_filter_result', 'PASSED'),
+                contra_trend_blocked=trade_data.get('contra_trend_blocked', False),
+
+                # 🆕 Latence et performance
+                calculation_latency_ms=float(trade_data.get('calculation_latency_ms', 0.0)),
+                decision_latency_ms=float(trade_data.get('decision_latency_ms', 0.0)),
+                execution_latency_ms=float(trade_data.get('execution_latency_ms', 0.0)),
+
+                # 🆕 Régime VIX détaillé
+                vix_level=float(trade_data.get('vix_level', 20.0)),
+                vix_regime=trade_data.get('vix_regime', 'normal'),
+                vix_policy=trade_data.get('vix_policy', 'normal'),
+                staleness_quality=trade_data.get('staleness_quality', 'GOOD'),
+
+                # Features snapshot (8D model) - conservé pour compatibilité
                 features_snapshot=trade_data.get('features_8d', {}),
 
                 # Strategy context
                 strategy_mode=trade_data.get('regime', 'TREND'),
                 pattern_detected=trade_data.get('patterns', []),
-                confidence_score=float(trade_data.get('confidence', 0.5)),
+                confidence_score=float(trade_data.get('confidence', 0.5)),  # Legacy
 
                 # Market context
                 market_regime=trade_data.get('market_regime', 'SIDEWAYS'),
                 volatility_regime=trade_data.get('volatility_regime', 'NORMAL'),
                 session_phase=trade_data.get('session_phase', 'MID'),
+
+                # 🆕 Audit trail complet
+                audit_trail=trade_data.get('audit_trail', {}),
 
                 # Metadata
                 created_at=datetime.now(timezone.utc)
@@ -298,6 +364,103 @@ class TradeLogger:
             'is_writing': self.is_writing
         }
 
+    def enrich_trade_data(self, base_trade_data: Dict[str, Any], 
+                         score_result: Optional[Dict] = None,
+                         menthorq_data: Optional[Dict] = None,
+                         vix_data: Optional[Dict] = None,
+                         latency_data: Optional[Dict] = None) -> Dict[str, Any]:
+        """
+        🆕 ENRICHIR données de trade avec composants détaillés
+        
+        Args:
+            base_trade_data: Données de base du trade
+            score_result: Résultat du calculateur de score
+            menthorq_data: Données MenthorQ (distances, niveaux)
+            vix_data: Données VIX (niveau, régime, policy)
+            latency_data: Données de latence (calcul, décision, exécution)
+            
+        Returns:
+            Dict: Données de trade enrichies
+        """
+        enriched_data = base_trade_data.copy()
+        
+        # 🎯 Enrichissement avec score et composants
+        if score_result:
+            enriched_data.update({
+                'final_score': score_result.get('final_score', 0.5),
+                'score_components': score_result.get('components', {}),
+                'confidence_level': score_result.get('confidence', 0.5),
+                'signal_strength': score_result.get('strength', 'MODERATE'),
+                'decision_reasons': score_result.get('reasons', []),
+                'hard_rules_triggered': score_result.get('hard_rules', []),
+                'leadership_filter_result': score_result.get('leadership_result', 'PASSED'),
+                'contra_trend_blocked': score_result.get('contra_trend_blocked', False)
+            })
+        
+        # 🎯 Enrichissement avec données MenthorQ
+        if menthorq_data:
+            enriched_data.update({
+                'distances': menthorq_data.get('distances', {}),
+                'blind_spots_proximity': menthorq_data.get('blind_spots_proximity', 999.0),
+                'gamma_levels_proximity': menthorq_data.get('gamma_levels_proximity', 999.0),
+                'swing_levels_proximity': menthorq_data.get('swing_levels_proximity', 999.0),
+                'staleness_quality': menthorq_data.get('staleness_quality', 'GOOD')
+            })
+        
+        # 🎯 Enrichissement avec données VIX
+        if vix_data:
+            enriched_data.update({
+                'vix_level': vix_data.get('vix_level', 20.0),
+                'vix_regime': vix_data.get('vix_regime', 'normal'),
+                'vix_policy': vix_data.get('vix_policy', 'normal')
+            })
+        
+        # 🎯 Enrichissement avec données de latence
+        if latency_data:
+            enriched_data.update({
+                'calculation_latency_ms': latency_data.get('calculation_ms', 0.0),
+                'decision_latency_ms': latency_data.get('decision_ms', 0.0),
+                'execution_latency_ms': latency_data.get('execution_ms', 0.0)
+            })
+        
+        # 🎯 Audit trail complet
+        enriched_data['audit_trail'] = {
+            'enrichment_timestamp': datetime.now(timezone.utc).isoformat(),
+            'score_result': score_result,
+            'menthorq_data': menthorq_data,
+            'vix_data': vix_data,
+            'latency_data': latency_data,
+            'enrichment_version': '2.0'
+        }
+        
+        return enriched_data
+
+    def log_enriched_trade(self, base_trade_data: Dict[str, Any], 
+                          score_result: Optional[Dict] = None,
+                          menthorq_data: Optional[Dict] = None,
+                          vix_data: Optional[Dict] = None,
+                          latency_data: Optional[Dict] = None) -> str:
+        """
+        🆕 LOG TRADE ENRICHI - Méthode complète avec tous les composants
+        
+        Args:
+            base_trade_data: Données de base du trade
+            score_result: Résultat du calculateur de score
+            menthorq_data: Données MenthorQ
+            vix_data: Données VIX
+            latency_data: Données de latence
+            
+        Returns:
+            str: Trade ID généré
+        """
+        # Enrichissement des données
+        enriched_data = self.enrich_trade_data(
+            base_trade_data, score_result, menthorq_data, vix_data, latency_data
+        )
+        
+        # Log du trade enrichi
+        return self.log_trade(enriched_data)
+
     # === PRIVATE METHODS ===
 
     def _generate_trade_id(self, trade_data: Dict) -> str:
@@ -308,16 +471,106 @@ class TradeLogger:
         return f"{symbol}_{timestamp}_{abs(hash(str(price))) % 10000:04d}"
 
     def _validate_trade_data(self, trade_data: Dict) -> bool:
-        """Validation données trade"""
-        if not self.validation_rules.get('required_features'):
-            return True
-
-        features = trade_data.get('features_8d', {})
-        for required_feature in self.validation_rules['required_features']:
-            if required_feature not in features:
-                logger.warning(f"Feature manquante: {required_feature}")
+        """Validation intelligente des données trade"""
+        # 1. Validation des champs obligatoires
+        required_fields = ['symbol', 'action', 'side', 'price']
+        for field in required_fields:
+            if field not in trade_data:
+                logger.error(f"❌ Champ obligatoire manquant: {field}")
                 return False
-
+        
+        # 2. Validation des valeurs autorisées
+        if not self._validate_allowed_values(trade_data):
+            return False
+        
+        # 3. Validation des types de données
+        try:
+            float(trade_data['price'])
+            int(trade_data.get('quantity', 1))
+        except (ValueError, TypeError) as e:
+            logger.error(f"❌ Type de données invalide: {e}")
+            return False
+        
+        # 4. Validation adaptative des features
+        if self.validation_rules.get('adaptive_validation', True):
+            self._validate_features_adaptive(trade_data)
+        
+        # 5. Validation stricte si activée
+        if self.validation_rules.get('strict_mode', False):
+            return self._validate_features_strict(trade_data)
+        
+        return True
+    
+    def _validate_allowed_values(self, trade_data: Dict) -> bool:
+        """Validation des valeurs autorisées"""
+        # Actions autorisées
+        allowed_actions = {'ENTRY', 'EXIT'}
+        if trade_data.get('action') not in allowed_actions:
+            logger.error(f"❌ Action invalide: {trade_data.get('action')} (autorisées: {allowed_actions})")
+            return False
+        
+        # Sides autorisés
+        allowed_sides = {'LONG', 'SHORT'}
+        if trade_data.get('side') not in allowed_sides:
+            logger.error(f"❌ Side invalide: {trade_data.get('side')} (autorisés: {allowed_sides})")
+            return False
+        
+        # Prix positif
+        price = trade_data.get('price', 0)
+        if price <= 0:
+            logger.error(f"❌ Prix invalide: {price} (doit être > 0)")
+            return False
+        
+        # Quantity positive
+        quantity = trade_data.get('quantity', 1)
+        if quantity <= 0:
+            logger.error(f"❌ Quantity invalide: {quantity} (doit être > 0)")
+            return False
+        
+        # Symbol non vide
+        symbol = trade_data.get('symbol', '')
+        if not symbol or not symbol.strip():
+            logger.error(f"❌ Symbol invalide: '{symbol}' (ne peut pas être vide)")
+            return False
+        
+        return True
+    
+    def _validate_features_adaptive(self, trade_data: Dict) -> None:
+        """Validation adaptative des features - log seulement"""
+        if 'features_8d' not in trade_data:
+            logger.info("📋 Mode legacy détecté - pas de features_8d")
+            return
+        
+        features = trade_data.get('features_8d', {})
+        required_features = self.validation_rules.get('required_features', [])
+        
+        if not required_features:
+            return
+        
+        missing_features = [f for f in required_features if f not in features]
+        present_features = [f for f in required_features if f in features]
+        
+        if missing_features:
+            logger.info(f"📋 Features présentes: {len(present_features)}/{len(required_features)}")
+            logger.info(f"📋 Features manquantes: {missing_features}")
+        else:
+            logger.debug(f"✅ Toutes les features requises présentes: {len(present_features)}")
+    
+    def _validate_features_strict(self, trade_data: Dict) -> bool:
+        """Validation stricte des features - rejette si manquantes"""
+        if 'features_8d' not in trade_data:
+            logger.error("❌ Mode strict: features_8d obligatoires")
+            return False
+        
+        features = trade_data.get('features_8d', {})
+        required_features = self.validation_rules.get('required_features', [])
+        
+        missing_features = [f for f in required_features if f not in features]
+        if missing_features:
+            logger.error(f"❌ Mode strict: features manquantes: {missing_features}")
+            return False
+        
+        logger.debug("✅ Mode strict: toutes les features présentes")
         return True
 
     def _open_daily_log_file(self):

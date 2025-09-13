@@ -24,6 +24,7 @@ python scripts/train_models.py --status --continuous-setup
 import os
 import sys
 import argparse
+import logging
 from core.logger import get_logger
 import json
 from datetime import datetime, timezone, timedelta

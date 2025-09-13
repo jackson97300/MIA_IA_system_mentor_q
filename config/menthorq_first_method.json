@@ -1,0 +1,227 @@
+{
+  "menthorq_first_method": {
+    "description": "Configuration méthode MenthorQ First basée sur l'expérience utilisateur",
+    "version": "1.0.0",
+    "last_updated": "2025-01-12",
+    
+    "general": {
+      "method_name": "MenthorQ First Method",
+      "description": "Méthode basée sur le fichier 'NOUVELLE METHODE DE MIA MONTOR Q .txt'",
+      "philosophy": "MenthorQ décideur principal, Orderflow validateur, contexte structurel"
+    },
+    
+    "hierarchy": {
+      "description": "Hiérarchie décisionnelle (ordre strict)",
+      "steps": [
+        "1. Trigger MenthorQ (décideur)",
+        "2. Gate Biais — MIA Bullish",
+        "3. Gate Macro — Leadership ES/NQ",
+        "4. Régime VIX (adaptation)",
+        "5. Validation Orderflow (obligatoire)",
+        "6. Contexte Structurel",
+        "7. Fusion & Seuil",
+        "8. Exécution (E/U/L) & Risque"
+      ]
+    },
+    
+    "menthorq": {
+      "description": "Configuration MenthorQ (décideur principal)",
+      "weights": {
+        "mq": 0.55,
+        "of": 0.30,
+        "structure": 0.15
+      },
+        "thresholds": {
+            "enter_eff": 0.30
+        },
+      "mq_tolerance_ticks": {
+        "gamma_wall": 10,
+        "hvl": 10,
+        "gex": 10
+      },
+      "mia": {
+        "gate_long": 0.00001,
+        "gate_short": -0.00001,
+        "boost_abs": 0.35,
+        "description": "LONG si mia ≥ +0.00001 ; SHORT si mia ≤ −0.00001 (seuils ultra-bas pour permettre plus de signaux)"
+      },
+      "leadership": {
+        "corr_min": {
+          "LOW": 0.30,
+          "MID": 0.30,
+          "HIGH": 0.45,
+          "EXTREME": 0.60
+        },
+        "veto_abs": {
+          "LOW": 1.40,
+          "MID": 1.30,
+          "HIGH": 1.10,
+          "EXTREME": 1.00
+        },
+        "bonus_abs": {
+          "LOW": 0.30,
+          "MID": 0.45,
+          "HIGH": 0.60,
+          "EXTREME": 0.75
+        },
+        "description": "Veto contre-trend si |LS| ≥ seuil, bonus si |LS| ≥ seuil"
+      }
+    },
+    
+    "vix_regimes": {
+      "description": "Régime VIX (adaptation)",
+      "multipliers": {
+        "LOW": 1.05,
+        "MID": 1.00,
+        "HIGH": 0.90,
+        "EXTREME": 0.85
+      },
+      "thresholds": {
+        "LOW": 15,
+        "MID": 22,
+        "HIGH": 35
+      },
+      "description": "LOW < 15 → ×1.05, MID 15–22 → ×1.00, HIGH ≥ 22 → ×0.90, EXTREME ≥ 35 → ×0.85"
+    },
+    
+    "orderflow": {
+      "description": "Validation Orderflow (obligatoire)",
+      "confirmations": [
+        "CVD directionnel",
+        "stacked imbalance",
+        "absorption au niveau",
+        "wick de rejet"
+      ],
+      "min_confirmations": {
+        "LOW": 2,
+        "MID": 2,
+        "HIGH": 3,
+        "EXTREME": 3
+      },
+      "fallback_ok": true,
+      "description": "Confirmer via ≥ min OF parmi les confirmations disponibles"
+    },
+    
+    "structure": {
+      "description": "Contexte Structurel",
+      "buffers": {
+        "LOW": {"vwap": 1, "profile": 1},
+        "MID": {"vwap": 1, "profile": 1},
+        "HIGH": {"vwap": 2, "profile": 2},
+        "EXTREME": {"vwap": 3, "profile": 3}
+      },
+      "description": "Éviter d'entrer sur VWAP/S±1 ou VAH/VAL/VPOC/HVN"
+    },
+    
+    "execution": {
+      "description": "Exécution (E/U/L) & Risque",
+      "entry": {
+        "type": "MKT/LMT si L1 == BBO",
+        "margin": "±1 tick vs niveau"
+      },
+      "stop": {
+        "type": "structurel derrière le niveau MQ",
+        "ticks": {
+          "LOW": 3,
+          "MID": 4,
+          "HIGH": 6,
+          "EXTREME": 8
+        }
+      },
+      "take_profit": {
+        "tp1": "+1R (50%)",
+        "tp2": "+2R (30%)",
+        "runner": "trailing VWAP/HVL"
+      },
+      "hard_exit": "si le niveau MQ s'invalide (flip/mur renversé)"
+    },
+    
+    "user_experience": {
+      "description": "Seuils basés sur l'expérience pratique de l'utilisateur",
+      "zones": {
+        "width_ticks": {
+          "LOW": 5,
+          "MID": 5,
+          "HIGH": 5,
+          "EXTREME": 5
+        },
+        "description": "Zone d'entrée de 5 ticks partout (1.25 points)"
+      },
+      "drawdown": {
+        "use_fixed": true,
+        "fixed_ticks": 7,
+        "max_ticks": {
+          "LOW": 7,
+          "MID": 7,
+          "HIGH": 7,
+          "EXTREME": 7
+        },
+        "max_dollars": {
+          "LOW": 87.50,
+          "MID": 87.50,
+          "HIGH": 87.50,
+          "EXTREME": 87.50
+        },
+        "description": "Drawdown de 7 ticks partout ($87.50)"
+      },
+      "patience": {
+        "minutes": {
+          "LOW": 15,
+          "MID": 20,
+          "HIGH": 25,
+          "EXTREME": 30
+        },
+        "description": "Patience adaptée au VIX : 15/20/25/30 minutes"
+      },
+      "wick_tolerance": {
+        "ticks_by_band": {
+          "LOW": 3,
+          "MID": 5,
+          "HIGH": 7,
+          "EXTREME": 7
+        },
+        "description": "Tolérance des mèches selon VIX : 3/5/7/7 ticks (aligné avec implémentation)"
+      }
+    },
+    
+    "hard_rules": {
+      "description": "Règles dures (blocage immédiat)",
+      "rules": [
+        "staleness niveau (asof périmé) → blocage/pénalité",
+        "entrée jamais 'pile' sur le niveau → marge +1 tick",
+        "buffers structurels obligatoires (VWAP/VAH/VAL/VPOC)",
+        "DOM health : L1==BBO, spread ≤ 2 ticks, profondeur ≥ 5 niveaux",
+        "fenêtres sensibles : ouverture cash (±10 min), news majeures, roll"
+      ]
+    },
+    
+    "logging": {
+      "level": "INFO",
+      "audit_enabled": true,
+      "hierarchy_tracking": true,
+      "gate_tracking": true
+    },
+    
+    "summary": {
+      "description": "Méthode MenthorQ First complète avec expérience utilisateur",
+      "components": [
+        "MenthorQ (décideur principal)",
+        "MIA Bullish (gate biais)",
+        "Leadership ES/NQ (gate macro)",
+        "Régime VIX (adaptation)",
+        "Orderflow (validation obligatoire)",
+        "Structure (contexte)",
+        "E/U/L (exécution)",
+        "Seuils utilisateur (zones, drawdown, patience, mèches)"
+      ],
+      "advantages": [
+        "Hiérarchie claire et stricte",
+        "Validation robuste",
+        "Expérience pratique intégrée",
+        "Adaptation VIX automatique",
+        "E/U/L structurels"
+      ],
+      "status": "Prêt pour la production et comparaison"
+    }
+  }
+}

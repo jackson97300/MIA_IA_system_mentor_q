@@ -1,0 +1,73 @@
+📊 RAPPORT DE PERFORMANCE - SYSTÈME MIA
+============================================================
+Date d'analyse: 20250912
+Généré le: 2025-09-12 11:09:11
+
+📈 RÉSUMÉ DES DONNÉES COLLECTÉES
+----------------------------------------
+chart3_basedata: 49,560 enregistrements
+chart3_nbcv: 83 enregistrements
+chart3_vwap: 49,561 enregistrements
+chart3_vva: 49,562 enregistrements
+chart3_cumulative_delta: 49,563 enregistrements
+chart4_ohlc: 49,463 enregistrements
+chart4_volume_profile: 48,928 enregistrements
+chart8_vix: 49,543 enregistrements
+chart10_menthorq: 29,568 enregistrements
+
+🔍 QUALITÉ DES DONNÉES
+----------------------------------------
+⚠️ chart3_basedata: ISSUES
+    • Gaps temporels détectés
+    • Valeurs aberrantes présentes
+⚠️ chart3_nbcv: ISSUES
+    • Gaps temporels détectés
+    • Valeurs aberrantes présentes
+⚠️ chart3_vwap: ISSUES
+    • Gaps temporels détectés
+    • Valeurs aberrantes présentes
+⚠️ chart3_vva: ISSUES
+    • Gaps temporels détectés
+    • Valeurs aberrantes présentes
+⚠️ chart3_cumulative_delta: ISSUES
+    • Gaps temporels détectés
+    • Valeurs aberrantes présentes
+⚠️ chart4_ohlc: ISSUES
+    • Gaps temporels détectés
+    • Valeurs aberrantes présentes
+⚠️ chart4_volume_profile: ISSUES
+    • Gaps temporels détectés
+    • Valeurs aberrantes présentes
+✅ chart8_vix: GOOD
+⚠️ chart10_menthorq: ISSUES
+    • Données manquantes importantes
+    • Gaps temporels détectés
+    • Valeurs aberrantes présentes
+
+🎯 ANALYSE DES SIGNAUX
+----------------------------------------
+OrderFlow (NBCV):
+  NEUTRAL: 82
+  BEARISH: 1
+VIX:
+  LOW: 49543
+  NORMAL: 0
+  HIGH: 0
+
+💡 RECOMMANDATIONS
+----------------------------------------
+🔧 AMÉLIORER LA QUALITÉ DES DONNÉES:
+  • Vérifier la connectivité Sierra Chart
+  • Augmenter les timeouts de connexion
+  • Implémenter un système de reconnection automatique
+  • Ajouter un buffer de données pour compenser les gaps
+  • Ajouter des filtres de validation des données
+  • Implémenter des seuils de détection d'anomalies
+🎯 OPTIMISER LA DÉTECTION DE SIGNAUX:
+  • Ajuster les seuils de pression OrderFlow
+  • Réduire le seuil de détection des signaux
+🚀 AMÉLIORATIONS GÉNÉRALES:
+  • Implémenter un système de monitoring en temps réel
+  • Ajouter des alertes pour les anomalies de données
+  • Créer un dashboard de performance quotidien
+  • Automatiser les tests de régression sur les données historiques

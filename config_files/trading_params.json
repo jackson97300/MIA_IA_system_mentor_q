@@ -154,6 +154,12 @@
   },
   
   "execution_settings": {
+    "dtc_ports": { 
+      "ES": 11099, 
+      "NQ": 11100 
+    },
+    "slippage_ticks": 2,
+    "tif_seconds": 60,
     "order_types": {
       "market": {
         "enabled": true,

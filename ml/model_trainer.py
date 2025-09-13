@@ -22,6 +22,7 @@ ARCHITECTURE : Production-grade, robuste, intégré Battle Navale
 import os
 import sys
 import time
+import logging
 from core.logger import get_logger
 import json
 import pickle
@@ -501,15 +502,10 @@ class ModelTrainer:
                 logger.warning("Aucun modèle actif disponible")
                 return None
 
-            # Chargement modèle depuis fichier
-            model = SimpleLinearPredictor(self.config.model_type)
-
-            if model.load_model(self.active_model.model_path):
-                logger.info(f"Modèle actif chargé: {self.active_model.version_id}")
-                return model
-            else:
-                logger.error("Échec chargement modèle actif")
-                return None
+            # Chargement modèle via joblib
+            model = joblib.load(self.active_model.model_path)
+            logger.info(f"Modèle actif chargé: {self.active_model.version_id}")
+            return model
 
         except Exception as e:
             logger.error(f"Erreur récupération modèle trading: {e}")
@@ -716,14 +712,9 @@ class ModelTrainer:
 
     def _create_model_for_training(self) -> SimpleLinearModel:
         """Création modèle pour entraînement"""
-
-        model = SimpleLinearPredictor(self.config.model_type)
-
-        # Configuration hyperparamètres si fournis
-        if self.config.hyperparameters:
-            # TODO: Application hyperparamètres au modèle
-            pass
-
+        # Utilise l'usine officielle pour rester compatible simple_model
+        from .simple_model import create_signal_classifier
+        model = create_signal_classifier()
         return model
 
     def _full_training(self, dataset: ProcessedDataset):

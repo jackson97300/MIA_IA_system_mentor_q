@@ -28,7 +28,7 @@ class LeadershipResult:
     votes: List[str]
     scores: Dict[str, Any]
 
-class LeadershipEngine:
+class LeadershipZMom:
     WINDOWS_MIN = {"1m": 1, "5m": 5, "15m": 15}
     
     def __init__(self, max_history: int = 1000, bars_timeframe_minutes: int = 1):
@@ -41,7 +41,7 @@ class LeadershipEngine:
         self.tf_min = max(1, int(bars_timeframe_minutes))
         # PATCH: Fenêtres converties en barres selon bars_timeframe_minutes
         self.windows = self._convert_windows_to_bars()
-        logger.info(f"⚔️ LeadershipEngine initialisé (TF={self.tf_min}m, fenêtres={self.windows})")
+        logger.info(f"⚔️ LeadershipZMom initialisé (TF={self.tf_min}m, fenêtres={self.windows})")
     
     def _convert_windows_to_bars(self) -> Dict[str, int]:
         """Convertit les fenêtres exprimées en minutes -> nombre de barres"""
@@ -250,7 +250,7 @@ class LeadershipEngine:
         self.history.clear()
         self.last_calculation = None
         self.calculation_count = 0
-        logger.info("🔄 LeadershipEngine réinitialisé")
+        logger.info("🔄 LeadershipZMom réinitialisé")
 
 # --- Petit test local ---
 def test_leadership_engine():
@@ -273,7 +273,7 @@ def test_leadership_engine():
         'sell_volume': [350 + np.random.normal(0, 40) for _ in range(100)]
     }, index=dates)
     
-    engine = LeadershipEngine(bars_timeframe_minutes=1)
+    engine = LeadershipZMom(bars_timeframe_minutes=1)
     
     for i in range(20, 100, 10):
         es_window = es_data.iloc[:i]

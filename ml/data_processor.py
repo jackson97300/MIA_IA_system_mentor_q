@@ -19,6 +19,7 @@ ARCHITECTURE : Pipeline robuste, extensible, production-ready
 # === STDLIB ===
 import os
 import time
+import pickle
 from core.logger import get_logger
 import json
 from typing import Dict, List, Optional, Any, Tuple, Union, Set
@@ -847,8 +848,8 @@ class MLDataProcessor:
     def _finalize_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Finalisation et nettoyage des features"""
 
-        # Suppression des colonnes non-features
-        columns_to_drop = ['trade_id', 'timestamp', 'raw_data']
+        # Suppression des colonnes non-features (ne pas dropper timestamp ici)
+        columns_to_drop = ['trade_id', 'raw_data']
         columns_to_drop = [col for col in columns_to_drop if col in df.columns]
         df = df.drop(columns=columns_to_drop, errors='ignore')
 

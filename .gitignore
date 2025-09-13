@@ -72,6 +72,12 @@ large_data/
 config/secrets.json
 secrets/
 .env
+.env.*
+.env.live
+.env.automation
+.env.production
+.env.staging
+.env.dev
 
 # 🖥️ Fichiers système
 .DS_Store

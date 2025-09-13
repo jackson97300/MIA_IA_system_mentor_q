@@ -21,6 +21,7 @@ ARCHITECTURE : Validation bulletproof pour production trading
 # === STDLIB ===
 import os
 import time
+import logging
 from core.logger import get_logger
 import json
 import warnings
@@ -284,8 +285,10 @@ class ModelValidator:
                 n_jobs=-1
             )
             
-            # Analyse des résultats
-            scores = cv_results['test_score']
+            # Analyse des résultats - choisir une métrique principale
+            metric_key = 'test_accuracy' if 'test_accuracy' in cv_results else \
+                         next(k for k in cv_results.keys() if k.startswith('test_'))
+            scores = cv_results[metric_key]
             mean_score = np.mean(scores)
             std_score = np.std(scores)
             
@@ -331,7 +334,7 @@ class ModelValidator:
     
     def test_out_of_sample(self, 
                           dataset: ProcessedDataset,
-                          temporal_split: bool = True) -> float:
+                          temporal_split: bool = True) -> OutOfSampleResult:
         """
         Test out-of-sample rigoureux
         
@@ -390,11 +393,15 @@ class ModelValidator:
             
             logger.info(f"OOS Score: {test_score:.3f} (dégradation: {degradation_pct:.1f}%)")
             
-            return test_score
+            return oos_result
             
         except Exception as e:
             logger.error(f"Erreur test out-of-sample: {e}")
-            return 0.0
+            return OutOfSampleResult(
+                test_score=0.0, train_score=0.0, generalization_gap=0.0,
+                degradation_pct=0.0, sample_size=0, temporal_stability=0.0,
+                confidence_level=0.0
+            )
     
     def analyze_feature_importance(self, 
                                  dataset: ProcessedDataset,

@@ -1,0 +1,171 @@
+{
+  "version": "1.0",
+  "description": "Configuration centralisée MenthorQ - Distances, thresholds, staleness, sizing",
+  "last_updated": "2025-01-12",
+  
+  "distances": {
+    "blind_spots": {
+      "very_close": 5.0,
+      "close": 15.0,
+      "moderate": 30.0,
+      "far": 50.0,
+      "description": "Distances en points ES pour les niveaux Blind Spots"
+    },
+    "gamma_levels": {
+      "very_close": 3.0,
+      "close": 10.0,
+      "moderate": 25.0,
+      "far": 40.0,
+      "description": "Distances en points ES pour les niveaux Gamma"
+    },
+    "swing_levels": {
+      "very_close": 8.0,
+      "close": 20.0,
+      "moderate": 40.0,
+      "far": 60.0,
+      "description": "Distances en points ES pour les niveaux Swing"
+    },
+    "gex_levels": {
+      "very_close": 5.0,
+      "close": 15.0,
+      "moderate": 30.0,
+      "far": 50.0,
+      "description": "Distances en points ES pour les niveaux GEX"
+    }
+  },
+  
+  "thresholds": {
+    "confluence": {
+      "weak": 0.4,
+      "medium": 0.6,
+      "strong": 0.8,
+      "extreme": 0.9,
+      "description": "Seuils de confluence pour validation des signaux"
+    },
+    "leadership": {
+      "min": 0.4,
+      "moderate": 0.5,
+      "strong": 0.7,
+      "extreme": 0.9,
+      "description": "Seuils de leadership pour filtrage des signaux"
+    },
+    "dealers_bias": {
+      "neutral_min": -0.1,
+      "neutral_max": 0.1,
+      "bullish": 0.3,
+      "bearish": -0.3,
+      "extreme_bullish": 0.6,
+      "extreme_bearish": -0.6,
+      "description": "Seuils pour interprétation du dealers bias"
+    },
+    "vix_regime": {
+      "low": 15.0,
+      "normal": 25.0,
+      "high": 35.0,
+      "extreme": 50.0,
+      "description": "Seuils VIX pour détermination du régime de volatilité"
+    }
+  },
+  
+  "staleness": {
+    "max_age_minutes": {
+      "normal": 30,
+      "high_vix": 15,
+      "extreme": 5,
+      "description": "Âge maximum des données MenthorQ selon régime VIX"
+    },
+    "degradation_threshold": 300,
+    "warning_threshold": 180,
+    "critical_threshold": 600,
+    "description": "Seuils de staleness en secondes (5min, 3min, 10min)"
+  },
+  
+  "sizing": {
+    "base_factor": 0.5,
+    "vix_multiplier": 0.8,
+    "confluence_boost": 1.2,
+    "leadership_boost": 1.1,
+    "max_size": 2.0,
+    "min_size": 0.1,
+    "description": "Facteurs de position sizing"
+  },
+  
+  "hard_rules": {
+    "blind_spot_violation": {
+      "enabled": true,
+      "distance_ticks": 5,
+      "action": "HARD_BLOCK",
+      "description": "Blocage dur si prix dans zone Blind Spot"
+    },
+    "gamma_wall_violation": {
+      "enabled": true,
+      "distance_ticks": 3,
+      "action": "HARD_BLOCK",
+      "description": "Blocage dur si prix dans zone Gamma Wall"
+    },
+    "vix_extreme_blocking": {
+      "enabled": true,
+      "vix_threshold": 50.0,
+      "action": "SOFT_BLOCK",
+      "description": "Blocage doux en cas de VIX extrême"
+    },
+    "leadership_contra_trend": {
+      "enabled": true,
+      "leadership_threshold": 0.7,
+      "signal_threshold": 0.6,
+      "action": "FILTER",
+      "description": "Filtrage des signaux contra-trend du leader"
+    }
+  },
+  
+  "monitoring": {
+    "staleness_alerts": {
+      "enabled": true,
+      "check_interval_seconds": 60,
+      "alert_channels": ["discord", "log"],
+      "description": "Configuration des alertes de staleness"
+    },
+    "performance_tracking": {
+      "enabled": true,
+      "latency_threshold_ms": 100,
+      "score_components_tracking": true,
+      "description": "Configuration du tracking de performance"
+    }
+  },
+  
+  "weights": {
+    "menthorq_score": 0.40,
+    "battle_navale_score": 0.35,
+    "vix_regime_score": 0.25,
+    "description": "Pondération des composants du score final"
+  },
+  
+  "level_weights": {
+    "gamma_levels": {
+      "call_resistance": 0.15,
+      "put_support": 0.15,
+      "hvl": 0.12,
+      "one_d_min": 0.10,
+      "one_d_max": 0.10,
+      "call_resistance_0dte": 0.20,
+      "put_support_0dte": 0.20,
+      "hvl_0dte": 0.18,
+      "gamma_wall_0dte": 0.25,
+      "gex_1_to_10": 0.08
+    },
+    "blind_spots": {
+      "bl_1_to_10": 0.12
+    },
+    "swing_levels": {
+      "sg_1_to_60": 0.05
+    }
+  },
+  
+  "validation": {
+    "min_levels_required": 3,
+    "max_stale_levels": 2,
+    "confluence_min_components": 2,
+    "description": "Règles de validation des données MenthorQ"
+  }
+}
+

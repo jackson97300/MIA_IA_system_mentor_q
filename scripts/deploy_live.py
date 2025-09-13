@@ -38,6 +38,7 @@ import sys
 import os
 import time
 import json
+import logging
 from core.logger import get_logger
 import argparse
 import subprocess
@@ -81,8 +82,8 @@ try:
 
 except ImportError as e:
     SYSTEM_INTEGRATION = False
-    logger.warning("Intégration MIA_IA_SYSTEM limitée: {e}")
-    logger.info("[SYNC] Mode déploiement standalone activé")
+    print(f"⚠️ Intégration MIA_IA_SYSTEM limitée: {e}")
+    print("ℹ️ [SYNC] Mode déploiement standalone activé")
 
 # Logging
 logging.basicConfig(

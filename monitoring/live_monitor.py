@@ -118,12 +118,17 @@ class MetricType(Enum):
     TIMER = "timer"            # Durée (latence)
     PERCENTAGE = "percentage"   # Pourcentage (win rate)
 
-class AlertSeverity(Enum):
-    """Sévérité alertes"""
-    INFO = "info"
-    WARNING = "warning"
-    ERROR = "error"
-    CRITICAL = "critical"
+# Import centralisé des enums (migration sécurisée)
+try:
+    from core.enums import AlertSeverity, MetricType
+except ImportError:
+    # Fallback pour compatibilité (sera supprimé après migration)
+    class AlertSeverity(Enum):
+        """Sévérité alertes - FALLBACK"""
+        INFO = "info"
+        WARNING = "warning"
+        ERROR = "error"
+        CRITICAL = "critical"
 
 # === MONITORING DATA STRUCTURES ===
 
@@ -403,7 +408,11 @@ class LiveMonitor:
                 self._update_monitor_performance(iteration_time)
 
                 # Sleep jusqu'à prochaine itération
-                sleep_time = getattr(self.config, 'monitoring_interval_seconds', 5)
+                sleep_time = getattr(self.config, 'monitoring_interval_seconds', None)
+                if sleep_time is None and hasattr(self.config, 'update_frequency_seconds'):
+                    sleep_time = self.config.update_frequency_seconds
+                if sleep_time is None:
+                    sleep_time = 5
                 
                 # Check stop event avec timeout
                 if self.stop_event.wait(timeout=sleep_time):

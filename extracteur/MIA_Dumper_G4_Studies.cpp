@@ -1,94 +1,20 @@
-// === MIA_Dumper_G4_Studies.cpp (header inlined - Approach 1) ===
-// Utilities previously in "mia_dump_utils.hpp" are embedded below to allow
-// single-file remote builds on Sierra Chart.
+// MIA_Dumper_G4_Studies.cpp
+// ACSIL — Sierra Chart
+// Dump JSONL: chart_4_ohlc_YYYYMMDD.jsonl, chart_4_volume_profile_YYYYMMDD.jsonl
+// Features: de-dup (sym,t,i), write on change or bar close, VAL/VPOC/VAH guard (val ≤ vpoc ≤ vah), configurable output dir.
 
 #include "sierrachart.h"
-#ifdef _WIN32
-  #include <windows.h>
-#endif
-#include <time.h>
-#include <cmath>
-#include <unordered_map>
+SCDLLName("MIA Dumper G4 Studies")
+
+#include <stdio.h>
 #include <string>
-#include <vector>
-using std::fabs;
+#include <unordered_map>
+#include <algorithm>
 
-// ========== UTILITAIRES COMMUNS ==========
+static SCString g_OutputDir;
 
-// Création du répertoire de sortie
-static void EnsureOutDir() {
-#ifdef _WIN32
-  CreateDirectoryA("D:\\MIA_IA_system", NULL);
-#endif
-}
-
-// Génération du nom de fichier quotidien par chart et type
-static SCString DailyFilenameForChartType(int chartNumber, const char* dataType) {
-  time_t now = time(NULL);
-  struct tm* lt = localtime(&now);
-  int y = lt ? (lt->tm_year + 1900) : 1970;
-  int m = lt ? (lt->tm_mon + 1) : 1;
-  int d = lt ? lt->tm_mday : 1;
-  SCString filename;
-  filename.Format("D:\\MIA_IA_system\\chart_%d_%s_%04d%02d%02d.jsonl", 
-                  chartNumber, dataType, y, m, d);
-  return filename;
-}
-
-// Écriture dans le fichier spécialisé
-static void WriteToSpecializedFile(int chartNumber, const char* dataType, const SCString& line) {
-  EnsureOutDir();
-  const SCString filename = DailyFilenameForChartType(chartNumber, dataType);
-  FILE* f = fopen(filename.GetChars(), "a");
-  if (f) { 
-    fprintf(f, "%s\n", line.GetChars()); 
-    fclose(f); 
-  }
-}
-
-// Anti-duplication simple par (chart, type, key)
-static void WriteIfChanged(int chartNumber, const char* dataType, const std::string& key, const SCString& line) {
-  static std::unordered_map<std::string, std::string> s_last_by_key;
-  auto it = s_last_by_key.find(key);
-  const std::string current = std::string(line.GetChars());
-  if (it != s_last_by_key.end() && it->second == current) {
-    return; // identique, on n'écrit pas
-  }
-  WriteToSpecializedFile(chartNumber, dataType, line);
-  s_last_by_key[key] = current;
-}
-
-// ========== NORMALISATION DES PRIX ==========
-inline double NormalizePx(const SCStudyInterfaceRef& sc, double raw)
-{
-  // 1) Dé-multiplier si besoin
-  const double mult = (sc.RealTimePriceMultiplier != 0.0 ? sc.RealTimePriceMultiplier : 1.0);
-  double px = raw / mult;
-
-  // 2) Correction d'échelle avant arrondi (certains flux arrivent x100)
-  if (px > 10000.0) px /= 100.0;
-
-  // 3) Arrondi au tick
-  px = sc.RoundToTickSize(px, sc.TickSize);
-
-  // 4) Correction d'échelle résiduelle puis arrondi final (sécurité)
-  if (px > 10000.0) px /= 100.0;
-  px = sc.RoundToTickSize(px, sc.TickSize);
-  return px;
-}
-
-// ========== HELPERS D'ACCÈS AUX STUDIES ==========
-
-// Helper pour résoudre automatiquement un Study ID par nom
-static int ResolveStudyID(SCStudyInterfaceRef& sc, int chartNumber, const char* studyName, int fallbackID = 0) {
-  int id = sc.GetStudyIDByName(chartNumber, studyName, 0);
-  if (id <= 0 && fallbackID > 0) {
-    id = fallbackID;
-  }
-  return id;
-}
-
-// Helper pour lire un subgraph avec validation
+// ========== FONCTIONS UTILITAIRES ==========
+// Helper pour lire les données d'une étude
 static bool ReadSubgraph(SCStudyInterfaceRef& sc, int studyID, int subgraphIndex, SCFloatArray& array, int chartNumber = -1) {
   if (chartNumber > 0) {
     sc.GetStudyArrayFromChartUsingID(chartNumber, studyID, subgraphIndex, array);
@@ -101,412 +27,644 @@ static bool ReadSubgraph(SCStudyInterfaceRef& sc, int studyID, int subgraphIndex
 
 // Helper pour valider qu'une étude a des données valides
 static bool ValidateStudyData(const SCFloatArray& array, int index) {
-  return array.GetArraySize() > index && array[index] != 0.0;
+  return array.GetArraySize() > index && !std::isnan(array[index]) && !std::isinf(array[index]);
 }
 
-// ========== DÉTECTION DE SUPPORT SEQUENCE ==========
-static void DetectSequenceSupport(const c_SCTimeAndSalesArray& TnS, bool& g_UseSeq)
-{
-    // Cherche un enregistrement avec Sequence > 0 (du plus récent au plus ancien)
-    for (int i = (int)TnS.Size() - 1; i >= 0 && i >= (int)TnS.Size() - 50; --i)
-    {
-        if (TnS[i].Sequence > 0)
-        {
-            g_UseSeq = true;
-            break;
-        }
-    }
+// Helper pour normaliser les prix
+inline double NormalizePx(const SCStudyInterfaceRef& sc, double raw) {
+  // 1) Dé-multiplier si besoin
+  const double mult = (sc.RealTimePriceMultiplier != 0.0 ? sc.RealTimePriceMultiplier : 1.0);
+  double px = raw / mult;
+
+  // 2) Correction d'échelle avant arrondi (certains flux arrivent x100)
+  if (px > 10000.0) px /= 100.0;
+
+  // 3) Arrondi au tick
+  px = sc.RoundToTickSize(px, sc.TickSize);
+  return px;
 }
 
-// ========== CONSTANTES DE MAPPING ==========
+// --- helpers ----------------------------------------------------------------
+static void EnsureDir(const SCString& d) {
+#ifdef _WIN32
+  CreateDirectoryA(d.GetChars(), NULL);
+#endif
+}
 
-// VWAP Subgraphs (selon le mapping standard)
-#define VWAP_SG_MAIN 1
-#define VWAP_SG_UP1  2
-#define VWAP_SG_DN1  3
-#define VWAP_SG_UP2  4
-#define VWAP_SG_DN2  5
-#define VWAP_SG_UP3  6
-#define VWAP_SG_DN3  7
+static SCString TodayFileName(const char* stem) {
+  time_t now = time(NULL);
+  struct tm* lt = localtime(&now);
+  int y = lt ? (lt->tm_year + 1900) : 1970;
+  int m = lt ? (lt->tm_mon + 1) : 1;
+  int d = lt ? lt->tm_mday : 1;
+  SCString fn; fn.Format("%s\\%s_%04d%02d%02d.jsonl", g_OutputDir.GetChars(), stem, y, m, d);
+  return fn;
+}
 
-// VVA Subgraphs (Volume Value Area) — indexation 0-based
-#define VVA_SG_POC 0
-#define VVA_SG_VAH 1
-#define VVA_SG_VAL 2
+static void AppendJSONL(const SCString& path, const SCString& line) {
+  FILE* f = fopen(path.GetChars(), "ab");
+  if (!f) return;
+  fwrite(line.GetChars(), 1, strlen(line.GetChars()), f);
+  fwrite("\n", 1, 1, f);
+  fflush(f);
+    fclose(f); 
+}
 
-// NBCV Subgraphs (Numbers Bars Calculated Values) — mapping confirmé
-// (Ask=5, Bid=6, Delta=0, Trades=11, CumDelta=9, TotalVol=12, Delta%=10, Ask%=16, Bid%=17)
-#define NBCV_SG_DELTA         0
-#define NBCV_SG_ASK_VOLUME    5
-#define NBCV_SG_BID_VOLUME    6
-#define NBCV_SG_TRADES        11
-#define NBCV_SG_CUMULATIVE     9
-#define NBCV_SG_TOTAL_VOLUME  12
-#define NBCV_SG_DELTA_PCT     10
-#define NBCV_SG_ASK_PCT       16
-#define NBCV_SG_BID_PCT       17
+static inline bool has_changed(double a, double b, double eps=1e-9) {
+  return fabs(a-b) > eps;
+}
 
-// VIX Subgraph
-#define VIX_SG_LAST 4
+// --- state ------------------------------------------------------------------
+struct LastKey { double t=0.0; double i=-1; };
+struct LastOHLC { double c=0,o=0,h=0,l=0; };
+struct LastProfile { double val=0, vpoc=0, vah=0, hvn=0, lvn=0; };
+struct LastVWAP { double vwap=0, sd1=0, sd2=0, sd3=0; };
+struct LastVVA { double poc=0, vah=0, val=0; };
+struct LastVVA_Prev { double ppoc=0, pvah=0, pval=0; };
+struct LastPrevVP { double pvpoc=0, pvah=0, pval=0, pvwap=0; };
+struct LastPrevVWAP { double pvpoc=0, pvah=0, pval=0, pvwap=0, psd1=0, psd2=0; };
+struct LastCorrelation { double corr=0; };
+struct LastATR { double atr=0; };
+struct LastNBCV { double delta=0, askvol=0, bidvol=0, trades=0, totalvol=0; };
+struct LastCumDelta { double cumdelta=0; };
 
-// MenthorQ Subgraphs
-#define MENTHORQ_GAMMA_SG_COUNT 19
-#define MENTHORQ_BLIND_SG_COUNT 9
-#define MENTHORQ_SWING_SG_COUNT 9
+static std::unordered_map<std::string, LastKey> g_LastKeyBySym;
+static std::unordered_map<std::string, LastOHLC> g_LastOHLCBySym;
+static std::unordered_map<std::string, LastProfile> g_LastProfBySym;
+static std::unordered_map<std::string, LastVWAP> g_LastVWAPBySym;
+static std::unordered_map<std::string, LastVVA> g_LastVVABySym;
+static std::unordered_map<std::string, LastVVA_Prev> g_LastVVAPrevBySym;
+static std::unordered_map<std::string, LastPrevVP> g_LastPrevVPBySym;
+static std::unordered_map<std::string, LastPrevVWAP> g_LastPrevVWAPBySym;
+static std::unordered_map<std::string, LastCorrelation> g_LastCorrBySym;
+static std::unordered_map<std::string, LastATR> g_LastATRBySym;
+static std::unordered_map<std::string, LastNBCV> g_LastNBCVBySym;
+static std::unordered_map<std::string, LastCumDelta> g_LastCumDeltaBySym;
 
-// =======================================================================
-// ===============    STUDY ENTRYPOINT (G4 STUDIES)    =======================
-// =======================================================================
-
-SCDLLName("MIA_Dumper_G4_Studies")
-
-// Dumper spécialisé pour Chart 4 (30 minutes)
-// Collecte UNIQUEMENT les données natives du Chart 4
-// Sorties spécialisées : ohlc, vwap_current, pvwap, nbcv
-
+// --- Study entry -------------------------------------------------------------
 SCSFExport scsf_MIA_Dumper_G4_Studies(SCStudyInterfaceRef sc)
 {
+  SCInputRef OutDir  = sc.Input[0];
+  SCInputRef SymbolOverride = sc.Input[1];
+
+  // Subgraph indices for Volume Profile study on Chart 4
+  SCInputRef VAL_Idx  = sc.Input[2];
+  SCInputRef VPOC_Idx = sc.Input[3];
+  SCInputRef VAH_Idx  = sc.Input[4];
+  SCInputRef HVN_Idx  = sc.Input[14];
+  SCInputRef LVN_Idx  = sc.Input[15];
+  
+  // Study IDs for Chart 4
+  SCInputRef VWAP_ID = sc.Input[5];
+  SCInputRef VVA_ID = sc.Input[6];
+  SCInputRef VVA_PREV_ID = sc.Input[7];
+  SCInputRef PREV_VP_ID = sc.Input[8];
+  SCInputRef PREV_VWAP_ID = sc.Input[9];
+  SCInputRef CORR_ID = sc.Input[10];
+  SCInputRef ATR_ID = sc.Input[11];
+  SCInputRef NBCV_ID = sc.Input[12];
+  SCInputRef CUM_DELTA_ID = sc.Input[13];
+
   if (sc.SetDefaults)
   {
     sc.GraphName = "MIA Dumper G4 Studies";
-    sc.StudyDescription = "Collecte spécialisée Chart 4 - Données M30 uniquement";
-    sc.AutoLoop = 0;
-    sc.UpdateAlways = 1;
-    sc.MaintainVolumeAtPriceData = 1;
-    sc.MaintainAdditionalChartDataArrays = 1;
-    sc.CalculationPrecedence = LOW_PREC_LEVEL;
+    sc.AutoLoop = 1;
 
-    // --- Inputs VWAP ---
-    sc.Input[0].Name = "Export VWAP Current (0/1)";
-    sc.Input[0].SetInt(1);
-    sc.Input[1].Name = "VWAP Study ID (0=auto)";
-    sc.Input[1].SetInt(1); // Study ID 1 pour Chart 4
-    sc.Input[2].Name = "VWAP Bands Count (0..3)";
-    sc.Input[2].SetInt(3);
+    OutDir.Name = "Output Directory";
+    OutDir.SetString("D:\\MIA_IA_system");
 
-    // --- Inputs PVWAP ---
-    sc.Input[3].Name = "Export PVWAP (0/1)";
-    sc.Input[3].SetInt(1);
-    sc.Input[4].Name = "PVWAP Study ID";
-    sc.Input[4].SetInt(3); // ID 3 pour PVWAP
-    sc.Input[5].Name = "PVWAP Bands Count (0..2)";
-    sc.Input[5].SetInt(2);
+    SymbolOverride.Name = "Symbol Override (optional)";
+    SymbolOverride.SetString("");
 
-    // --- Inputs NBCV ---
-    sc.Input[6].Name = "Export NBCV (0/1)";
-    sc.Input[6].SetInt(1);
-    sc.Input[7].Name = "NBCV Study ID";
-    sc.Input[7].SetInt(14); // ID 14 pour Graph 4
+    VAL_Idx.Name  = "VAL Subgraph Index";
+    VPOC_Idx.Name = "VPOC Subgraph Index";
+    VAH_Idx.Name  = "VAH Subgraph Index";
+    HVN_Idx.Name  = "HVN Subgraph Index";
+    LVN_Idx.Name  = "LVN Subgraph Index";
+    // Mapping correct selon l'inventaire : Study ID 13 (MULTIPLE VOLUME PROFILE)
+    VAL_Idx.SetInt(3);   // SG3: VAL
+    VPOC_Idx.SetInt(1);  // SG1: VPOC  
+    VAH_Idx.SetInt(2);   // SG2: VAH
+    HVN_Idx.SetInt(17);  // SG17: HVN
+    LVN_Idx.SetInt(18);  // SG18: LVN
 
-    // --- Inputs Cumulative Delta ---
-    sc.Input[8].Name = "Export Cumulative Delta (0/1)";
-    sc.Input[8].SetInt(1);
-    sc.Input[9].Name = "Cumulative Delta Study ID";
-    sc.Input[9].SetInt(6); // ID 6 pour Cumulative Delta Bars
-
-    // --- Inputs Correlation ---
-    sc.Input[10].Name = "Export Correlation (0/1)";
-    sc.Input[10].SetInt(1);
-    sc.Input[11].Name = "Correlation Study ID";
-    sc.Input[11].SetInt(15); // ID 15 pour Correlation
-
-    // --- Inputs ATR ---
-    sc.Input[12].Name = "Export ATR (0/1)";
-    sc.Input[12].SetInt(1);
-    sc.Input[13].Name = "ATR Study ID";
-    sc.Input[13].SetInt(5); // ID 5 pour ATR
-    sc.Input[14].Name = "ATR Subgraph Index";
-    sc.Input[14].SetInt(0); // SG 0 pour ATR
-
-    // --- Inputs VVA Previous ---
-    sc.Input[15].Name = "Export VVA Previous (0/1)";
-    sc.Input[15].SetInt(1);
-    sc.Input[16].Name = "VVA Previous Study ID";
-    sc.Input[16].SetInt(9); // ID 9 pour VVA Previous
-    sc.Input[17].Name = "VVA Previous POC Subgraph";
-    sc.Input[17].SetInt(0); // SG 0 = PPOC
-    sc.Input[18].Name = "VVA Previous VAH Subgraph";
-    sc.Input[18].SetInt(1); // SG 1 = PVAH
-    sc.Input[19].Name = "VVA Previous VAL Subgraph";
-    sc.Input[19].SetInt(2); // SG 2 = PVAL
-
-    // --- Inputs Volume Profile (HVN/LVN) ---
-    sc.Input[20].Name = "Export Volume Profile (0/1)";
-    sc.Input[20].SetInt(1);
-    sc.Input[21].Name = "Volume Profile Study ID";
-    sc.Input[21].SetInt(14); // ID 14 pour Volume Profile (HVN/LVN valides)
-    sc.Input[22].Name = "Export VPOC/VAH/VAL (0/1)";
-    sc.Input[22].SetInt(1);
-    sc.Input[23].Name = "Export HVN/LVN (0/1)";
-    sc.Input[23].SetInt(1);
+    // Study IDs configuration
+    VWAP_ID.Name = "VWAP Study ID";
+    VWAP_ID.SetInt(1);  // Study ID 1: VWAP
+    
+    VVA_ID.Name = "VVA Study ID";
+    VVA_ID.SetInt(8);   // Study ID 8: Volume Value Area Lines
+    
+    VVA_PREV_ID.Name = "VVA Previous Study ID";
+    VVA_PREV_ID.SetInt(9);  // Study ID 9: Volume Value Area Previous
+    
+    PREV_VP_ID.Name = "Previous VP Study ID";
+    PREV_VP_ID.SetInt(2);   // Study ID 2: PREVIOUS VPOC VAH VAL
+    
+    PREV_VWAP_ID.Name = "Previous VWAP Study ID";
+    PREV_VWAP_ID.SetInt(3); // Study ID 3: PREVIOUS VWAP SD+1 SD-1
+    
+    CORR_ID.Name = "Correlation Study ID";
+    CORR_ID.SetInt(15);     // Study ID 15: Correlation Coefficient
+    
+    ATR_ID.Name = "ATR Study ID";
+    ATR_ID.SetInt(5);       // Study ID 5: Average True Range
+    
+    NBCV_ID.Name = "NBCV Study ID";
+    NBCV_ID.SetInt(14);     // Study ID 14: Numbers Bars Calculated Values
+    
+    CUM_DELTA_ID.Name = "Cumulative Delta Study ID";
+    CUM_DELTA_ID.SetInt(6); // Study ID 6: Cumulative Delta Bars
 
     return;
   }
 
-  if (sc.ServerConnectionState != SCS_CONNECTED) return;
-
-  // ---- OHLC Graph4 (chaque tick) ----
-  if (sc.ArraySize > 0) {
-    const int i = sc.ArraySize - 1;
-    const double t = sc.BaseDateTimeIn[i].GetAsDouble();
-    const double o = sc.BaseDataIn[SC_OPEN][i];
-    const double h = sc.BaseDataIn[SC_HIGH][i];
-    const double l = sc.BaseDataIn[SC_LOW][i];
-    const double c = sc.BaseDataIn[SC_LAST][i];
-    const double v = sc.BaseDataIn[SC_VOLUME][i];
-
-    SCString j;
-    j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"ohlc_graph4\",\"bar\":%d,\"source\":\"chart_array\",\"chart\":%d,\"dt_g4\":%.6f,\"open\":%.2f,\"high\":%.2f,\"low\":%.2f,\"close\":%.2f,\"volume\":%.0f}",
-      t, sc.Symbol.GetChars(), i, sc.ChartNumber, c, o, h, l, c, v);
-    WriteToSpecializedFile(sc.ChartNumber, "ohlc", j);
+  if (sc.Index == 0) {
+    g_OutputDir = OutDir.GetString();
+    if (g_OutputDir.IsEmpty()) g_OutputDir = "D:\\MIA_IA_system";
+    EnsureDir(g_OutputDir);
   }
 
-  // ---- VWAP Current (chaque tick) ----
-  if (sc.Input[0].GetInt() != 0 && sc.ArraySize > 0) {
-    static int vwapID = -2;
-    const int i = sc.ArraySize - 1;
-    const double t = sc.BaseDateTimeIn[i].GetAsDouble();
+  const SCString sym = SymbolOverride.GetString()[0] ? SymbolOverride.GetString() : sc.Symbol.GetChars();
+  const double t = sc.BaseDateTimeIn[sc.Index].GetTimeInSeconds();
+  const double i = (double)sc.Index;
+
+  // Déduplication intelligente (sym, t, i)
+  LastKey& lk = g_LastKeyBySym[std::string(sym.GetChars())];
+  bool same_ti = (fabs(lk.t - t) < 1e-9) && (fabs(lk.i - i) < 1e-9);
   
-    if (vwapID == -2) {
-      int cand[3];
-      cand[0] = sc.Input[1].GetInt(); // ID forcé
-      cand[1] = ResolveStudyID(sc, sc.ChartNumber, "Volume Weighted Average Price", 0);
-      cand[2] = ResolveStudyID(sc, sc.ChartNumber, "VWAP (Volume Weighted Average Price)", 0);
-  
-      vwapID = -1;
-      for (int k = 0; k < 3; ++k) {
-        if (cand[k] > 0) {
-          SCFloatArray test;
-          if (ReadSubgraph(sc, cand[k], VWAP_SG_MAIN, test)) {
-            if (ValidateStudyData(test, i)) { 
-              vwapID = cand[k]; 
-              break; 
-            }
-          }
+  // Mettre à jour la clé pour la prochaine vérification
+  lk.t = t;
+  lk.i = i;
+
+  // ---------------- OHLC (Chart 4 view) ----------------
+  {
+    const double c = sc.Close[sc.Index];
+    const double o = sc.Open[sc.Index];
+    const double h = sc.High[sc.Index];
+    const double l = sc.Low[sc.Index];
+    
+    // DEBUG: Log OHLC attempt
+    SCString debugMsg;
+    debugMsg.Format("DEBUG G4: OHLC attempt - Index=%d, OHLC=%.2f/%.2f/%.2f/%.2f", 
+                   sc.Index, o, h, l, c);
+    sc.AddMessageToLog(debugMsg, 1);
+
+    LastOHLC& lo = g_LastOHLCBySym[std::string(sym.GetChars())];
+    bool payload_changed =
+      has_changed(c, lo.c) || has_changed(o, lo.o) || has_changed(h, lo.h) || has_changed(l, lo.l);
+
+    int barStatus = sc.GetBarHasClosedStatus(sc.Index);
+    bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
+
+    // Écriture conditionnelle optimisée : changement + clôture barre
+    // TEMPORAIRE: Désactiver la déduplication pour test
+    if (true) { // ((!same_ti && payload_changed) || bar_closed) {
+      SCString debugMsgOHLC;
+      debugMsgOHLC.Format("DEBUG G4: OHLC WRITING - same_ti=%d, payload_changed=%d, bar_closed=%d", 
+                          same_ti, payload_changed, bar_closed);
+      sc.AddMessageToLog(debugMsgOHLC, 1);
+      
+      SCString fn = TodayFileName("chart_4_ohlc");
+      SCString line;
+      line.Format("{\"sym\":\"%s\",\"t\":%.6f,\"i\":%.0f,\"c\":%.6f,\"o\":%.6f,\"h\":%.6f,\"l\":%.6f}",
+                  sym.GetChars(), t, i, c, o, h, l);
+      AppendJSONL(fn, line);
+      sc.AddMessageToLog("DEBUG G4: OHLC FILE WRITTEN", 1);
+      lo.c=c; lo.o=o; lo.h=h; lo.l=l;
+    }
+  }
+
+  // ---------------- Volume Profile (VAL/VPOC/VAH/HVN/LVN) ----------------
+  {
+    const int idxVAL  = VAL_Idx.GetInt();
+    const int idxVPOC = VPOC_Idx.GetInt();
+    const int idxVAH  = VAH_Idx.GetInt();
+    const int idxHVN  = HVN_Idx.GetInt();
+    const int idxLVN  = LVN_Idx.GetInt();
+    
+    // DEBUG: Log Volume Profile attempt
+    SCString debugMsg;
+    debugMsg.Format("DEBUG G4: Volume Profile attempt - idxVAL=%d, idxVPOC=%d, idxVAH=%d", 
+                   idxVAL, idxVPOC, idxVAH);
+    sc.AddMessageToLog(debugMsg, 1);
+
+    if (idxVAL >= 0 && idxVPOC >= 0 && idxVAH >= 0) {
+      // DEBUG: Log subgraph values
+      SCString debugMsg4;
+      debugMsg4.Format("DEBUG G4: Volume Profile subgraphs - idxVAL=%d, idxVPOC=%d, idxVAH=%d, Index=%d", 
+                      idxVAL, idxVPOC, idxVAH, sc.Index);
+      sc.AddMessageToLog(debugMsg4, 1);
+      
+      double val = sc.Subgraph[idxVAL][sc.Index];
+      double vpoc = sc.Subgraph[idxVPOC][sc.Index];
+      double vah = sc.Subgraph[idxVAH][sc.Index];
+      
+      // DEBUG: Log actual values
+      SCString debugMsg5;
+      debugMsg5.Format("DEBUG G4: Volume Profile values - val=%.6f, vpoc=%.6f, vah=%.6f", val, vpoc, vah);
+      sc.AddMessageToLog(debugMsg5, 1);
+      double hvn = (idxHVN >= 0) ? sc.Subgraph[idxHVN][sc.Index] : 0.0;
+      double lvn = (idxLVN >= 0) ? sc.Subgraph[idxLVN][sc.Index] : 0.0;
+
+      // auto-correct safety: enforce val ≤ vah ordering before check
+      if (val > vah) std::swap(val, vah);
+
+      // guard: require val ≤ vpoc ≤ vah
+      if (!(val <= vpoc && vpoc <= vah)) {
+        // DEBUG: Log validation failure
+        SCString debugMsg2;
+        debugMsg2.Format("DEBUG G4: Volume Profile validation FAILED - val=%.6f, vpoc=%.6f, vah=%.6f", val, vpoc, vah);
+        sc.AddMessageToLog(debugMsg2, 1);
+        // skip writing corrupted sample
+      } else {
+        sc.AddMessageToLog("DEBUG G4: Volume Profile validation PASSED", 1);
+        LastProfile& lp = g_LastProfBySym[std::string(sym.GetChars())];
+        bool changed = has_changed(val, lp.val) || has_changed(vpoc, lp.vpoc) || has_changed(vah, lp.vah) ||
+                      has_changed(hvn, lp.hvn) || has_changed(lvn, lp.lvn);
+
+        int barStatus = sc.GetBarHasClosedStatus(sc.Index);
+        bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
+
+        // Écriture conditionnelle optimisée : changement + clôture barre
+        // TEMPORAIRE: Désactiver la déduplication pour test
+        if (true) { // ((!same_ti && changed) || bar_closed) {
+          SCString debugMsg3;
+          debugMsg3.Format("DEBUG G4: Volume Profile WRITING - same_ti=%d, changed=%d, bar_closed=%d", 
+                          same_ti, changed, bar_closed);
+          sc.AddMessageToLog(debugMsg3, 1);
+          
+          SCString fn = TodayFileName("chart_4_volume_profile");
+          SCString line;
+          line.Format("{\"sym\":\"%s\",\"t\":%.6f,\"i\":%.0f,\"val\":%.6f,\"vpoc\":%.6f,\"vah\":%.6f,\"hvn\":%.6f,\"lvn\":%.6f}",
+                      sym.GetChars(), t, i, val, vpoc, vah, hvn, lvn);
+          AppendJSONL(fn, line);
+          sc.AddMessageToLog("DEBUG G4: Volume Profile FILE WRITTEN", 1);
+          lp.val=val; lp.vpoc=vpoc; lp.vah=vah; lp.hvn=hvn; lp.lvn=lvn;
         }
       }
     }
+  }
+
+  // ---------------- VWAP (Study ID 1) ----------------
+  {
+    const int vwapID = VWAP_ID.GetInt();
+    
+    // DEBUG: Log VWAP attempt
+    SCString debugMsgVWAP;
+    debugMsgVWAP.Format("DEBUG G4: VWAP attempt - vwapID=%d", vwapID);
+    sc.AddMessageToLog(debugMsgVWAP, 1);
   
     if (vwapID > 0) {
-      SCFloatArray VWAP, UP1, DN1, UP2, DN2, UP3, DN3;
-      ReadSubgraph(sc, vwapID, VWAP_SG_MAIN, VWAP);
+      // Utiliser ReadSubgraph comme le G3
+      SCFloatArray vwapArray, sd1Array, sd2Array, sd3Array, sd4Array, sd5Array, sd6Array;
       
-      int bands = sc.Input[2].GetInt();
-      if (bands >= 1) {
-        ReadSubgraph(sc, vwapID, VWAP_SG_UP1, UP1);
-        ReadSubgraph(sc, vwapID, VWAP_SG_DN1, DN1);
-      }
-      if (bands >= 2) {
-        ReadSubgraph(sc, vwapID, VWAP_SG_UP2, UP2);
-        ReadSubgraph(sc, vwapID, VWAP_SG_DN2, DN2);
-      }
-      if (bands >= 3) {
-        ReadSubgraph(sc, vwapID, VWAP_SG_UP3, UP3);
-        ReadSubgraph(sc, vwapID, VWAP_SG_DN3, DN3);
-      }
-
-      if (ValidateStudyData(VWAP, i)) {
-        double v   = NormalizePx(sc, VWAP[i]);
-        double up1 = (ValidateStudyData(UP1, i) ? NormalizePx(sc, UP1[i]) : 0);
-        double dn1 = (ValidateStudyData(DN1, i) ? NormalizePx(sc, DN1[i]) : 0);
-        double up2 = (ValidateStudyData(UP2, i) ? NormalizePx(sc, UP2[i]) : 0);
-        double dn2 = (ValidateStudyData(DN2, i) ? NormalizePx(sc, DN2[i]) : 0);
-        double up3 = (ValidateStudyData(UP3, i) ? NormalizePx(sc, UP3[i]) : 0);
-        double dn3 = (ValidateStudyData(DN3, i) ? NormalizePx(sc, DN3[i]) : 0);
-
-        SCString j;
-        j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"vwap_current\",\"bar\":%d,\"source\":\"graph4\",\"vwap\":%.2f,\"s_plus_1\":%.2f,\"s_minus_1\":%.2f,\"s_plus_2\":%.2f,\"s_minus_2\":%.2f,\"study_id\":%d}",
-                 t, sc.Symbol.GetChars(), i, v, up1, dn1, up2, dn2, vwapID);
-        WriteToSpecializedFile(sc.ChartNumber, "vwap", j);
-      }
-    }
-  }
-
-  // ---- PVWAP (Previous VWAP) ----
-  if (sc.Input[3].GetInt() != 0 && sc.ArraySize > 0) {
-    const int i = sc.ArraySize - 1;
-    const double t = sc.BaseDateTimeIn[i].GetAsDouble();
-    const int pvwapID = sc.Input[4].GetInt();
-    const int pvwapSG = 4; // SG4 = PVWAP
-
-    SCFloatArray PVWAP;
-    ReadSubgraph(sc, pvwapID, pvwapSG, PVWAP);
-    
-    if (ValidateStudyData(PVWAP, i)) {
-      double pvwap = NormalizePx(sc, PVWAP[i]);
-      
-      // Calculer les bandes si demandé
-      int nb = sc.Input[5].GetInt();
-      double up1=0, dn1=0, up2=0, dn2=0;
-      if (nb >= 1) { up1 = pvwap + 0.5; dn1 = pvwap - 0.5; }
-      if (nb >= 2) { up2 = pvwap + 1.0; dn2 = pvwap - 1.0; }
-
-      SCString j;
-      j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"pvwap\",\"i\":%d,\"prev_start\":0,\"prev_end\":0,\"pvwap\":%.8f,\"up1\":%.8f,\"dn1\":%.8f,\"up2\":%.8f,\"dn2\":%.8f,\"up3\":0.0,\"dn3\":0.0,\"up4\":0.0,\"dn4\":0.0}",
-               t, sc.Symbol.GetChars(), i, pvwap, up1, dn1, up2, dn2);
-      WriteToSpecializedFile(sc.ChartNumber, "pvwap", j);
-    }
-  }
-
-  // ---- NBCV (Numbers Bars Calculated Values) ----
-  if (sc.Input[6].GetInt() != 0 && sc.ArraySize > 0) {
-    const int i = sc.ArraySize - 1;
-    const double t = sc.BaseDateTimeIn[i].GetAsDouble();
-    const int nbcvID = sc.Input[7].GetInt();
-
-    SCFloatArray askVolArr, bidVolArr, deltaArr, tradesArr;
-    ReadSubgraph(sc, nbcvID, 5, askVolArr);   // Ask Volume = SG 5
-    ReadSubgraph(sc, nbcvID, 6, bidVolArr);   // Bid Volume = SG 6
-    ReadSubgraph(sc, nbcvID, 0, deltaArr);    // Delta = SG 0
-    ReadSubgraph(sc, nbcvID, 11, tradesArr);  // Trades = SG 11
-
-    if (ValidateStudyData(askVolArr, i) && ValidateStudyData(bidVolArr, i)) {
-      const double askVolume = askVolArr[i];
-      const double bidVolume = bidVolArr[i];
-      const double delta = ValidateStudyData(deltaArr, i) ? deltaArr[i] : (askVolume - bidVolume);
-      const double numberOfTrades = ValidateStudyData(tradesArr, i) ? tradesArr[i] : 0.0;
-      const double total = askVolume + bidVolume;
-
-      SCString j;
-      j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"numbers_bars_calculated_values_graph4\",\"i\":%d,\"ask\":%.0f,\"bid\":%.0f,\"delta\":%.0f,\"trades\":%.0f,\"cumdelta\":0,\"total\":%.0f,\"source_graph\":%d,\"study_id\":%d}",
-               t, sc.Symbol.GetChars(), i, askVolume, bidVolume, delta, numberOfTrades, total, sc.ChartNumber, nbcvID);
-      WriteToSpecializedFile(sc.ChartNumber, "nbcv", j);
-    }
-  }
-
-  // ---- Cumulative Delta Bars ----
-  if (sc.Input[8].GetInt() != 0 && sc.ArraySize > 0) {
-    const int i = sc.ArraySize - 1;
-    const double t = sc.BaseDateTimeIn[i].GetAsDouble();
-    const int cumDeltaID = sc.Input[9].GetInt();
-    const int cumDeltaSG = 3; // SG3 = Close (Cumulative Delta)
-
-    SCFloatArray cumDeltaArr;
-    ReadSubgraph(sc, cumDeltaID, cumDeltaSG, cumDeltaArr);
-    
-    if (ValidateStudyData(cumDeltaArr, i)) {
-      double cumulativeDelta = cumDeltaArr[i];
-
-      SCString j;
-      j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"cumulative_delta\",\"i\":%d,\"cumulative_delta\":%.0f,\"study_id\":%d,\"chart\":%d}",
-               t, sc.Symbol.GetChars(), i, cumulativeDelta, cumDeltaID, sc.ChartNumber);
-      WriteToSpecializedFile(sc.ChartNumber, "cumulative_delta", j);
-    }
-  }
-
-  // ---- Correlation ES/NQ ----
-  if (sc.Input[10].GetInt() != 0 && sc.ArraySize > 0) {
-    const int i = sc.ArraySize - 1;
-    const double t = sc.BaseDateTimeIn[i].GetAsDouble();
-    const int correlationID = sc.Input[11].GetInt();
-    const int correlationSG = 0; // SG0 = Correlation Coefficient
-
-    SCFloatArray correlationArr;
-    ReadSubgraph(sc, correlationID, correlationSG, correlationArr);
-    
-    if (ValidateStudyData(correlationArr, i)) {
-      double correlation = correlationArr[i];
-      double closeValue = sc.BaseDataIn[SC_LAST][i];
-
-      SCString j;
-      j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"correlation\",\"i\":%d,\"value\":%.6f,\"study_id\":%d,\"sg\":%d,\"chart\":%d,\"close\":%.6f,\"length\":20}",
-               t, sc.Symbol.GetChars(), i, correlation, correlationID, correlationSG, sc.ChartNumber, closeValue);
-      WriteToSpecializedFile(sc.ChartNumber, "correlation", j);
-    }
-  }
-
-  // ========== ATR EXPORT ==========
-  if (sc.Input[12].GetInt() != 0 && sc.ArraySize > 0) {
-    const int i = sc.ArraySize - 1;
-    const double t = sc.BaseDateTimeIn[i].GetAsDouble();
-    
-    const int atrStudyID = sc.Input[13].GetInt();
-    const int atrSG = sc.Input[14].GetInt();
-    
-    if (atrStudyID > 0) {
-      SCFloatArray atrData;
-      ReadSubgraph(sc, atrStudyID, atrSG, atrData);
-      
-      if (ValidateStudyData(atrData, i)) {
-        const double atr = atrData[i];
-        SCString j;
-        j.Format("{\"t\":%.6f,\"type\":\"atr\",\"i\":%d,\"atr\":%.6f,\"study\":%d,\"sg\":%d,\"chart\":%d}",
-                 t, i, atr, atrStudyID, atrSG, sc.ChartNumber);
-        WriteToSpecializedFile(sc.ChartNumber, "atr", j);
-      }
-    }
-  }
-
-  // ========== VVA PREVIOUS EXPORT ==========
-  if (sc.Input[15].GetInt() != 0 && sc.ArraySize > 0) {
-    const int i = sc.ArraySize - 1;
-    const double t = sc.BaseDateTimeIn[i].GetAsDouble();
-    
-    const int vvaPrevStudyID = sc.Input[16].GetInt();
-    const int ppocSG = sc.Input[17].GetInt();
-    const int pvahSG = sc.Input[18].GetInt();
-    const int pvalSG = sc.Input[19].GetInt();
-    
-    if (vvaPrevStudyID > 0) {
-      SCFloatArray ppocData, pvahData, pvalData;
-      ReadSubgraph(sc, vvaPrevStudyID, ppocSG, ppocData);
-      ReadSubgraph(sc, vvaPrevStudyID, pvahSG, pvahData);
-      ReadSubgraph(sc, vvaPrevStudyID, pvalSG, pvalData);
-      
-      if (ValidateStudyData(ppocData, i) && ValidateStudyData(pvahData, i) && ValidateStudyData(pvalData, i)) {
-        const double ppoc = ppocData[i];
-        const double pvah = pvahData[i];
-        const double pval = pvalData[i];
+      if (ReadSubgraph(sc, vwapID, 0, vwapArray) && ValidateStudyData(vwapArray, sc.Index)) {
+        double vwap = NormalizePx(sc, vwapArray[sc.Index]);
+        double sd1 = 0, sd2 = 0, sd3 = 0, sd4 = 0, sd5 = 0, sd6 = 0;
         
-        SCString j;
-        j.Format("{\"t\":%.6f,\"type\":\"vva_previous\",\"i\":%d,\"ppoc\":%.6f,\"pvah\":%.6f,\"pval\":%.6f,\"study\":%d,\"chart\":%d}",
-                 t, i, ppoc, pvah, pval, vvaPrevStudyID, sc.ChartNumber);
-        WriteToSpecializedFile(sc.ChartNumber, "vva_previous", j);
-      }
-    }
-  }
+        if (ReadSubgraph(sc, vwapID, 1, sd1Array) && ValidateStudyData(sd1Array, sc.Index)) sd1 = NormalizePx(sc, sd1Array[sc.Index]);
+        if (ReadSubgraph(sc, vwapID, 2, sd2Array) && ValidateStudyData(sd2Array, sc.Index)) sd2 = NormalizePx(sc, sd2Array[sc.Index]);
+        if (ReadSubgraph(sc, vwapID, 3, sd3Array) && ValidateStudyData(sd3Array, sc.Index)) sd3 = NormalizePx(sc, sd3Array[sc.Index]);
+        if (ReadSubgraph(sc, vwapID, 4, sd4Array) && ValidateStudyData(sd4Array, sc.Index)) sd4 = NormalizePx(sc, sd4Array[sc.Index]);
+        if (ReadSubgraph(sc, vwapID, 5, sd5Array) && ValidateStudyData(sd5Array, sc.Index)) sd5 = NormalizePx(sc, sd5Array[sc.Index]);
+        if (ReadSubgraph(sc, vwapID, 6, sd6Array) && ValidateStudyData(sd6Array, sc.Index)) sd6 = NormalizePx(sc, sd6Array[sc.Index]);
 
-  // ========== VOLUME PROFILE EXPORT (VPOC/VAH/VAL + HVN/LVN) ==========
-  if (sc.Input[20].GetInt() != 0 && sc.ArraySize > 0) {
-    const int i = sc.ArraySize - 1;
-    const double t = sc.BaseDateTimeIn[i].GetAsDouble();
-    
-    const int vpStudyID = sc.Input[21].GetInt();
-    
-    if (vpStudyID > 0) {
-      // VPOC, VAH, VAL (si demandé)
-      if (sc.Input[22].GetInt() != 0) {
-        SCFloatArray vpocData, vahData, valData;
-        ReadSubgraph(sc, vpStudyID, 1, vpocData);  // SG 1 = VPOC
-        ReadSubgraph(sc, vpStudyID, 2, vahData);   // SG 2 = VAH
-        ReadSubgraph(sc, vpStudyID, 3, valData);   // SG 3 = VAL
-        
-        if (ValidateStudyData(vpocData, i) && ValidateStudyData(vahData, i) && ValidateStudyData(valData, i)) {
-          const double vpoc = vpocData[i];
-          const double vah = vahData[i];
-          const double val = valData[i];
-          
-          SCString j;
-          j.Format("{\"t\":%.6f,\"type\":\"volume_profile\",\"i\":%d,\"vpoc\":%.6f,\"vah\":%.6f,\"val\":%.6f,\"study\":%d,\"chart\":%d}",
-                   t, i, vpoc, vah, val, vpStudyID, sc.ChartNumber);
-          WriteToSpecializedFile(sc.ChartNumber, "volume_profile", j);
+        if (vwap != 0) {
+        std::string symKey = std::string(sym.GetChars());
+        LastVWAP& lv = g_LastVWAPBySym[symKey];
+        bool payload_changed = 
+          has_changed(vwap, lv.vwap) || has_changed(sd1, lv.sd1) || 
+          has_changed(sd2, lv.sd2) || has_changed(sd3, lv.sd3);
+
+        int barStatus = sc.GetBarHasClosedStatus(sc.Index);
+        bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
+
+        // Écriture conditionnelle optimisée : changement + clôture barre
+        // Écriture conditionnelle optimisée : changement + clôture barre
+        if (true) { // ((!same_ti && payload_changed) || bar_closed) {
+          SCString fn = TodayFileName("chart_4_vwap");
+          SCString line;
+          line.Format("{\"sym\":\"%s\",\"t\":%.6f,\"i\":%.0f,\"vwap\":%.6f,\"sd1\":%.6f,\"sd2\":%.6f,\"sd3\":%.6f,\"sd4\":%.6f,\"sd5\":%.6f,\"sd6\":%.6f}",
+                      sym.GetChars(), t, i, vwap, sd1, sd2, sd3, sd4, sd5, sd6);
+          AppendJSONL(fn, line);
+          lv.vwap = vwap; lv.sd1 = sd1; lv.sd2 = sd2; lv.sd3 = sd3;
         }
       }
+    }
+    }
+  }
+
+  // ---------------- VVA (Volume Value Area Lines - Study ID 8) ----------------
+  {
+    const int vvaID = VVA_ID.GetInt();
+    if (vvaID > 0) {
+      // Utiliser ReadSubgraph comme les autres sections
+      SCFloatArray pocArray, vahArray, valArray;
+      double poc = 0, vah = 0, val = 0;
       
-      // HVN, LVN (si demandé)
-      if (sc.Input[23].GetInt() != 0) {
-        SCFloatArray hvnData, lvnData;
-        ReadSubgraph(sc, vpStudyID, 17, hvnData);  // SG 17 = HVN
-        ReadSubgraph(sc, vpStudyID, 18, lvnData);  // SG 18 = LVN
-        
-        if (ValidateStudyData(hvnData, i) && ValidateStudyData(lvnData, i)) {
-          const double hvn = hvnData[i];
-          const double lvn = lvnData[i];
-          
-          SCString j;
-          j.Format("{\"t\":%.6f,\"type\":\"hvn_lvn\",\"i\":%d,\"hvn\":%.6f,\"lvn\":%.6f,\"study\":%d,\"chart\":%d}",
-                   t, i, hvn, lvn, vpStudyID, sc.ChartNumber);
-          WriteToSpecializedFile(sc.ChartNumber, "hvn_lvn", j);
+      if (ReadSubgraph(sc, vvaID, 0, pocArray) && ValidateStudyData(pocArray, sc.Index)) {
+        poc = NormalizePx(sc, pocArray[sc.Index]);
+      }
+      if (ReadSubgraph(sc, vvaID, 1, vahArray) && ValidateStudyData(vahArray, sc.Index)) {
+        vah = NormalizePx(sc, vahArray[sc.Index]);
+      }
+      if (ReadSubgraph(sc, vvaID, 2, valArray) && ValidateStudyData(valArray, sc.Index)) {
+        val = NormalizePx(sc, valArray[sc.Index]);
+      }
+
+      if (poc != 0 && vah != 0 && val != 0) {
+        std::string symKey = std::string(sym.GetChars());
+        LastVVA& lv = g_LastVVABySym[symKey];
+        bool payload_changed = 
+          has_changed(poc, lv.poc) || has_changed(vah, lv.vah) || has_changed(val, lv.val);
+
+        int barStatus = sc.GetBarHasClosedStatus(sc.Index);
+        bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
+
+        // Écriture conditionnelle optimisée : changement + clôture barre
+        // Écriture conditionnelle optimisée : changement + clôture barre
+        if (true) { // ((!same_ti && payload_changed) || bar_closed) {
+          SCString fn = TodayFileName("chart_4_vva");
+          SCString line;
+          line.Format("{\"sym\":\"%s\",\"t\":%.6f,\"i\":%.0f,\"poc\":%.6f,\"vah\":%.6f,\"val\":%.6f}",
+                      sym.GetChars(), t, i, poc, vah, val);
+          AppendJSONL(fn, line);
+          lv.poc = poc; lv.vah = vah; lv.val = val;
+        }
+      }
+    }
+  }
+
+  // ---------------- VVA Previous (Study ID 9) ----------------
+  {
+    const int vvaPrevID = VVA_PREV_ID.GetInt();
+    if (vvaPrevID > 0) {
+      // Utiliser ReadSubgraph comme les autres sections
+      SCFloatArray ppocArray, pvahArray, pvalArray;
+      double ppoc = 0, pvah = 0, pval = 0;
+      
+      if (ReadSubgraph(sc, vvaPrevID, 0, ppocArray) && ValidateStudyData(ppocArray, sc.Index)) {
+        ppoc = NormalizePx(sc, ppocArray[sc.Index]);
+      }
+      if (ReadSubgraph(sc, vvaPrevID, 1, pvahArray) && ValidateStudyData(pvahArray, sc.Index)) {
+        pvah = NormalizePx(sc, pvahArray[sc.Index]);
+      }
+      if (ReadSubgraph(sc, vvaPrevID, 2, pvalArray) && ValidateStudyData(pvalArray, sc.Index)) {
+        pval = NormalizePx(sc, pvalArray[sc.Index]);
+      }
+
+      if (ppoc != 0 && pvah != 0 && pval != 0) {
+        std::string symKey = std::string(sym.GetChars());
+        LastVVA_Prev& lv = g_LastVVAPrevBySym[symKey];
+        bool payload_changed = 
+          has_changed(ppoc, lv.ppoc) || has_changed(pvah, lv.pvah) || has_changed(pval, lv.pval);
+
+        int barStatus = sc.GetBarHasClosedStatus(sc.Index);
+        bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
+
+        // Écriture conditionnelle optimisée : changement + clôture barre
+        if (true) { // ((!same_ti && payload_changed) || bar_closed) {
+          SCString fn = TodayFileName("chart_4_vva_previous");
+          SCString line;
+          line.Format("{\"sym\":\"%s\",\"t\":%.6f,\"i\":%.0f,\"ppoc\":%.6f,\"pvah\":%.6f,\"pval\":%.6f}",
+                      sym.GetChars(), t, i, ppoc, pvah, pval);
+          AppendJSONL(fn, line);
+          lv.ppoc = ppoc; lv.pvah = pvah; lv.pval = pval;
+        }
+      }
+    }
+  }
+
+  // ---------------- Previous VP (Study ID 2) ----------------
+  {
+    const int prevVPID = PREV_VP_ID.GetInt();
+    if (prevVPID > 0) {
+      // Utiliser ReadSubgraph comme les autres sections
+      SCFloatArray pvpocArray, pvahArray, pvalArray, pvwapArray;
+      double pvpoc = 0, pvah = 0, pval = 0, pvwap = 0;
+      
+      if (ReadSubgraph(sc, prevVPID, 1, pvpocArray) && ValidateStudyData(pvpocArray, sc.Index)) {
+        pvpoc = NormalizePx(sc, pvpocArray[sc.Index]);
+      }
+      if (ReadSubgraph(sc, prevVPID, 2, pvahArray) && ValidateStudyData(pvahArray, sc.Index)) {
+        pvah = NormalizePx(sc, pvahArray[sc.Index]);
+      }
+      if (ReadSubgraph(sc, prevVPID, 3, pvalArray) && ValidateStudyData(pvalArray, sc.Index)) {
+        pval = NormalizePx(sc, pvalArray[sc.Index]);
+      }
+      if (ReadSubgraph(sc, prevVPID, 4, pvwapArray) && ValidateStudyData(pvwapArray, sc.Index)) {
+        pvwap = NormalizePx(sc, pvwapArray[sc.Index]);
+      }
+
+      if (pvpoc != 0 && pvah != 0 && pval != 0) {
+        std::string symKey = std::string(sym.GetChars());
+        LastPrevVP& lv = g_LastPrevVPBySym[symKey];
+        bool payload_changed = 
+          has_changed(pvpoc, lv.pvpoc) || has_changed(pvah, lv.pvah) || 
+          has_changed(pval, lv.pval) || has_changed(pvwap, lv.pvwap);
+
+        int barStatus = sc.GetBarHasClosedStatus(sc.Index);
+        bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
+
+        // Écriture conditionnelle optimisée : changement + clôture barre
+        if (true) { // ((!same_ti && payload_changed) || bar_closed) {
+          SCString fn = TodayFileName("chart_4_previous_vp");
+          SCString line;
+          line.Format("{\"sym\":\"%s\",\"t\":%.6f,\"i\":%.0f,\"pvpoc\":%.6f,\"pvah\":%.6f,\"pval\":%.6f,\"pvwap\":%.6f}",
+                      sym.GetChars(), t, i, pvpoc, pvah, pval, pvwap);
+          AppendJSONL(fn, line);
+          lv.pvpoc = pvpoc; lv.pvah = pvah; lv.pval = pval; lv.pvwap = pvwap;
+        }
+      }
+    }
+  }
+
+  // ---------------- Previous VWAP (Study ID 3) ----------------
+  {
+    const int prevVWAPID = PREV_VWAP_ID.GetInt();
+    if (prevVWAPID > 0) {
+      // Utiliser ReadSubgraph comme les autres sections
+      SCFloatArray pvwapArray, psd1Array, psd2Array;
+      double pvwap = 0, psd1 = 0, psd2 = 0;
+      
+      if (ReadSubgraph(sc, prevVWAPID, 4, pvwapArray) && ValidateStudyData(pvwapArray, sc.Index)) {
+        pvwap = NormalizePx(sc, pvwapArray[sc.Index]);
+      }
+      if (ReadSubgraph(sc, prevVWAPID, 12, psd1Array) && ValidateStudyData(psd1Array, sc.Index)) {
+        psd1 = NormalizePx(sc, psd1Array[sc.Index]);
+      }
+      if (ReadSubgraph(sc, prevVWAPID, 13, psd2Array) && ValidateStudyData(psd2Array, sc.Index)) {
+        psd2 = NormalizePx(sc, psd2Array[sc.Index]);
+      }
+
+      if (pvwap != 0) {
+        std::string symKey = std::string(sym.GetChars());
+        LastPrevVWAP& lv = g_LastPrevVWAPBySym[symKey];
+        bool payload_changed = 
+          has_changed(pvwap, lv.pvwap) || has_changed(psd1, lv.psd1) || has_changed(psd2, lv.psd2);
+
+        int barStatus = sc.GetBarHasClosedStatus(sc.Index);
+        bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
+
+        // Écriture conditionnelle optimisée : changement + clôture barre
+        if (true) { // ((!same_ti && payload_changed) || bar_closed) {
+          SCString fn = TodayFileName("chart_4_previous_vwap");
+          SCString line;
+          line.Format("{\"sym\":\"%s\",\"t\":%.6f,\"i\":%.0f,\"pvwap\":%.6f,\"psd1\":%.6f,\"psd2\":%.6f}",
+                      sym.GetChars(), t, i, pvwap, psd1, psd2);
+          AppendJSONL(fn, line);
+          lv.pvwap = pvwap; lv.psd1 = psd1; lv.psd2 = psd2;
+        }
+      }
+    }
+  }
+
+  // ---------------- Correlation (Study ID 15) ----------------
+  {
+    const int corrID = CORR_ID.GetInt();
+    if (corrID > 0) {
+      // Utiliser ReadSubgraph comme les autres sections
+      SCFloatArray corrArray;
+      double corr = 0;
+      
+      if (ReadSubgraph(sc, corrID, 0, corrArray) && ValidateStudyData(corrArray, sc.Index)) {
+        corr = corrArray[sc.Index]; // Pas de normalisation pour la corrélation
+      }
+
+      if (corr != 0) {
+        std::string symKey = std::string(sym.GetChars());
+        LastCorrelation& lc = g_LastCorrBySym[symKey];
+        bool payload_changed = has_changed(corr, lc.corr);
+
+        int barStatus = sc.GetBarHasClosedStatus(sc.Index);
+        bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
+
+        // Écriture conditionnelle optimisée : changement + clôture barre
+        if (true) { // ((!same_ti && payload_changed) || bar_closed) {
+          SCString fn = TodayFileName("chart_4_correlation");
+          SCString line;
+          line.Format("{\"sym\":\"%s\",\"t\":%.6f,\"i\":%.0f,\"correlation\":%.6f}",
+                      sym.GetChars(), t, i, corr);
+          AppendJSONL(fn, line);
+          lc.corr = corr;
+        }
+      }
+    }
+  }
+
+  // ---------------- ATR (Study ID 5) ----------------
+  {
+    const int atrID = ATR_ID.GetInt();
+    if (atrID > 0) {
+      // Utiliser ReadSubgraph comme les autres sections
+      SCFloatArray atrArray;
+      double atr = 0;
+      
+      if (ReadSubgraph(sc, atrID, 0, atrArray) && ValidateStudyData(atrArray, sc.Index)) {
+        atr = NormalizePx(sc, atrArray[sc.Index]);
+      }
+
+      if (atr != 0) {
+        std::string symKey = std::string(sym.GetChars());
+        LastATR& la = g_LastATRBySym[symKey];
+        bool payload_changed = has_changed(atr, la.atr);
+
+        int barStatus = sc.GetBarHasClosedStatus(sc.Index);
+        bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
+
+        // Écriture conditionnelle optimisée : changement + clôture barre
+        if (true) { // ((!same_ti && payload_changed) || bar_closed) {
+          SCString fn = TodayFileName("chart_4_atr");
+          SCString line;
+          line.Format("{\"sym\":\"%s\",\"t\":%.6f,\"i\":%.0f,\"atr\":%.6f}",
+                      sym.GetChars(), t, i, atr);
+          AppendJSONL(fn, line);
+          la.atr = atr;
+        }
+      }
+    }
+  }
+
+  // ---------------- NBCV (Study ID 14) ----------------
+  {
+    const int nbcvID = NBCV_ID.GetInt();
+    if (nbcvID > 0) {
+      // Utiliser ReadSubgraph comme les autres sections
+      SCFloatArray deltaArray;
+      double delta = 0;
+      
+      if (ReadSubgraph(sc, nbcvID, 0, deltaArray) && ValidateStudyData(deltaArray, sc.Index)) {
+        delta = deltaArray[sc.Index]; // Pas de normalisation pour le delta
+      }
+      SCFloatArray askvolArray, bidvolArray, tradesArray, totalvolArray;
+      double askvol = 0, bidvol = 0, trades = 0, totalvol = 0;
+      
+      if (ReadSubgraph(sc, nbcvID, 5, askvolArray) && ValidateStudyData(askvolArray, sc.Index)) {
+        askvol = askvolArray[sc.Index];
+      }
+      if (ReadSubgraph(sc, nbcvID, 6, bidvolArray) && ValidateStudyData(bidvolArray, sc.Index)) {
+        bidvol = bidvolArray[sc.Index];
+      }
+      if (ReadSubgraph(sc, nbcvID, 11, tradesArray) && ValidateStudyData(tradesArray, sc.Index)) {
+        trades = tradesArray[sc.Index];
+      }
+      if (ReadSubgraph(sc, nbcvID, 12, totalvolArray) && ValidateStudyData(totalvolArray, sc.Index)) {
+        totalvol = totalvolArray[sc.Index];
+      }
+
+      if (askvol != 0 && bidvol != 0) {
+        std::string symKey = std::string(sym.GetChars());
+        LastNBCV& ln = g_LastNBCVBySym[symKey];
+        bool payload_changed = 
+          has_changed(delta, ln.delta) || has_changed(askvol, ln.askvol) || 
+          has_changed(bidvol, ln.bidvol) || has_changed(trades, ln.trades) || 
+          has_changed(totalvol, ln.totalvol);
+
+        int barStatus = sc.GetBarHasClosedStatus(sc.Index);
+        bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
+
+        // Écriture conditionnelle optimisée : changement + clôture barre
+        if (true) { // ((!same_ti && payload_changed) || bar_closed) {
+          SCString fn = TodayFileName("chart_4_nbcv");
+          SCString line;
+          line.Format("{\"sym\":\"%s\",\"t\":%.6f,\"i\":%.0f,\"delta\":%.0f,\"askvol\":%.0f,\"bidvol\":%.0f,\"trades\":%.0f,\"totalvol\":%.0f}",
+                      sym.GetChars(), t, i, delta, askvol, bidvol, trades, totalvol);
+          AppendJSONL(fn, line);
+          ln.delta = delta; ln.askvol = askvol; ln.bidvol = bidvol; ln.trades = trades; ln.totalvol = totalvol;
+        }
+      }
+    }
+  }
+
+  // ---------------- Cumulative Delta (Study ID 6) ----------------
+  {
+    const int cumDeltaID = CUM_DELTA_ID.GetInt();
+    if (cumDeltaID > 0) {
+      // Utiliser ReadSubgraph comme les autres sections
+      SCFloatArray cumdeltaArray;
+      double cumdelta = 0;
+      
+      if (ReadSubgraph(sc, cumDeltaID, 3, cumdeltaArray) && ValidateStudyData(cumdeltaArray, sc.Index)) {
+        cumdelta = cumdeltaArray[sc.Index]; // Pas de normalisation pour le delta cumulatif
+      }
+
+      if (cumdelta != 0) {
+        std::string symKey = std::string(sym.GetChars());
+        LastCumDelta& lcd = g_LastCumDeltaBySym[symKey];
+        bool payload_changed = has_changed(cumdelta, lcd.cumdelta);
+
+        int barStatus = sc.GetBarHasClosedStatus(sc.Index);
+        bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
+
+        // Écriture conditionnelle optimisée : changement + clôture barre
+        if (true) { // ((!same_ti && payload_changed) || bar_closed) {
+          SCString fn = TodayFileName("chart_4_cumulative_delta");
+          SCString line;
+          line.Format("{\"sym\":\"%s\",\"t\":%.6f,\"i\":%.0f,\"cumulative_delta\":%.0f}",
+                      sym.GetChars(), t, i, cumdelta);
+          AppendJSONL(fn, line);
+          lcd.cumdelta = cumdelta;
         }
       }
     }

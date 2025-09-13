@@ -16,29 +16,29 @@ using std::fabs;
 // ========== UTILITAIRES COMMUNS ==========
 
 // Création du répertoire de sortie
-static void EnsureOutDir() {
+static void EnsureOutDir(const char* baseDir = "D:\\MIA_IA_system") {
 #ifdef _WIN32
-  CreateDirectoryA("D:\\MIA_IA_system", NULL);
+  CreateDirectoryA(baseDir, NULL);
 #endif
 }
 
 // Génération du nom de fichier quotidien par chart et type
-static SCString DailyFilenameForChartType(int chartNumber, const char* dataType) {
+static SCString DailyFilenameForChartType(int chartNumber, const char* dataType, const char* baseDir = "D:\\MIA_IA_system") {
   time_t now = time(NULL);
   struct tm* lt = localtime(&now);
   int y = lt ? (lt->tm_year + 1900) : 1970;
   int m = lt ? (lt->tm_mon + 1) : 1;
   int d = lt ? lt->tm_mday : 1;
   SCString filename;
-  filename.Format("D:\\MIA_IA_system\\chart_%d_%s_%04d%02d%02d.jsonl", 
-                  chartNumber, dataType, y, m, d);
+  filename.Format("%s\\chart_%d_%s_%04d%02d%02d.jsonl", 
+                  baseDir, chartNumber, dataType, y, m, d);
   return filename;
 }
 
 // Écriture dans le fichier spécialisé
-static void WriteToSpecializedFile(int chartNumber, const char* dataType, const SCString& line) {
-  EnsureOutDir();
-  const SCString filename = DailyFilenameForChartType(chartNumber, dataType);
+static void WriteToSpecializedFile(int chartNumber, const char* dataType, const SCString& line, const char* baseDir = "D:\\MIA_IA_system") {
+  EnsureOutDir(baseDir);
+  const SCString filename = DailyFilenameForChartType(chartNumber, dataType, baseDir);
   FILE* f = fopen(filename.GetChars(), "a");
   if (f) { 
     fprintf(f, "%s\n", line.GetChars()); 
@@ -46,7 +46,43 @@ static void WriteToSpecializedFile(int chartNumber, const char* dataType, const 
   }
 }
 
-// Anti-duplication simple par (chart, type, key)
+// ========== DÉDUPLICATION INTELLIGENTE AMÉLIORÉE ==========
+// Structure pour la déduplication par (sym, t, i)
+struct LastKey { 
+  double t = 0.0; // timestamp
+  double i = -1;  // bar index
+};
+
+// Structures pour la détection de changement d'état
+struct LastVIX {
+  double open=0, high=0, low=0, close=0, volume=0;
+};
+
+// Maps de déduplication par symbole
+static std::unordered_map<std::string, LastKey> g_LastKeyBySym;
+static std::unordered_map<std::string, LastVIX> g_LastVIXBySym;
+
+// ========== DÉTECTION DE CHANGEMENT ==========
+static inline bool has_changed(double a, double b, double eps=1e-9) {
+  return fabs(a-b) > eps;
+}
+
+// Fonction de déduplication améliorée
+static bool ShouldWriteData(const char* symbol, double timestamp, double barIndex) {
+  std::string symKey = std::string(symbol);
+  LastKey& lk = g_LastKeyBySym[symKey];
+  
+  // Vérifier si (sym, t, i) identique
+  bool same_ti = (fabs(lk.t - timestamp) < 1e-9) && (fabs(lk.i - barIndex) < 1e-9);
+  
+  // Mettre à jour la clé
+  lk.t = timestamp;
+  lk.i = barIndex;
+  
+  return !same_ti; // Écrire si différent
+}
+
+// Anti-duplication simple par (chart, type, key) - KEPT FOR COMPATIBILITY
 static void WriteIfChanged(int chartNumber, const char* dataType, const std::string& key, const SCString& line) {
   static std::unordered_map<std::string, std::string> s_last_by_key;
   auto it = s_last_by_key.find(key);
@@ -101,7 +137,7 @@ static bool ReadSubgraph(SCStudyInterfaceRef& sc, int studyID, int subgraphIndex
 
 // Helper pour valider qu'une étude a des données valides
 static bool ValidateStudyData(const SCFloatArray& array, int index) {
-  return array.GetArraySize() > index && array[index] != 0.0;
+  return array.GetArraySize() > index && !std::isnan(array[index]) && !std::isinf(array[index]);
 }
 
 // ========== DÉTECTION DE SUPPORT SEQUENCE ==========
@@ -185,10 +221,12 @@ SCSFExport scsf_MIA_Dumper_G8_VIX(SCStudyInterfaceRef sc)
 
   if (sc.ServerConnectionState != SCS_CONNECTED) return;
 
-  // ========== COLLECTE VIX ==========
+  // ========== COLLECTE VIX (avec déduplication intelligente) ==========
   if (sc.Input[0].GetInt() != 0 && sc.ArraySize > 0) {
     const int i = sc.ArraySize - 1;
     const double t = sc.BaseDateTimeIn[i].GetAsDouble();
+    const double barIndex = (double)i;
+    const char* symbol = sc.Symbol.GetChars();
     
     // Lire directement les données du chart VIX
     const double open = sc.BaseDataIn[SC_OPEN][i];
@@ -197,25 +235,47 @@ SCSFExport scsf_MIA_Dumper_G8_VIX(SCStudyInterfaceRef sc)
     const double close = sc.BaseDataIn[SC_LAST][i];
     const double volume = sc.BaseDataIn[SC_VOLUME][i];
 
-    if (sc.Input[1].GetInt() == 0) {
-      // Mode minimal : Close seulement
-      SCString j;
-      j.Format("{\"t\":%.6f,\"type\":\"vix\",\"i\":%d,\"last\":%.6f,\"chart\":%d}",
-               t, i, close, sc.ChartNumber);
-      WriteToSpecializedFile(sc.ChartNumber, "vix", j);
-    } else {
-      // Mode OHLC complet
-      SCString j;
-      j.Format("{\"t\":%.6f,\"type\":\"vix\",\"i\":%d,\"open\":%.6f,\"high\":%.6f,\"low\":%.6f,\"close\":%.6f,\"volume\":%.0f,\"chart\":%d}",
-               t, i, open, high, low, close, volume, sc.ChartNumber);
-      WriteToSpecializedFile(sc.ChartNumber, "vix", j);
+    // Détection de changement d'état
+    std::string symKey = std::string(symbol);
+    LastVIX& lv = g_LastVIXBySym[symKey];
+    bool payload_changed = 
+      has_changed(open, lv.open) || has_changed(high, lv.high) || has_changed(low, lv.low) || 
+      has_changed(close, lv.close) || has_changed(volume, lv.volume);
+
+    // Vérifier clôture de barre
+    int barStatus = sc.GetBarHasClosedStatus(i);
+    bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
+
+    // Vérifier déduplication (sym, t, i)
+    bool should_write = ShouldWriteData(symbol, t, barIndex);
+
+    // Écrire si : changement de payload OU clôture de barre OU nouvelle clé
+    if ((should_write && payload_changed) || bar_closed) {
+      if (sc.Input[1].GetInt() == 0) {
+        // Mode minimal : Close seulement
+        SCString j;
+        j.Format("{\"t\":%.6f,\"type\":\"vix\",\"i\":%d,\"last\":%.6f,\"chart\":%d}",
+                 t, i, close, sc.ChartNumber);
+        WriteToSpecializedFile(sc.ChartNumber, "vix", j);
+      } else {
+        // Mode OHLC complet
+        SCString j;
+        j.Format("{\"t\":%.6f,\"type\":\"vix\",\"i\":%d,\"open\":%.6f,\"high\":%.6f,\"low\":%.6f,\"close\":%.6f,\"volume\":%.0f,\"chart\":%d}",
+                 t, i, open, high, low, close, volume, sc.ChartNumber);
+        WriteToSpecializedFile(sc.ChartNumber, "vix", j);
+      }
+
+      // Mettre à jour les dernières valeurs
+      lv.open = open; lv.high = high; lv.low = low; lv.close = close; lv.volume = volume;
     }
 
-    // ========== EVENT VIX UNIFIÉ ==========
+    // ========== EVENT VIX UNIFIÉ (avec déduplication) ==========
     // Event spécialisé pour le scoring/filtrage IA
-    SCString vix_event;
-    vix_event.Format("{\"t\":%.6f,\"type\":\"vix_close\",\"vix\":%.6f,\"chart\":%d}",
-                     t, close, sc.ChartNumber);
-    WriteToSpecializedFile(sc.ChartNumber, "vix_close", vix_event);
+    if ((should_write && has_changed(close, lv.close)) || bar_closed) {
+      SCString vix_event;
+      vix_event.Format("{\"t\":%.6f,\"type\":\"vix_close\",\"vix\":%.6f,\"chart\":%d}",
+                       t, close, sc.ChartNumber);
+      WriteToSpecializedFile(sc.ChartNumber, "vix_close", vix_event);
+    }
   }
 }

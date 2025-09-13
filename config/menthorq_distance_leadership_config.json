@@ -1,0 +1,115 @@
+{
+  "menthorq_distance_leadership": {
+    "description": "Configuration pour la méthode MenthorQ-Distance avec Leadership Z-Momentum",
+    "version": "1.0",
+    "last_updated": "2025-01-13",
+    
+    "tick_size": 0.25,
+    
+    "mq_tolerance_ticks": {
+      "gamma_wall": 3,
+      "hvl": 5,
+      "gex": 5,
+      "blind_spots": 4,
+      "swing": 8,
+      "description": "Tolérances en ticks pour chaque type de niveau MenthorQ"
+    },
+    
+    "validation_thresholds": {
+      "mia_threshold": 0.20,
+      "entry_threshold": 0.70,
+      "correlation_floor": 0.30,
+      "leadership_hard": 1.0,
+      "leadership_bonus": 0.5,
+      "description": "Seuils de validation pour les différents composants"
+    },
+    
+    "weights": {
+      "mq": 0.55,
+      "of": 0.30,
+      "structure": 0.15,
+      "description": "Pondérations pour la fusion des scores (MenthorQ décide principal)"
+    },
+    
+    "leadership_config": {
+      "horizons": [3, 30, 300],
+      "alpha": 0.2,
+      "corr_win_points": 300,
+      "max_delay_ms": 200,
+      "clip_z": 3.0,
+      "description": "Configuration du module Leadership Z-Momentum"
+    },
+    
+    "vix_regimes": {
+      "LOW": {"threshold": 15, "multiplier": 1.1, "description": "VIX < 15"},
+      "MID": {"threshold": 22, "multiplier": 1.0, "description": "15 <= VIX < 22"},
+      "HIGH": {"threshold": 35, "multiplier": 0.8, "description": "22 <= VIX < 35"},
+      "EXTREME": {"threshold": 999, "multiplier": 0.7, "description": "VIX >= 35"}
+    },
+    
+    "orderflow_requirements": {
+      "min_confirms": 2,
+      "extra_of_high_vix": 1,
+      "description": "Exigences OrderFlow selon le régime VIX"
+    },
+    
+    "eul_config": {
+      "base_stop_ticks": 5,
+      "vix_multipliers": {
+        "LOW": 0.8,
+        "MID": 1.0,
+        "HIGH": 1.2,
+        "EXTREME": 1.5
+      },
+      "target_ratios": [1.0, 2.0],
+      "description": "Configuration Entry/Stop/Target"
+    },
+    
+    "logging": {
+      "level": "INFO",
+      "log_signals": true,
+      "log_leadership": true,
+      "log_rejections": true,
+      "description": "Configuration du logging"
+    },
+    
+    "performance": {
+      "cache_ttl": 5,
+      "max_cache_size": 1000,
+      "description": "Configuration de performance et cache"
+    }
+  },
+  
+  "examples": {
+    "basic_config": {
+      "tick_size": 0.25,
+      "mq_tolerance_ticks": {"gamma_wall": 3, "hvl": 5, "gex": 5},
+      "mia_threshold": 0.20,
+      "entry_threshold": 0.70,
+      "weights": {"mq": 0.55, "of": 0.30, "structure": 0.15}
+    },
+    
+    "conservative_config": {
+      "tick_size": 0.25,
+      "mq_tolerance_ticks": {"gamma_wall": 2, "hvl": 3, "gex": 3},
+      "mia_threshold": 0.30,
+      "entry_threshold": 0.80,
+      "weights": {"mq": 0.60, "of": 0.25, "structure": 0.15}
+    },
+    
+    "aggressive_config": {
+      "tick_size": 0.25,
+      "mq_tolerance_ticks": {"gamma_wall": 5, "hvl": 8, "gex": 8},
+      "mia_threshold": 0.15,
+      "entry_threshold": 0.60,
+      "weights": {"mq": 0.50, "of": 0.35, "structure": 0.15}
+    }
+  },
+  
+  "usage_examples": {
+    "python_example": "signal_generator.decide_mq_distance(row_es, row_nq, config)",
+    "config_loading": "import json; config = json.load(open('config/menthorq_distance_leadership_config.json'))",
+    "custom_config": "config = {'tick_size': 0.25, 'entry_threshold': 0.75, 'weights': {'mq': 0.6, 'of': 0.3, 'structure': 0.1}}"
+  }
+}
+

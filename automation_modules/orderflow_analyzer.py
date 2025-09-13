@@ -348,6 +348,85 @@ class OrderFlowAnalyzer:
             logger.error(f"❌ Erreur analyse Level 2: {e}")
             return {}
     
+    def _is_true_break(self, bar_data: Dict, level_price: float, side: str, vix_value: float, tick_size: float = 0.25) -> bool:
+        """
+        Vérifie si c'est une vraie cassure selon la règle :
+        - Clôture au-delà du niveau + mèche dans la tolérance VIX
+        
+        Args:
+            bar_data: Données de la barre (OHLC)
+            level_price: Prix du niveau à casser
+            side: 'LONG' (cassure au-dessus) ou 'SHORT' (cassure au-dessous)
+            vix_value: Valeur VIX actuelle
+            tick_size: Taille du tick (défaut: 0.25 pour ES)
+            
+        Returns:
+            bool: True si c'est une vraie cassure
+        """
+        try:
+            # Déterminer la bande VIX
+            if vix_value < 15:
+                vix_band = "LOW"
+            elif vix_value < 22:
+                vix_band = "MID"
+            elif vix_value < 35:
+                vix_band = "HIGH"
+            else:
+                vix_band = "EXTREME"
+            
+            # Tolérance des mèches par bande VIX
+            wick_tolerance_map = {
+                "LOW": 3,
+                "MID": 5,
+                "HIGH": 7,
+                "EXTREME": 7
+            }
+            
+            wick_tolerance_ticks = wick_tolerance_map.get(vix_band, 5)
+            wick_tolerance_price = wick_tolerance_ticks * tick_size
+            
+            # Extraire OHLC
+            open_price = bar_data.get("open", 0)
+            high_price = bar_data.get("high", 0)
+            low_price = bar_data.get("low", 0)
+            close_price = bar_data.get("close", 0)
+            
+            if not all([open_price, high_price, low_price, close_price]):
+                logger.warning("Données OHLC incomplètes pour vérification True Break")
+                return False
+            
+            # Vérification selon le côté
+            if side == "LONG":
+                # Cassure au-dessus : close > level ET low >= level - tolerance
+                close_ok = close_price > level_price
+                wick_ok = low_price >= (level_price - wick_tolerance_price)
+                
+                logger.debug(f"True Break LONG: close={close_price} > {level_price} = {close_ok}, "
+                           f"low={low_price} >= {level_price - wick_tolerance_price} = {wick_ok}")
+                
+            else:  # SHORT
+                # Cassure au-dessous : close < level ET high <= level + tolerance
+                close_ok = close_price < level_price
+                wick_ok = high_price <= (level_price + wick_tolerance_price)
+                
+                logger.debug(f"True Break SHORT: close={close_price} < {level_price} = {close_ok}, "
+                           f"high={high_price} <= {level_price + wick_tolerance_price} = {wick_ok}")
+            
+            is_true_break = close_ok and wick_ok
+            
+            if is_true_break:
+                logger.info(f"✅ True Break confirmé: {side} @ {level_price} "
+                           f"(VIX={vix_value:.1f}, band={vix_band}, tolerance={wick_tolerance_ticks} ticks)")
+            else:
+                logger.debug(f"❌ True Break échoué: {side} @ {level_price} "
+                            f"(close_ok={close_ok}, wick_ok={wick_ok})")
+            
+            return is_true_break
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur vérification True Break: {e}")
+            return False
+    
     async def _generate_orderflow_signal(
         self, 
         orderflow_data: OrderFlowData,
@@ -575,6 +654,31 @@ class OrderFlowAnalyzer:
         except Exception as e:
             logger.error(f"❌ Erreur footprint wrapper: {e}")
             return None
+    
+    def validate_true_break(self, bar_data: Dict, level_price: float, side: str, vix_value: float, tick_size: float = 0.25) -> bool:
+        """
+        Méthode publique pour valider une vraie cassure
+        
+        Args:
+            bar_data: Données OHLC de la barre
+            level_price: Prix du niveau à casser
+            side: 'LONG' ou 'SHORT'
+            vix_value: Valeur VIX actuelle
+            tick_size: Taille du tick (défaut: 0.25 pour ES)
+            
+        Returns:
+            bool: True si c'est une vraie cassure confirmée
+            
+        Example:
+            >>> analyzer = OrderFlowAnalyzer(config)
+            >>> is_break = analyzer.validate_true_break(
+            ...     bar_data={'open': 4500, 'high': 4505, 'low': 4498, 'close': 4503},
+            ...     level_price=4500,
+            ...     side='LONG',
+            ...     vix_value=18.5
+            ... )
+        """
+        return self._is_true_break(bar_data, level_price, side, vix_value, tick_size)
 
 
 # --- utilitaire interne pour exécuter un awaitable en contexte sync ---

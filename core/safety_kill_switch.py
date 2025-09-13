@@ -424,25 +424,73 @@ class SafetyKillSwitch:
         try:
             # Market Snapshot
             if self.market_snapshot:
-                # TODO: Récupérer les données stale depuis market_snapshot
-                pass
+                try:
+                    snapshot_data = self.market_snapshot.get_latest_snapshot()
+                    if snapshot_data:
+                        # Calculer les stale times
+                        now = datetime.now(timezone.utc)
+                        
+                        # M1 stale
+                        if 'm1_last_update' in snapshot_data:
+                            m1_last = snapshot_data['m1_last_update']
+                            if isinstance(m1_last, str):
+                                m1_last = datetime.fromisoformat(m1_last.replace('Z', '+00:00'))
+                            telemetry.m1_stale_seconds = (now - m1_last).total_seconds()
+                        
+                        # M30 stale
+                        if 'm30_last_update' in snapshot_data:
+                            m30_last = snapshot_data['m30_last_update']
+                            if isinstance(m30_last, str):
+                                m30_last = datetime.fromisoformat(m30_last.replace('Z', '+00:00'))
+                            telemetry.m30_stale_seconds = (now - m30_last).total_seconds()
+                        
+                        # VIX stale
+                        if 'vix_last_update' in snapshot_data:
+                            vix_last = snapshot_data['vix_last_update']
+                            if isinstance(vix_last, str):
+                                vix_last = datetime.fromisoformat(vix_last.replace('Z', '+00:00'))
+                            telemetry.vix_stale_seconds = (now - vix_last).total_seconds()
+                            telemetry.vix_value = snapshot_data.get('vix_value', 20.0)
+                        
+                        # MenthorQ stale
+                        if 'menthorq_last_update' in snapshot_data:
+                            menthorq_last = snapshot_data['menthorq_last_update']
+                            if isinstance(menthorq_last, str):
+                                menthorq_last = datetime.fromisoformat(menthorq_last.replace('Z', '+00:00'))
+                            telemetry.menthorq_stale_seconds = (now - menthorq_last).total_seconds()
+                except Exception as e:
+                    logger.warning(f"Erreur collecte market_snapshot: {e}")
             
             # Session Manager
             if self.session_manager:
-                session_state = self.session_manager.get_session_state()
-                telemetry.session_active = session_state.is_active
-                telemetry.session_type = session_state.session_type.value
+                try:
+                    session_state = self.session_manager.get_session_state()
+                    telemetry.session_active = session_state.get('is_active', True)
+                    telemetry.session_type = session_state.get('session_type', 'unknown')
+                except Exception as e:
+                    logger.warning(f"Erreur collecte session_manager: {e}")
             
             # Sierra Router
             if self.sierra_router:
-                health = self.sierra_router.health_check()
-                telemetry.dtc_route_up = any(health.values())
-                telemetry.last_dtc_heartbeat = datetime.now(timezone.utc) if telemetry.dtc_route_up else None
+                try:
+                    health = self.sierra_router.health_check()
+                    telemetry.dtc_route_up = health.get('dtc_connected', False)
+                    telemetry.dtc_latency_ms = health.get('latency_ms', 0.0)
+                    telemetry.last_dtc_heartbeat = datetime.now(timezone.utc) if telemetry.dtc_route_up else None
+                except Exception as e:
+                    logger.warning(f"Erreur collecte sierra_router: {e}")
+                    telemetry.dtc_route_up = False
             
             # Trading Executor
             if self.trading_executor:
-                trading_state = self.trading_executor.get_trading_state()
-                # TODO: Récupérer PnL depuis trading_state ou risk_manager
+                try:
+                    trading_state = self.trading_executor.get_trading_state()
+                    telemetry.pnl_day = trading_state.get('pnl_day', 0.0)
+                    telemetry.pnl_session = trading_state.get('pnl_session', 0.0)
+                    telemetry.drawdown = trading_state.get('drawdown', 0.0)
+                    telemetry.rejections_last_5m = trading_state.get('rejections_last_5m', 0)
+                except Exception as e:
+                    logger.warning(f"Erreur collecte trading_executor: {e}")
             
         except Exception as e:
             logger.error(f"Erreur collecte télémétrie: {e}")

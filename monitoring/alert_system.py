@@ -74,7 +74,7 @@ except ImportError:
 # Import conditionnel email pour Python 3.13 compatibility
 try:
     from email.mime.text import MIMEText
-    from email.mime.multipart import MimeMultipart
+    from email.mime.multipart import MIMEMultipart
     EMAIL_AVAILABLE = True
     logger.info("Email functionality available")
 except ImportError as e:
@@ -82,13 +82,14 @@ except ImportError as e:
     logger.warning(f"Email functionality disabled: {e}")
 
     # Classes dummy pour éviter erreurs
-    class MimeText:
+    class MIMEText:
         def __init__(self, *args, **kwargs):
             self.content = args[0] if args else ""
-
-    class MimeMultipart:
+    
+    class MIMEMultipart:
         def __init__(self, *args, **kwargs):
-            self.items = {}
+            self.parts = []
+
 
         def __getitem__(self, key):
             return self.items.get(key, "")

@@ -157,6 +157,48 @@ class BullishScorer:
                  0.20 * VVA_score +
                  0.20 * CD_score) * vix_factor
         score = round(clip01(score), 3)
+        
+        # Calcul staleness des données
+        import time
+        current_time = time.time()
+        staleness_ms = None
+        staleness_status = "OK"
+        
+        if bar.t is not None:
+            # Convertir timestamp Sierra/Excel vers epoch si nécessaire
+            if bar.t > 10000:  # Sierra/Excel days format
+                EXCEL_EPOCH_OFFSET_DAYS = 25569
+                SECONDS_PER_DAY = 86400.0
+                data_timestamp = (bar.t - EXCEL_EPOCH_OFFSET_DAYS) * SECONDS_PER_DAY
+            else:
+                data_timestamp = bar.t
+            
+            staleness_ms = (current_time - data_timestamp) * 1000
+            
+            # Déterminer le statut selon la staleness
+            if staleness_ms > 5000:  # > 5 secondes
+                staleness_status = "STALE"
+            elif staleness_ms > 2100:  # > 2.1 secondes
+                staleness_status = "OLD"
+            else:
+                staleness_status = "OK"
+        
+        # Logger la staleness si problématique
+        try:
+            from core.logger import get_logger
+            logger = get_logger(__name__)
+            
+            if staleness_status != "OK":
+                logger.warning(f"🕐 MIA Staleness: {staleness_status} - "
+                             f"asof={staleness_ms:.1f}ms, score={score}, "
+                             f"pressure={bar.pressure}, pos={pos}")
+            else:
+                logger.debug(f"✅ MIA Fresh: asof={staleness_ms:.1f}ms → {staleness_status}")
+                
+        except Exception:
+            # Fallback silencieux si logger non disponible
+            pass
+        
         return {
             "t": bar.t,
             "chart": self.chart_id,
@@ -168,7 +210,94 @@ class BullishScorer:
             "pos": pos,
             "close": close_price,
             "vwap": bar.vwap,
+            "staleness_ms": round(staleness_ms, 1) if staleness_ms is not None else None,
+            "staleness_status": staleness_status
         }
+    
+    def calculate_bullish_score(self, market_data: Dict) -> float:
+        """
+        Méthode publique pour calculer le score MIA Bullish
+        avec logging de staleness intégré
+        
+        Args:
+            market_data: Données de marché (dict avec OHLC, VWAP, etc.)
+            
+        Returns:
+            float: Score MIA Bullish (-1 à +1, bidirectionnel)
+        """
+        try:
+            # Convertir les données en événement pour ingest
+            ev = {
+                "type": "basedata",
+                "chart": self.chart_id,
+                "i": market_data.get("bar_index", 1),
+                "close": market_data.get("close", 0),
+                "t": market_data.get("timestamp")
+            }
+            
+            # Ajouter VWAP si disponible
+            if "vwap" in market_data:
+                ev.update({
+                    "type": "vwap",
+                    "value": market_data["vwap"]
+                })
+            
+            # Ajouter VVA si disponible
+            if "vva" in market_data:
+                vva = market_data["vva"]
+                ev.update({
+                    "type": "vva",
+                    "vah": vva.get("vah"),
+                    "val": vva.get("val")
+                })
+            
+            # Ajouter OrderFlow si disponible
+            if "nbcv_footprint" in market_data:
+                nbcv = market_data["nbcv_footprint"]
+                ev.update({
+                    "pressure": nbcv.get("pressure", 0),
+                    "delta_ratio": nbcv.get("delta_ratio", 0),
+                    "cumulative_delta": nbcv.get("cumulative_delta", 0)
+                })
+            
+            # Ingérer les données
+            result = self.ingest(ev)
+            
+            if result and result.get("type") == "mia_bullish":
+                score = result.get("score", 0.5)
+                staleness_ms = result.get("staleness_ms")
+                staleness_status = result.get("staleness_status", "UNKNOWN")
+                
+                # Logging spécifique pour l'utilisation dans les stratégies
+                try:
+                    from core.logger import get_logger
+                    logger = get_logger(f"{__name__}.calculate_bullish_score")
+                    
+                    if staleness_status != "OK":
+                        logger.warning(f"🕐 MIA Strategy Usage: {staleness_status} data - "
+                                     f"asof={staleness_ms:.1f}ms, returning score={score}")
+                    else:
+                        logger.debug(f"✅ MIA Strategy Usage: Fresh data - "
+                                   f"asof={staleness_ms:.1f}ms, score={score}")
+                                   
+                except Exception:
+                    pass
+                
+                # Convertir en score bidirectionnel (-1 à +1)
+                # Score original est [0,1], on le convertit en [-1,+1]
+                bidirectional_score = (score - 0.5) * 2
+                return round(bidirectional_score, 3)
+            
+            return 0.0
+            
+        except Exception as e:
+            try:
+                from core.logger import get_logger
+                logger = get_logger(f"{__name__}.calculate_bullish_score")
+                logger.error(f"❌ Erreur calcul MIA Bullish: {e}")
+            except Exception:
+                pass
+            return 0.0
 
 # --- HELPER POUR SNAPSHOTS UNIFIÉS ---
 

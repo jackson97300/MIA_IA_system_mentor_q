@@ -1,0 +1,169 @@
+{
+  "menthorq_battle_navale_hybrid": {
+    "description": "Configuration méthode hybride MenthorQ + Battle Navale V2",
+    "version": "1.0.0",
+    "last_updated": "2025-01-12",
+    
+    "general": {
+      "method_name": "MenthorQ + Battle Navale V2 Hybrid",
+      "description": "Méthode hybride combinant MenthorQ (décideur) et Battle Navale V2 (validateur)",
+      "confluence_threshold": 0.7
+    },
+    
+    "menthorq": {
+      "description": "Configuration MenthorQ (décideur principal)",
+      "weights": {
+        "mq": 0.55,
+        "of": 0.30,
+        "structure": 0.15
+      },
+      "thresholds": {
+        "enter_eff": 0.70
+      },
+      "mia": {
+        "gate_long": 0.20,
+        "gate_short": -0.20,
+        "boost_abs": 0.35
+      },
+      "leadership": {
+        "corr_min": {
+          "LOW": 0.30,
+          "MID": 0.30,
+          "HIGH": 0.45,
+          "EXTREME": 0.60
+        },
+        "veto_abs": {
+          "LOW": 1.40,
+          "MID": 1.30,
+          "HIGH": 1.10,
+          "EXTREME": 1.00
+        },
+        "bonus_abs": {
+          "LOW": 0.30,
+          "MID": 0.45,
+          "HIGH": 0.60,
+          "EXTREME": 0.75
+        }
+      }
+    },
+    
+    "battle_navale": {
+      "description": "Configuration Battle Navale V2 (validateur)",
+      "bn_enter_eff": 0.65,
+      "vix_mult": {
+        "LOW": 1.05,
+        "MID": 1.00,
+        "HIGH": 0.90,
+        "EXTREME": 0.85
+      }
+    },
+    
+    "user_experience": {
+      "description": "Seuils basés sur l'expérience pratique de l'utilisateur",
+      "zones": {
+        "width_ticks": {
+          "LOW": 5,
+          "MID": 5,
+          "HIGH": 5,
+          "EXTREME": 5
+        },
+        "description": "Zone d'entrée de 5 ticks partout (1.25 points)"
+      },
+      "drawdown": {
+        "max_ticks": {
+          "LOW": 7,
+          "MID": 7,
+          "HIGH": 7,
+          "EXTREME": 7
+        },
+        "max_dollars": {
+          "LOW": 87.50,
+          "MID": 87.50,
+          "HIGH": 87.50,
+          "EXTREME": 87.50
+        },
+        "description": "Drawdown de 7 ticks partout ($87.50)"
+      },
+      "patience": {
+        "minutes": {
+          "LOW": 15,
+          "MID": 20,
+          "HIGH": 25,
+          "EXTREME": 30
+        },
+        "description": "Patience adaptée au VIX : 15/20/25/30 minutes"
+      },
+      "wick_tolerance": {
+        "vix_bands": {
+          "BAS": {
+            "min": 0,
+            "max": 15,
+            "tolerance_ticks": 3
+          },
+          "MOYEN": {
+            "min": 15,
+            "max": 25,
+            "tolerance_ticks": 5
+          },
+          "ÉLEVÉ": {
+            "min": 25,
+            "max": 100,
+            "tolerance_ticks": 7
+          }
+        },
+        "description": "Tolérance des mèches : 3/5/7 ticks selon VIX"
+      }
+    },
+    
+    "confluence": {
+      "description": "Configuration de confluence entre les deux méthodes",
+      "scoring": {
+        "perfect_agreement": 1.0,
+        "single_method": 0.5,
+        "no_signal": 0.0
+      },
+      "thresholds": {
+        "min_confluence": 0.7,
+        "preferred_confluence": 0.8
+      }
+    },
+    
+    "execution": {
+      "description": "Configuration d'exécution hybride",
+      "priority": {
+        "primary": "menthorq",
+        "secondary": "battle_navale"
+      },
+      "fallback": {
+        "menthorq_unavailable": "battle_navale_only",
+        "battle_navale_unavailable": "menthorq_only",
+        "both_unavailable": "no_signal"
+      }
+    },
+    
+    "logging": {
+      "level": "INFO",
+      "audit_enabled": true,
+      "confluence_tracking": true,
+      "method_usage_stats": true
+    },
+    
+    "summary": {
+      "description": "Méthode hybride complète avec expérience utilisateur intégrée",
+      "components": [
+        "MenthorQ (décideur principal)",
+        "Battle Navale V2 (validateur)",
+        "Confluence analysis",
+        "Seuils utilisateur (zones, drawdown, patience, mèches)"
+      ],
+      "advantages": [
+        "Double validation",
+        "Confluence robuste",
+        "Expérience pratique intégrée",
+        "Adaptation VIX automatique"
+      ],
+      "status": "Prêt pour la production"
+    }
+  }
+}
+

@@ -255,8 +255,11 @@ failed_imports.append("ibkr_connector")
 if sierra_router_imports: successful_imports.append("sierra_order_router")
 else: failed_imports.append("sierra_order_router")
 
-# Structure data supprimé (migration vers JSONL normalizer)
-failed_imports.append("structure_data")
+# Structure data - ajout conditionnel selon le succès de l'import
+if structure_imports:
+    successful_imports.append("structure_data")
+else:
+    failed_imports.append("structure_data")
 
 # ✅ NOUVEAUX MODULES - Signal Analysis & Risk Management  
 if signal_explainer_imports: successful_imports.append("signal_explainer")

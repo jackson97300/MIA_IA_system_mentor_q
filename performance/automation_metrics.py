@@ -59,20 +59,24 @@ class MetricType(Enum):
     ERROR_TRACKING = "error_tracking"
 
 
-class AlertSeverity(Enum):
-    """Niveaux de sévérité alertes"""
-    INFO = "info"
-    WARNING = "warning"
-    CRITICAL = "critical"
-    EMERGENCY = "emergency"
-
-
-class ComponentStatus(Enum):
-    """Status des composants système"""
-    HEALTHY = "healthy"
-    DEGRADED = "degraded"
-    CRITICAL = "critical"
-    OFFLINE = "offline"
+# Import centralisé des enums (migration sécurisée)
+try:
+    from core.enums import AlertSeverity, ComponentStatus, MetricType
+except ImportError:
+    # Fallback pour compatibilité (sera supprimé après migration)
+    class AlertSeverity(Enum):
+        """Niveaux de sévérité alertes - FALLBACK"""
+        INFO = "info"
+        WARNING = "warning"
+        CRITICAL = "critical"
+        EMERGENCY = "emergency"
+    
+    class ComponentStatus(Enum):
+        """Status des composants système - FALLBACK"""
+        HEALTHY = "healthy"
+        DEGRADED = "degraded"
+        CRITICAL = "critical"
+        OFFLINE = "offline"
 
 # === AUTOMATION METRICS DATA STRUCTURES ===
 

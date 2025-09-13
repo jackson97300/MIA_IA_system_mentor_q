@@ -122,6 +122,59 @@ class UTF8Formatter(logging.Formatter):
             # Fallback en cas d'erreur
             return f"[LOG ERROR: {e}] {record.msg}"
 
+class TradingJSONFormatter(logging.Formatter):
+    """Formatter JSON spécialisé pour l'audit des décisions de trading"""
+    
+    def __init__(self):
+        super().__init__()
+    
+    def format(self, record):
+        """Format JSON structuré pour l'audit trading"""
+        try:
+            # Données de base
+            log_data = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "level": record.levelname,
+                "logger": record.name,
+                "message": record.getMessage(),
+                "process_id": record.process,
+                "thread": record.threadName
+            }
+            
+            # Ajout des données de trading si disponibles
+            if hasattr(record, 'method'):
+                log_data["method"] = record.method
+            if hasattr(record, 'vix_regime'):
+                log_data["vix_regime"] = record.vix_regime
+            if hasattr(record, 'signal_type'):
+                log_data["signal_type"] = record.signal_type
+            if hasattr(record, 'level_price'):
+                log_data["level_price"] = record.level_price
+            if hasattr(record, 'final_score'):
+                log_data["final_score"] = record.final_score
+            if hasattr(record, 'action'):
+                log_data["action"] = record.action
+            if hasattr(record, 'confidence'):
+                log_data["confidence"] = record.confidence
+            
+            # Ajout des métadonnées de performance
+            if hasattr(record, 'execution_time_ms'):
+                log_data["execution_time_ms"] = record.execution_time_ms
+            if hasattr(record, 'data_staleness_ms'):
+                log_data["data_staleness_ms"] = record.data_staleness_ms
+            
+            return json.dumps(log_data, ensure_ascii=False)
+            
+        except Exception as e:
+            # Fallback en cas d'erreur
+            return json.dumps({
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "level": "ERROR",
+                "logger": "TradingJSONFormatter",
+                "message": f"Formatter error: {e}",
+                "original_message": str(record.msg)
+            }, ensure_ascii=False)
+
 # === SINGLETON LOGGER MANAGER ===
 
 class LoggerManager:
@@ -184,14 +237,16 @@ class LoggerManager:
         level = kwargs.get('level', self.config['log_level'])
         logger.setLevel(LOG_LEVELS.get(level, logging.INFO))
         
-        # Ajout handlers
-        if self.config['console_enabled']:
-            console_handler = self._get_console_handler()
-            logger.addHandler(console_handler)
-        
-        if self.config['file_enabled']:
-            file_handler = self._get_file_handler(name)
-            logger.addHandler(file_handler)
+        # Vérifier si le logger a déjà des handlers pour éviter la multiplication
+        if not logger.handlers:
+            # Ajout handlers seulement si aucun handler existant
+            if self.config['console_enabled']:
+                console_handler = self._get_console_handler()
+                logger.addHandler(console_handler)
+            
+            if self.config['file_enabled']:
+                file_handler = self._get_file_handler(name)
+                logger.addHandler(file_handler)
         
         # Désactiver propagation pour éviter doublons
         logger.propagate = False
@@ -274,6 +329,23 @@ class LoggerManager:
             
             if self.config['file_enabled']:
                 logger.addHandler(self._get_file_handler(logger.name))
+    
+    def enable_trading_audit(self, logger_name: str = None):
+        """Activer le format JSON pour l'audit des décisions de trading"""
+        if logger_name:
+            # Logger spécifique
+            if logger_name in self.loggers:
+                logger = self.loggers[logger_name]
+                # Remplacer le formatter du handler fichier
+                for handler in logger.handlers:
+                    if isinstance(handler, logging.handlers.RotatingFileHandler):
+                        handler.setFormatter(TradingJSONFormatter())
+        else:
+            # Tous les loggers
+            for logger in self.loggers.values():
+                for handler in logger.handlers:
+                    if isinstance(handler, logging.handlers.RotatingFileHandler):
+                        handler.setFormatter(TradingJSONFormatter())
 
 # === FONCTIONS PUBLIQUES ===
 
@@ -318,6 +390,27 @@ def get_logger_config() -> Dict[str, Any]:
     manager = LoggerManager()
     return manager.config.copy()
 
+def enable_trading_audit_logging(logger_name: str = None):
+    """
+    Activer le format JSON pour l'audit des décisions de trading
+    
+    Args:
+        logger_name: Nom du logger spécifique (optionnel, tous si None)
+        
+    Example:
+        >>> enable_trading_audit_logging('core.menthorq_distance_trading')
+        >>> logger = get_logger('core.menthorq_distance_trading')
+        >>> logger.info("Signal généré", extra={
+        ...     'method': 'MenthorQ_First',
+        ...     'vix_regime': 'MID',
+        ...     'signal_type': 'GO_SHORT',
+        ...     'level_price': 4500.25,
+        ...     'final_score': 0.614
+        ... })
+    """
+    manager = LoggerManager()
+    manager.enable_trading_audit(logger_name)
+
 def test_logging():
     """Test du système de logging"""
     logger = get_logger('test')
@@ -343,8 +436,10 @@ __all__ = [
     'get_logger',
     'setup_logging',
     'get_logger_config',
+    'enable_trading_audit_logging',
     'LoggerManager',
     'UTF8Formatter',
+    'TradingJSONFormatter',
     'LOG_LEVELS',
     'FORMATS'
 ]

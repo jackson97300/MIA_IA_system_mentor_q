@@ -1,0 +1,308 @@
+{
+  "battle_navale_v2": {
+    "description": "Configuration Battle Navale V2 - Version finale hybride",
+    "version": "2.0.0",
+    "last_updated": "2025-01-12",
+    
+    "general": {
+      "bn_enter_eff": 0.65,
+      "cache_expiry_seconds": 5,
+      "max_history_bars": 100,
+      "max_pattern_history": 50,
+      "max_base_history": 20
+    },
+    
+    "vix_regimes": {
+      "LOW": {
+        "min_value": 0,
+        "max_value": 15,
+        "multiplier": 1.05,
+        "long_threshold": 0.20,
+        "short_threshold": -0.20,
+        "of_minimum": 2,
+        "stop_ticks": 7
+      },
+      "MID": {
+        "min_value": 15,
+        "max_value": 22,
+        "multiplier": 1.00,
+        "long_threshold": 0.25,
+        "short_threshold": -0.25,
+        "of_minimum": 2,
+        "stop_ticks": 7
+      },
+      "HIGH": {
+        "min_value": 22,
+        "max_value": 35,
+        "multiplier": 0.90,
+        "long_threshold": 0.30,
+        "short_threshold": -0.30,
+        "of_minimum": 3,
+        "stop_ticks": 7
+      },
+      "EXTREME": {
+        "min_value": 35,
+        "max_value": 100,
+        "multiplier": 0.85,
+        "long_threshold": 0.35,
+        "short_threshold": -0.35,
+        "of_minimum": 3,
+        "stop_ticks": 7
+      }
+    },
+    
+    "leadership": {
+      "corr_min": {
+        "LOW": 0.30,
+        "MID": 0.30,
+        "HIGH": 0.45,
+        "EXTREME": 0.60
+      },
+      "veto_abs": {
+        "LOW": 1.40,
+        "MID": 1.30,
+        "HIGH": 1.10,
+        "EXTREME": 1.00
+      },
+      "bonus_abs": {
+        "LOW": 0.30,
+        "MID": 0.45,
+        "HIGH": 0.60,
+        "EXTREME": 0.75
+      },
+      "bonus_mult": 1.05,
+      "max_join_delay_ms": 200
+    },
+    
+    "vikings_defenders": {
+      "factors": {
+        "price_action": 0.20,
+        "orderflow": 0.25,
+        "volume_profile": 0.15,
+        "menthorq": 0.20,
+        "vix_regime": 0.10,
+        "dom_analysis": 0.10
+      },
+      "thresholds": {
+        "vikings_winning": 0.7,
+        "defenders_winning": -0.7,
+        "balanced_fight_min": -0.3,
+        "balanced_fight_max": 0.3
+      }
+    },
+    
+    "base_analysis": {
+      "min_quality": 0.60,
+      "range_vix_norm": true,
+      "wick_tolerance_ticks": {
+        "LOW": 0,
+        "MID": 1,
+        "HIGH": 2,
+        "EXTREME": 2
+      },
+      "quality_factors": {
+        "width_weight": 0.3,
+        "volume_weight": 0.25,
+        "respect_weight": 0.25,
+        "orderflow_weight": 0.20
+      }
+    },
+    
+    "structure": {
+      "vwap_buffer_ticks": {
+        "LOW": 1,
+        "MID": 1,
+        "HIGH": 2,
+        "EXTREME": 3
+      },
+      "profile_buffer_ticks": {
+        "LOW": 1,
+        "MID": 1,
+        "HIGH": 2,
+        "EXTREME": 3
+      },
+      "mq_confluence_bonus": 0.05
+    },
+    
+    "dom_health": {
+      "min_spread_ticks": 2,
+      "min_depth_levels": 5,
+      "l1_eq_bbo": true,
+      "min_bid_volume": 100,
+      "min_ask_volume": 100
+    },
+    
+    "sensitive_windows": {
+      "cash_open_start_hour": 9.5,
+      "cash_open_end_hour": 9.67,
+      "news_blackout": true,
+      "roll_blackout": true
+    },
+    
+    "orderflow": {
+      "delta_ratio_threshold": 0.1,
+      "volume_threshold": 2000,
+      "imbalance_threshold": 1.2,
+      "absorption_threshold": 0.3
+    },
+    
+    "menthorq": {
+      "proximity_threshold": 0.002,
+      "bonus_threshold": 0.001,
+      "bonus_multiplier": 1.15,
+      "hard_exit_tolerance_ticks": 2
+    },
+    
+    "volume_profile": {
+      "vah_val_threshold": 0.001,
+      "vpoc_distance_threshold": 0.001,
+      "base_width_reference_ticks": 10
+    },
+    
+    "confluence": {
+      "weights": {
+        "base_quality": 0.4,
+        "orderflow": 0.3,
+        "menthorq": 0.3
+      },
+      "min_score": 0.7
+    },
+    
+    "risk_management": {
+      "max_daily_trades": 10,
+      "max_daily_loss": 500,
+      "cool_down_minutes": 15,
+      "slippage_guard_ticks": 1
+    },
+    
+    "modes": {
+      "balanced": {
+        "description": "Mode équilibré - Recommandé pour la plupart des situations",
+        "bn_enter_eff": 0.65,
+        "confluence_min": 0.7,
+        "of_minimum_multiplier": 1.0
+      },
+      "more_trades_safe": {
+        "description": "Plus de trades mais sécurisé",
+        "bn_enter_eff": 0.60,
+        "confluence_min": 0.65,
+        "of_minimum_multiplier": 0.8
+      },
+      "aggressive_guarded": {
+        "description": "Agressif mais avec garde-fous",
+        "bn_enter_eff": 0.70,
+        "confluence_min": 0.75,
+        "of_minimum_multiplier": 1.2
+      }
+    },
+    
+    "logging": {
+      "level": "INFO",
+      "audit_enabled": true,
+      "performance_tracking": true,
+      "stats_tracking": true
+    },
+    
+    "zones": {
+      "description": "Zones de niveau basées sur l'expérience pratique - Configuration finale",
+      "width_ticks": {
+        "LOW": 5,
+        "MID": 5,
+        "HIGH": 5,
+        "EXTREME": 5
+      },
+      "description_ticks": {
+        "LOW": "Zone de 5 ticks (1.25 points) - Partout",
+        "MID": "Zone de 5 ticks (1.25 points) - Partout",
+        "HIGH": "Zone de 5 ticks (1.25 points) - Partout",
+        "EXTREME": "Zone de 5 ticks (1.25 points) - Partout"
+      },
+      "logic": "Zone d'entrée de 5 ticks partout - Simple et cohérent"
+    },
+    
+    "drawdown": {
+      "description": "Seuils de drawdown basés sur l'expérience pratique - Configuration finale",
+      "max_ticks": {
+        "LOW": 7,
+        "MID": 7,
+        "HIGH": 7,
+        "EXTREME": 7
+      },
+      "max_points": {
+        "LOW": 1.75,
+        "MID": 1.75,
+        "HIGH": 1.75,
+        "EXTREME": 1.75
+      },
+      "max_dollars": {
+        "LOW": 87.50,
+        "MID": 87.50,
+        "HIGH": 87.50,
+        "EXTREME": 87.50
+      },
+      "description": {
+        "LOW": "7 ticks = 1.75 points = $87.50 - Partout",
+        "MID": "7 ticks = 1.75 points = $87.50 - Partout",
+        "HIGH": "7 ticks = 1.75 points = $87.50 - Partout",
+        "EXTREME": "7 ticks = 1.75 points = $87.50 - Partout"
+      },
+      "logic": "Drawdown de 7 ticks partout - Conservateur et cohérent"
+    },
+    
+    "patience": {
+      "description": "Patience en minutes basée sur l'expérience pratique",
+      "minutes": {
+        "LOW": 15,
+        "MID": 20,
+        "HIGH": 25,
+        "EXTREME": 30
+      },
+      "description": {
+        "LOW": "Vous attendez 15 min en VIX bas",
+        "MID": "Vous attendez 20 min en VIX moyen",
+        "HIGH": "Vous attendez 25 min en VIX élevé",
+        "EXTREME": "Vous attendez 30 min en VIX extrême"
+      }
+    },
+    
+    "wick_tolerance": {
+      "description": "Tolérance des mèches basée sur l'expérience pratique - Configuration finale",
+      "vix_bands": {
+        "LOW": {
+          "min": 0,
+          "max": 15,
+          "tolerance_ticks": 3,
+          "description": "VIX < 15 → tolérance 3 ticks"
+        },
+        "MID": {
+          "min": 15,
+          "max": 22,
+          "tolerance_ticks": 5,
+          "description": "VIX 15-22 → tolérance 5 ticks"
+        },
+        "HIGH": {
+          "min": 22,
+          "max": 35,
+          "tolerance_ticks": 7,
+          "description": "VIX 22-35 → tolérance 7 ticks"
+        },
+        "EXTREME": {
+          "min": 35,
+          "max": 100,
+          "tolerance_ticks": 7,
+          "description": "VIX > 35 → tolérance 7 ticks"
+        }
+      },
+      "logic": "Plus le VIX est haut, plus on accepte une mèche longue avant de parler de vraie cassure"
+    },
+    
+    "summary": {
+      "description": "Configuration finale intégrée et optimisée",
+      "zones_entree": "5 ticks partout (1.25 points)",
+      "drawdown": "7 ticks partout ($87.50)",
+      "patience": "15/20/25/30 minutes selon VIX",
+      "tolerance_meches": "3/5/7 ticks selon VIX",
+      "status": "Configuration complète et prête pour la production"
+    }
+  }
+}

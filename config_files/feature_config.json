@@ -67,7 +67,7 @@
       "description": "Proximité aux niveaux gamma options (28% - réduit pour Smart Money)",
       "type": "continuous",
       "range": [0.0, 1.0],
-      "weight": 0.28,
+      "weight": 0.202,
       "calculation": {
         "method": "distance_to_gamma_levels_enhanced",
         "max_distance_points": 8,
@@ -102,7 +102,7 @@
       "description": "Confirmation volume et order flow (20% - réduit pour Smart Money)",
       "type": "continuous",
       "range": [0.0, 1.0],
-      "weight": 0.20,
+      "weight": 0.144,
       "calculation": {
         "method": "enhanced_volume_analysis",
         "volume_ratio_threshold": 1.8,
@@ -126,7 +126,7 @@
       "description": "Signal de tendance basé sur VWAP (16% - réduit pour Smart Money)",
       "type": "continuous",
       "range": [0.0, 1.0],
-      "weight": 0.16,
+      "weight": 0.116,
       "calculation": {
         "method": "price_relative_to_vwap_with_dow_structure",
         "lookback_periods": 20,
@@ -154,7 +154,7 @@
       "description": "Force du pattern Sierra Chart Battle Navale (16% - réduit pour Smart Money)",
       "type": "continuous", 
       "range": [0.0, 1.0],
-      "weight": 0.16,
+      "weight": 0.116,
       "calculation": {
         "method": "pattern_recognition",
         "base_quality_threshold": 0.6,
@@ -173,7 +173,7 @@
       "description": "Pression achat/vente order book (15% - maintenu)",
       "type": "continuous",
       "range": [0.0, 1.0],
-      "weight": 0.15,
+      "weight": 0.108,
       "calculation": {
         "method": "order_book_imbalance",
         "depth_levels": 10,
@@ -191,7 +191,7 @@
       "description": "Sentiment options (13% - réduit pour Smart Money)",
       "type": "continuous",
       "range": [0.0, 1.0],
-      "weight": 0.13,
+      "weight": 0.094,
       "calculation": {
         "method": "enhanced_options_sentiment",
         "put_call_ratio_strictness": "enhanced",
@@ -212,7 +212,7 @@
       "description": "🆕 TECHNIQUE #2 ELITE - Force des flux institutionnels Smart Money (12.5%)",
       "type": "continuous",
       "range": [0.0, 1.0],
-      "weight": 0.125,
+      "weight": 0.090,
       "calculation": {
         "method": "institutional_flow_analysis",
         "large_trade_threshold": 100,
@@ -285,7 +285,7 @@
       "description": "Distance aux niveaux Market Profile (7% - réduit pour Smart Money)",
       "type": "continuous",
       "range": [0.0, 1.0],
-      "weight": 0.07,
+      "weight": 0.051,
       "calculation": {
         "method": "market_profile_levels",
         "max_distance_ticks": 3,
@@ -297,7 +297,7 @@
       "description": "Alignment entre ES et NQ (7% - réduit pour Smart Money)",
       "type": "continuous",
       "range": [0.0, 1.0],
-      "weight": 0.07,
+      "weight": 0.051,
       "calculation": {
         "method": "correlation_analysis",
         "correlation_periods": 50,
@@ -309,7 +309,7 @@
       "description": "Performance par session (2.5% - réduit pour Smart Money)",
       "type": "continuous",
       "range": [0.0, 1.0],
-      "weight": 0.025,
+      "weight": 0.018,
       "calculation": {
         "method": "session_performance",
         "historical_win_rates": true
@@ -320,7 +320,7 @@
       "description": "Anti-FOMO patience feature (1.5% - réduit pour Smart Money)",
       "type": "continuous",
       "range": [0.0, 1.0],
-      "weight": 0.015,
+      "weight": 0.011,
       "calculation": {
         "method": "pullback_analysis",
         "range_analysis_periods": 10,
@@ -330,17 +330,17 @@
   },
   
   "feature_weights": {
-    "gamma_levels_proximity": 0.28,
-    "volume_confirmation": 0.20,
-    "vwap_trend_signal": 0.16,
-    "sierra_pattern_strength": 0.16,
-    "order_book_imbalance": 0.15,
-    "options_flow_bias": 0.13,
-    "smart_money_strength": 0.125,
-    "level_proximity": 0.07,
-    "es_nq_correlation": 0.07,
-    "session_context": 0.025,
-    "pullback_quality": 0.015
+    "gamma_levels_proximity": 0.202,
+    "volume_confirmation": 0.144,
+    "vwap_trend_signal": 0.116,
+    "sierra_pattern_strength": 0.116,
+    "order_book_imbalance": 0.108,
+    "options_flow_bias": 0.094,
+    "smart_money_strength": 0.090,
+    "level_proximity": 0.051,
+    "es_nq_correlation": 0.051,
+    "session_context": 0.018,
+    "pullback_quality": 0.011
   },
   
   "removed_features": {

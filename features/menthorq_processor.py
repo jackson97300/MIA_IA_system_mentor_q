@@ -21,6 +21,13 @@ import numpy as np
 from core.logger import get_logger
 from core.base_types import ES_TICK_SIZE
 
+# 🆕 Import gestionnaire de staleness centralisé
+try:
+    from core.menthorq_staleness_manager import get_staleness_manager, register_menthorq_source, update_menthorq_source
+    STALENESS_MANAGER_AVAILABLE = True
+except ImportError:
+    STALENESS_MANAGER_AVAILABLE = False
+
 logger = get_logger(__name__)
 
 # === MENTHORQ DATA STRUCTURES ===
@@ -105,7 +112,21 @@ class MenthorQProcessor:
             'last_update': None
         }
         
-        logger.info(f"MenthorQProcessor initialisé (tolérance: {tolerance_ticks} ticks)")
+        # 🆕 Enregistrer les sources de staleness si disponible
+        if STALENESS_MANAGER_AVAILABLE:
+            try:
+                # Enregistrer les principales sources MenthorQ
+                register_menthorq_source("ESZ5", "gamma_levels", 60)
+                register_menthorq_source("ESZ5", "blind_spots", 60) 
+                register_menthorq_source("ESZ5", "swing_levels", 60)
+                register_menthorq_source("NQZ5", "gamma_levels", 60)
+                register_menthorq_source("NQZ5", "blind_spots", 60)
+                register_menthorq_source("NQZ5", "swing_levels", 60)
+                logger.info("✅ Sources MenthorQ enregistrées dans StalenessManager")
+            except Exception as e:
+                logger.warning(f"⚠️ Erreur enregistrement sources staleness: {e}")
+        
+        logger.info(f"MenthorQProcessor initialisé (tolérance: {tolerance_ticks} ticks, staleness_manager: {STALENESS_MANAGER_AVAILABLE})")
     
     def process_menthorq_line(self, jsonl_line: str) -> bool:
         """
@@ -245,6 +266,25 @@ class MenthorQProcessor:
         
         # Mettre à jour le timestamp
         self.levels_cache[symbol].last_update = level.timestamp
+        
+        # 🆕 Mettre à jour le gestionnaire de staleness
+        if STALENESS_MANAGER_AVAILABLE:
+            try:
+                # Déterminer le type de données pour la staleness
+                if level.level_type == "menthorq_gamma_levels":
+                    data_type = "gamma_levels"
+                elif level.level_type == "menthorq_blind_spots":
+                    data_type = "blind_spots"
+                elif level.level_type == "menthorq_swing_levels":
+                    data_type = "swing_levels"
+                else:
+                    data_type = "unknown"
+                
+                # Mettre à jour la source de staleness
+                update_menthorq_source(symbol, data_type, level.timestamp)
+                logger.debug(f"🔄 Staleness mise à jour: {symbol}_{data_type}")
+            except Exception as e:
+                logger.warning(f"⚠️ Erreur mise à jour staleness: {e}")
     
     def get_levels(self, symbol: str = "ESZ5") -> Dict[str, Any]:
         """
@@ -267,30 +307,84 @@ class MenthorQProcessor:
         
         levels = self.levels_cache[symbol]
         
-        # Vérifier si les données sont obsolètes (>5 minutes)
+        # 🆕 Vérifier la staleness avec le gestionnaire centralisé
         is_stale = False
-        if levels.last_update:
-            # Gérer les timezones (naive vs aware)
-            now = datetime.now()
-            last_update = levels.last_update
-            
-            # Si last_update est aware et now est naive, rendre now aware
-            if last_update.tzinfo is not None and now.tzinfo is None:
-                now = now.replace(tzinfo=last_update.tzinfo)
-            # Si last_update est naive et now est aware, rendre last_update aware
-            elif last_update.tzinfo is None and now.tzinfo is not None:
-                last_update = last_update.replace(tzinfo=now.tzinfo)
-            
-            age_minutes = (now - last_update).total_seconds() / 60
-            is_stale = age_minutes > 5
+        staleness_info = {}
         
-        return {
+        if STALENESS_MANAGER_AVAILABLE:
+            try:
+                # Vérifier la staleness pour chaque type de données
+                from core.menthorq_staleness_manager import check_menthorq_staleness
+                
+                gamma_staleness = check_menthorq_staleness(symbol, "gamma_levels", 20.0)  # VIX par défaut
+                blind_spots_staleness = check_menthorq_staleness(symbol, "blind_spots", 20.0)
+                swing_staleness = check_menthorq_staleness(symbol, "swing_levels", 20.0)
+                
+                # Considérer comme stale si au moins une source est stale
+                is_stale = (gamma_staleness.is_stale or 
+                           blind_spots_staleness.is_stale or 
+                           swing_staleness.is_stale)
+                
+                staleness_info = {
+                    "gamma_staleness": {
+                        "is_stale": gamma_staleness.is_stale,
+                        "age_seconds": gamma_staleness.age_seconds,
+                        "severity": gamma_staleness.severity
+                    },
+                    "blind_spots_staleness": {
+                        "is_stale": blind_spots_staleness.is_stale,
+                        "age_seconds": blind_spots_staleness.age_seconds,
+                        "severity": blind_spots_staleness.severity
+                    },
+                    "swing_staleness": {
+                        "is_stale": swing_staleness.is_stale,
+                        "age_seconds": swing_staleness.age_seconds,
+                        "severity": swing_staleness.severity
+                    }
+                }
+                
+                logger.debug(f"🔍 Staleness check pour {symbol}: {is_stale}")
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Erreur vérification staleness centralisée: {e}")
+                # Fallback sur l'ancienne méthode
+                is_stale = self._check_staleness_legacy(levels)
+        else:
+            # Fallback sur l'ancienne méthode
+            is_stale = self._check_staleness_legacy(levels)
+        
+        result = {
             "gamma": levels.gamma.copy(),
             "blind_spots": levels.blind_spots.copy(),
             "swing": levels.swing.copy(),
             "last_update": levels.last_update,
             "stale": is_stale
         }
+        
+        # 🆕 Ajouter les informations de staleness détaillées si disponibles
+        if staleness_info:
+            result["staleness_detail"] = staleness_info
+        
+        return result
+    
+    def _check_staleness_legacy(self, levels: MenthorQLevels) -> bool:
+        """🔄 Méthode legacy de vérification de staleness (fallback)"""
+        if not levels.last_update:
+            return True  # Pas de données = stale
+        
+        # Gérer les timezones (naive vs aware)
+        now = datetime.now()
+        last_update = levels.last_update
+        
+        # Si last_update est aware et now est naive, rendre now aware
+        if last_update.tzinfo is not None and now.tzinfo is None:
+            now = now.replace(tzinfo=last_update.tzinfo)
+        # Si last_update est naive et now est aware, rendre last_update aware
+        elif last_update.tzinfo is None and now.tzinfo is not None:
+            last_update = last_update.replace(tzinfo=now.tzinfo)
+        
+        age_minutes = (now - last_update).total_seconds() / 60
+        return age_minutes > 5  # 5 minutes par défaut
     
     def check_staleness(self, max_age_minutes: int = 60) -> Dict[str, float]:
         """

@@ -51,47 +51,47 @@ from core.base_types import (
 )
 from config.automation_config import get_automation_config
 
+# Import centralisé des enums (migration sécurisée)
+try:
+    from core.enums import AlertLevel, PerformanceMetric, PerformancePeriod
+except ImportError:
+    # Fallback pour compatibilité (sera supprimé après migration)
+    class AlertLevel(Enum):
+        """Niveaux d'alerte performance - FALLBACK"""
+        INFO = "info"
+        WARNING = "warning"
+        CRITICAL = "critical"
+        EMERGENCY = "emergency"
+    
+    class PerformanceMetric(Enum):
+        """Métriques de performance disponibles - FALLBACK"""
+        TOTAL_PNL = "total_pnl"
+        WIN_RATE = "win_rate"
+        PROFIT_FACTOR = "profit_factor"
+        SHARPE_RATIO = "sharpe_ratio"
+        SORTINO_RATIO = "sortino_ratio"
+        CALMAR_RATIO = "calmar_ratio"
+        MAX_DRAWDOWN = "max_drawdown"
+        AVERAGE_WIN = "average_win"
+        AVERAGE_LOSS = "average_loss"
+        LARGEST_WIN = "largest_win"
+        LARGEST_LOSS = "largest_loss"
+        CONSECUTIVE_WINS = "consecutive_wins"
+        CONSECUTIVE_LOSSES = "consecutive_losses"
+        VAR_95 = "var_95"
+        EXPECTED_SHORTFALL = "expected_shortfall"
+    
+    class PerformancePeriod(Enum):
+        """Périodes d'analyse performance - FALLBACK"""
+        INTRADAY = "intraday"
+        DAILY = "daily"
+        WEEKLY = "weekly"
+        MONTHLY = "monthly"
+        QUARTERLY = "quarterly"
+        YEARLY = "yearly"
+        INCEPTION = "inception"
+
 logger = get_logger(__name__)
-
-# === PERFORMANCE TRACKING ENUMS ===
-
-
-class PerformanceMetric(Enum):
-    """Métriques de performance disponibles"""
-    TOTAL_PNL = "total_pnl"
-    WIN_RATE = "win_rate"
-    PROFIT_FACTOR = "profit_factor"
-    SHARPE_RATIO = "sharpe_ratio"
-    SORTINO_RATIO = "sortino_ratio"
-    CALMAR_RATIO = "calmar_ratio"
-    MAX_DRAWDOWN = "max_drawdown"
-    AVERAGE_WIN = "average_win"
-    AVERAGE_LOSS = "average_loss"
-    LARGEST_WIN = "largest_win"
-    LARGEST_LOSS = "largest_loss"
-    CONSECUTIVE_WINS = "consecutive_wins"
-    CONSECUTIVE_LOSSES = "consecutive_losses"
-    VAR_95 = "var_95"
-    EXPECTED_SHORTFALL = "expected_shortfall"
-
-
-class AlertLevel(Enum):
-    """Niveaux d'alerte performance"""
-    INFO = "info"
-    WARNING = "warning"
-    CRITICAL = "critical"
-    EMERGENCY = "emergency"
-
-
-class PerformancePeriod(Enum):
-    """Périodes d'analyse performance"""
-    INTRADAY = "intraday"
-    DAILY = "daily"
-    WEEKLY = "weekly"
-    MONTHLY = "monthly"
-    QUARTERLY = "quarterly"
-    YEARLY = "yearly"
-    INCEPTION = "inception"
 
 # === PERFORMANCE DATA STRUCTURES ===
 

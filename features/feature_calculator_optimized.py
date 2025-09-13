@@ -315,7 +315,7 @@ class FeatureCalculatorRouter:
             'volume_profile_detector': self._create_volume_profile_detector,
             'vwap_analyzer': self._create_vwap_analyzer,
             'menthorq_integration': self._create_menthorq_integration,
-            'leadership_analyzer': self._create_leadership_analyzer,
+            'leadership_analyzer': self._LeadershipZMom,
             'market_state_analyzer': self._create_market_state_analyzer
         }
     
@@ -430,13 +430,13 @@ class FeatureCalculatorRouter:
             logger.error(f"Erreur création MenthorQIntegration: {e}")
             return None
     
-    def _create_leadership_analyzer(self, config: Optional[Dict] = None):
-        """Factory pour LeadershipAnalyzer"""
+    def _LeadershipZMom(self, config: Optional[Dict] = None):
+        """Factory pour LeadershipZMom"""
         try:
-            from features.leadership_analyzer import LeadershipAnalyzer
-            return LeadershipAnalyzer(config)
+            from features.leadership_zmom import LeadershipZMom
+            return LeadershipZMom(config)
         except Exception as e:
-            logger.error(f"Erreur création LeadershipAnalyzer: {e}")
+            logger.error(f"Erreur création LeadershipZMom: {e}")
             return None
     
     def _create_market_state_analyzer(self, config: Optional[Dict] = None):

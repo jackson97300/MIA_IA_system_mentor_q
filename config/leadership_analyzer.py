@@ -26,7 +26,7 @@ from core.logger import get_logger
 
 logger = get_logger(__name__)
 
-class LeadershipAnalyzer:
+class LeadershipZMom:
     """Analyseur de leadership ES/NQ avec confluence"""
     
     def __init__(self, config=None):
@@ -354,9 +354,9 @@ class LeadershipAnalyzer:
             logger.error(f"❌ Erreur récupération données historiques {symbol}: {e}")
             return []
 
-def create_leadership_analyzer(config=None) -> LeadershipAnalyzer:
-    """Factory pour créer un LeadershipAnalyzer"""
-    return LeadershipAnalyzer(config)
+def LeadershipZMom(config=None) -> LeadershipZMom:
+    """Factory pour créer un LeadershipZMom"""
+    return LeadershipZMom(config)
 
 
 
