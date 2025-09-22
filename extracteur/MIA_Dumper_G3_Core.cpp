@@ -14,37 +14,143 @@
 #include <algorithm>
 using std::fabs;
 
+SCDLLName("MIA_Dumper_G3_Core")
+
 // ========== UTILITAIRES COMMUNS ==========
 
-// Création du répertoire de sortie
+// Création du répertoire de sortie organisé
 static void EnsureOutDir() {
 #ifdef _WIN32
   CreateDirectoryA("D:\\MIA_IA_system", NULL);
+  CreateDirectoryA("D:\\MIA_IA_system\\DATA_SIERRA_CHART", NULL);
 #endif
 }
 
-// Génération du nom de fichier quotidien par chart et type
+// Création de la structure de répertoires organisée
+static void EnsureOrganizedDir(int chartNumber) {
+#ifdef _WIN32
+  time_t now = time(NULL);
+  struct tm* lt = localtime(&now);
+  int y = lt ? (lt->tm_year + 1900) : 1970;
+  int m = lt ? (lt->tm_mon + 1) : 1;
+  int d = lt ? lt->tm_mday : 1;
+  
+  // Noms des mois
+  const char* monthNames[] = {"JANVIER", "FEVRIER", "MARS", "AVRIL", "MAI", "JUIN",
+                             "JUILLET", "AOUT", "SEPTEMBRE", "OCTOBRE", "NOVEMBRE", "DECEMBRE"};
+  
+  char basePath[512];
+  char yearPath[512];
+  char monthPath[512];
+  char dayPath[512];
+  char chartPath[512];
+  
+  sprintf(basePath, "D:\\MIA_IA_system\\DATA_SIERRA_CHART");
+  sprintf(yearPath, "%s\\DATA_%d", basePath, y);
+  sprintf(monthPath, "%s\\%s", yearPath, monthNames[m-1]);
+  sprintf(dayPath, "%s\\%04d%02d%02d", monthPath, y, m, d);
+  sprintf(chartPath, "%s\\CHART_%d", dayPath, chartNumber);
+  
+  CreateDirectoryA(basePath, NULL);
+  CreateDirectoryA(yearPath, NULL);
+  CreateDirectoryA(monthPath, NULL);
+  CreateDirectoryA(dayPath, NULL);
+  CreateDirectoryA(chartPath, NULL);
+#endif
+}
+
+// Génération du nom de fichier quotidien par chart et type dans la structure organisée
 static SCString DailyFilenameForChartType(int chartNumber, const char* dataType) {
   time_t now = time(NULL);
   struct tm* lt = localtime(&now);
   int y = lt ? (lt->tm_year + 1900) : 1970;
   int m = lt ? (lt->tm_mon + 1) : 1;
   int d = lt ? lt->tm_mday : 1;
+  
+  // Noms des mois
+  const char* monthNames[] = {"JANVIER", "FEVRIER", "MARS", "AVRIL", "MAI", "JUIN",
+                             "JUILLET", "AOUT", "SEPTEMBRE", "OCTOBRE", "NOVEMBRE", "DECEMBRE"};
+  
   SCString filename;
-  filename.Format("D:\\MIA_IA_system\\chart_%d_%s_%04d%02d%02d.jsonl", 
-                  chartNumber, dataType, y, m, d);
+  filename.Format("D:\\MIA_IA_system\\DATA_SIERRA_CHART\\DATA_%d\\%s\\%04d%02d%02d\\CHART_%d\\chart_%d_%s_%04d%02d%02d.jsonl", 
+                  y, monthNames[m-1], y, m, d, chartNumber, chartNumber, dataType, y, m, d);
   return filename;
 }
 
-// Écriture dans le fichier spécialisé
+// Écriture dans le fichier spécialisé avec structure organisée
 static void WriteToSpecializedFile(int chartNumber, const char* dataType, const SCString& line) {
   EnsureOutDir();
+  EnsureOrganizedDir(chartNumber);  // Créer la structure de répertoires
   const SCString filename = DailyFilenameForChartType(chartNumber, dataType);
   FILE* f = fopen(filename.GetChars(), "a");
   if (f) { 
     fprintf(f, "%s\n", line.GetChars()); 
     fclose(f); 
   }
+}
+
+// Crée/touche un fichier quotidien vide si besoin avec structure organisée
+static void TouchDailyFile(int chartNumber, const char* dataType) {
+  EnsureOutDir();
+  EnsureOrganizedDir(chartNumber);  // Créer la structure de répertoires
+  const SCString filename = DailyFilenameForChartType(chartNumber, dataType);
+  FILE* f = fopen(filename.GetChars(), "a");
+  if (f) fclose(f);
+}
+
+// Écriture dans le fichier de debug local UNIQUE
+static void WriteToDebugFile(const SCString& debugLine) {
+  EnsureOutDir();
+  time_t now = time(NULL);
+  struct tm* lt = localtime(&now);
+  int y = lt ? (lt->tm_year + 1900) : 1970;
+  int m = lt ? (lt->tm_mon + 1) : 1;
+  int d = lt ? lt->tm_mday : 1;
+  
+  // UN SEUL FICHIER DE DEBUG PAR JOUR
+  SCString debugFilename;
+  debugFilename.Format("D:\\MIA_IA_system\\debug_g3_%04d%02d%02d.log", y, m, d);
+  
+  FILE* f = fopen(debugFilename.GetChars(), "a");
+  if (f) { 
+    fprintf(f, "%s\n", debugLine.GetChars()); 
+    fclose(f); 
+  }
+}
+
+// Fonction de debug combinée (Sierra + fichier local)
+static void DebugLog(SCStudyInterfaceRef& sc, const char* message) {
+  // Log dans Sierra Chart
+  sc.AddMessageToLog(message, 1);
+  
+  // Log dans fichier local avec timestamp
+  time_t now = time(NULL);
+  struct tm* lt = localtime(&now);
+  int h = lt ? lt->tm_hour : 0;
+  int min = lt ? lt->tm_min : 0;
+  int s = lt ? lt->tm_sec : 0;
+  
+  SCString debugLine;
+  debugLine.Format("[%02d:%02d:%02d] %s", h, min, s, message);
+  WriteToDebugFile(debugLine);
+}
+
+// ========== NIVEAUX DE LOG ==========
+enum LogLevel {
+    LOG_ERROR = 0,    // Erreurs critiques uniquement
+    LOG_KEY = 1,      // Événements importants (flush, erreurs)
+    LOG_VERBOSE = 2   // Debug complet (développement)
+};
+
+// Helper: filtrage de logs par niveau (0=Errors,1=Key,2=Verbose)
+static inline bool ShouldLog(const SCStudyInterfaceRef& sc, int level) {
+  int cfg = 0;
+  // sc.Input peut ne pas être initialisé très tôt; garde-fou
+  if (&sc != nullptr) {
+    // Input[32] défini dans SetDefaults
+    cfg = sc.Input[32].GetInt();
+  }
+  return cfg >= level;
 }
 
 
@@ -82,6 +188,139 @@ static std::unordered_map<std::string, LastVWAP> g_LastVWAPBySym;
 static std::unordered_map<std::string, LastVVA> g_LastVVABySym;
 static std::unordered_map<std::string, LastNBCV> g_LastNBCVBySym;
 
+// Cache pour Cumulative Delta
+struct LastCD { double close=0.0; };
+static std::unordered_map<std::string, LastCD> g_LastCDBySym;
+
+// Caches supplémentaires: ATR et Correlation
+struct LastATR { double atr=0.0; };
+static std::unordered_map<std::string, LastATR> g_LastATRBySym;
+
+struct LastCorr { double cc=0.0; };
+static std::unordered_map<std::string, LastCorr> g_LastCorrBySym;
+
+// ========== COALESCE INTRABAR (Option C) + SEQ MODE (Option D) ==========
+struct BufPayload {
+  SCString json;
+  int i = -1;
+  double t = 0.0;
+  SCString dataType; // Added to store dataType for flush
+};
+
+static std::unordered_map<std::string, BufPayload> g_CoalesceBufByKey; // key: sym|type
+static std::unordered_map<std::string, uint32_t> g_SeqByKey;           // key: sym|type|i
+
+// ========== MÉTRIQUES DE PERFORMANCE ==========
+struct PerformanceMetrics {
+    int total_bars_processed = 0;
+    int studies_written = 0;
+    int quotes_written = 0;
+    int trades_written = 0;
+    int depth_written = 0;
+    double avg_processing_time = 0.0;
+    int buffer_size = 0;
+    time_t last_update = 0;
+    time_t last_metrics_report = 0;
+    time_t last_flush = 0;
+    int bars_since_flush = 0;
+};
+
+static PerformanceMetrics g_metrics;
+
+// ========== MÉTRIQUES DE QUALITÉ DES DONNÉES ==========
+struct DataQualityMetrics {
+    int duplicate_detected = 0;
+    int invalid_values = 0;
+    int missing_studies = 0;
+    int timestamp_anomalies = 0;
+};
+
+static DataQualityMetrics g_quality;
+
+static inline std::string MakeBufKey(int chart, const char* sym, const char* type) {
+  return std::to_string(chart) + "|" + std::string(sym) + "|" + std::string(type);
+}
+
+static inline std::string MakeSeqKey(int chart, const char* sym, const char* type, int barIndex) {
+  return std::to_string(chart) + "|" + std::string(sym) + "|" + std::string(type) + "|" + std::to_string(barIndex);
+}
+
+static inline SCString InjectSeqField(const SCString& line, uint32_t seq) {
+  // Insère \"seq\":<n> avant la dernière '}'
+  SCString out;
+  int len = line.GetLength();
+  if (len > 0) {
+    out.Format("%.*s,\"seq\":%u}", len - 1, line.GetChars(), seq);
+  } else {
+    out.Format("{\"seq\":%u}", seq);
+  }
+  return out;
+}
+
+// ========== FONCTIONS DE FLUSH AUTOMATIQUE ==========
+static void FlushAllBuffers(SCStudyInterfaceRef& sc, const char* reason) {
+  if (ShouldLog(sc, LOG_KEY)) {
+    SCString flushMsg;
+    flushMsg.Format("FLUSH: %s - Flushing %d buffers", reason, (int)g_CoalesceBufByKey.size());
+    DebugLog(sc, flushMsg.GetChars());
+  }
+  
+  for (auto it = g_CoalesceBufByKey.begin(); it != g_CoalesceBufByKey.end(); ) {
+    WriteToSpecializedFile(sc.ChartNumber, it->second.dataType.GetChars(), it->second.json);
+    it = g_CoalesceBufByKey.erase(it);
+  }
+  g_metrics.bars_since_flush = 0;
+}
+
+static void UpdateMetrics(SCStudyInterfaceRef& sc, const char* operation) {
+  g_metrics.total_bars_processed++;
+  g_metrics.buffer_size = g_CoalesceBufByKey.size();
+  g_metrics.last_update = time(NULL);
+  
+  if (strcmp(operation, "study") == 0) g_metrics.studies_written++;
+  else if (strcmp(operation, "quote") == 0) g_metrics.quotes_written++;
+  else if (strcmp(operation, "trade") == 0) g_metrics.trades_written++;
+  else if (strcmp(operation, "depth") == 0) g_metrics.depth_written++;
+}
+
+static void CheckAutoFlush(SCStudyInterfaceRef& sc) {
+  time_t now = time(NULL);
+  
+  // Flush temporel (toutes les 30 secondes)
+  if (now - g_metrics.last_flush > 30) {
+    FlushAllBuffers(sc, "AUTO-TIME");
+    g_metrics.last_flush = now;
+  }
+  
+  // Flush par nombre de barres (toutes les 10 barres)
+  g_metrics.bars_since_flush++;
+  if (g_metrics.bars_since_flush >= 10) {
+    FlushAllBuffers(sc, "AUTO-BAR");
+    g_metrics.bars_since_flush = 0;
+  }
+  
+  // Rapport de performance (toutes les 5 minutes)
+  if (ShouldLog(sc, LOG_KEY) && (now - g_metrics.last_metrics_report > 300)) {
+    SCString perfMsg1;
+    perfMsg1.Format("PERF: Bars=%d, Studies=%d, Quotes=%d, Trades=%d, Depth=%d", 
+                   g_metrics.total_bars_processed,
+                   g_metrics.studies_written,
+                   g_metrics.quotes_written,
+                   g_metrics.trades_written,
+                   g_metrics.depth_written);
+    DebugLog(sc, perfMsg1.GetChars());
+    
+    SCString perfMsg2;
+    perfMsg2.Format("PERF: BufferSize=%d, Quality: Invalid=%d, Missing=%d", 
+                   g_metrics.buffer_size,
+                   g_quality.invalid_values,
+                   g_quality.missing_studies);
+    DebugLog(sc, perfMsg2.GetChars());
+    
+    g_metrics.last_metrics_report = now;
+  }
+}
+
 // ========== FILTRAGE DES VOLUMES ==========
 static double CapVolume(double volume, double median, double iqr, double multiplier) {
   if (multiplier <= 1.0) return volume; // Pas de filtrage
@@ -110,6 +349,17 @@ static bool ShouldWriteData(const char* symbol, double timestamp, double barInde
   lk.t = timestamp;
   lk.i = barIndex;
   
+  return !same_ti; // Écrire si différent
+}
+
+// --- AJOUTER : déduplication par (sym|type, t, i)
+static bool ShouldWriteDataWithType(const char* symbol, const char* dataType, double timestamp, double barIndex) {
+  static std::unordered_map<std::string, LastKey> s_LastKeyBySymType;
+  std::string key = std::string(symbol) + "|" + std::string(dataType);
+  LastKey& lk = s_LastKeyBySymType[key];
+  bool same_ti = (fabs(lk.t - timestamp) < 1e-9) && (fabs(lk.i - barIndex) < 1e-9);
+  lk.t = timestamp;
+  lk.i = barIndex;
   return !same_ti; // Écrire si différent
 }
 
@@ -252,8 +502,6 @@ static void DetectSequenceSupport(const c_SCTimeAndSalesArray& TnS, bool& g_UseS
 // ===============    STUDY ENTRYPOINT (G3 CORE)    =======================
 // =======================================================================
 
-SCDLLName("MIA_Dumper_G3_Core")
-
 // Dumper spécialisé pour Chart 3 (1 minute)
 // Collecte UNIQUEMENT les données natives du Chart 3
 // Sorties spécialisées : basedata, depth, quote, trade, vwap, vva, pvwap, nbcv
@@ -335,50 +583,135 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
     sc.Input[21].Name = "OF: Min Ask/Bid or Bid/Ask Ratio";
     sc.Input[21].SetFloat(1.25);         // 1.25x (plus sensible)
 
+    // --- Inputs ATR ---
+    sc.Input[22].Name = "Export ATR (0/1)";
+    sc.Input[22].SetInt(1);
+    sc.Input[23].Name = "ATR Study ID (0=auto)";
+    sc.Input[23].SetInt(45);
+    sc.Input[24].Name = "ATR Subgraph Index";
+    sc.Input[24].SetInt(0);
+
+    // --- Inputs Correlation ---
+    sc.Input[25].Name = "Export Correlation (0/1)";
+    sc.Input[25].SetInt(0);
+    sc.Input[26].Name = "Correlation Study ID (0=auto)";
+    sc.Input[26].SetInt(46);
+    sc.Input[27].Name = "Correlation Subgraph Index";
+    sc.Input[27].SetInt(0);
+
+    // --- Inputs VIX ---
+    sc.Input[28].Name = "Export VIX (0/1)";
+    sc.Input[28].SetInt(1);
+    sc.Input[29].Name = "VIX Study ID (0=auto)";
+    sc.Input[29].SetInt(23); // Study ID 23 pour VIX_CGI
+    sc.Input[30].Name = "VIX Subgraph Index";
+    sc.Input[30].SetInt(3); // Subgraph 3 = Last (Close)
+
+    // --- Inputs Prod/Debug ---
+    sc.Input[31].Name = "Intrabar Seq Mode (0=Off,1=On)";
+    sc.Input[31].SetInt(0);
+    sc.Input[32].Name = "Prod Log Level (0=Errors,1=Key,2=Verbose)";
+    sc.Input[32].SetInt(0);
+
     return;
   }
 
   if (sc.ServerConnectionState != SCS_CONNECTED) return;
 
+  // DEBUG: Log startup
+  static bool startup_logged = false;
+  if (!startup_logged) {
+    SCString startupMsg;
+    startupMsg.Format("DEBUG G3: MIA_Dumper_G3_Core STARTED - Chart=%d, Symbol=%s, ArraySize=%d", 
+                     sc.ChartNumber, sc.Symbol.GetChars(), sc.ArraySize);
+    if (ShouldLog(sc, 1)) DebugLog(sc, startupMsg.GetChars());
+    // Garantir l'existence des fichiers journaliers attendus
+    TouchDailyFile(sc.ChartNumber, "basedata");
+    TouchDailyFile(sc.ChartNumber, "depth");
+    TouchDailyFile(sc.ChartNumber, "quote");
+    TouchDailyFile(sc.ChartNumber, "trade");
+    TouchDailyFile(sc.ChartNumber, "trade_summary");  // ✅ CRÉER AU DÉMARRAGE
+    TouchDailyFile(sc.ChartNumber, "pvwap");
+    TouchDailyFile(sc.ChartNumber, "vwap");
+    TouchDailyFile(sc.ChartNumber, "vva");
+    TouchDailyFile(sc.ChartNumber, "nbcv");
+    TouchDailyFile(sc.ChartNumber, "cumulative_delta");
+    TouchDailyFile(sc.ChartNumber, "atr");
+    TouchDailyFile(sc.ChartNumber, "vix");
+    // Correlation désactivée par défaut sur G3: pas de fichier journalier
+    // TouchDailyFile(sc.ChartNumber, "correlation");
+    startup_logged = true;
+  }
+
   const int max_levels = sc.Input[0].GetInt();
   const int max_ts = sc.Input[1].GetInt();
-
-  // ========== VARIABLES STATIQUES ANTI-DOUBLONS T&S ==========
-  static int      g_LastTsIndex = 0;
-  static uint32_t g_LastSeq     = 0;
-  static bool     g_UseSeq      = false;
 
   // ========== TRAITEMENT D'UN ENREGISTREMENT T&S ==========
   auto ProcessTS = [&](const s_TimeAndSales& ts) -> void
   {
       const double tsec = ts.DateTime.GetAsDouble();
-      const char* kind = (ts.Type == SC_TS_BID) ? "BID" :
-                         (ts.Type == SC_TS_ASK) ? "ASK" :
-                         (ts.Type == SC_TS_BIDASKVALUES) ? "BIDASK" : "TRADE";
+      const int tt = (int)ts.Type;
 
-      if (ts.Type == SC_TS_BID || ts.Type == SC_TS_ASK || ts.Type == SC_TS_BIDASKVALUES)
+      // Nouvelle classification:
+      // - tt=6 (SC_TS_BIDASKVALUES) => quote uniquement
+      // - tt=1 (SC_TS_BID) et tt=2 (SC_TS_ASK) => TRADE si price/volume valides
+      const bool isQuote = (tt == SC_TS_BIDASKVALUES);
+
+      if (isQuote)
       {
-          // QUOTE
+          // QUOTE (BBO) uniquement
           if (ts.Bid > 0 && ts.Ask > 0)
           {
               const double bid = NormalizePx(sc, ts.Bid);
               const double ask = NormalizePx(sc, ts.Ask);
               SCString j;
-              j.Format(R"({"t":%.6f,"sym":"%s","type":"quote","kind":"%s","bid":%.8f,"ask":%.8f,"bq":%d,"aq":%d,"seq":%u,"chart":%d})",
-                       tsec, sc.Symbol.GetChars(), kind, bid, ask, ts.BidSize, ts.AskSize, ts.Sequence, sc.ChartNumber);
+              j.Format(R"({"t":%.6f,"sym":"%s","type":"quote","kind":"BIDASK","bid":%.8f,"ask":%.8f,"bq":%d,"aq":%d,"seq":%u,"chart":%d})",
+                       tsec, sc.Symbol.GetChars(), bid, ask, ts.BidSize, ts.AskSize, ts.Sequence, sc.ChartNumber);
               WriteToSpecializedFile(sc.ChartNumber, "quote", j);
+              UpdateMetrics(sc, "quote");
           }
+          // IMPORTANT: ne pas convertir les quotes en trades
+          return;
       }
-      else
+
+      // TRADE: pour tous les événements non-quote
+      if (ts.Price > 0 && ts.Volume > 0)
       {
-          // TRADE
-          if (ts.Price > 0 && ts.Volume > 0)
-          {
-              const double px = NormalizePx(sc, ts.Price);
-              SCString j;
-              j.Format(R"({"t":%.6f,"sym":"%s","type":"trade","px":%.8f,"vol":%d,"seq":%u,"chart":%d})",
-                       tsec, sc.Symbol.GetChars(), px, ts.Volume, ts.Sequence, sc.ChartNumber);
-              WriteToSpecializedFile(sc.ChartNumber, "trade", j);
+          const double px  = NormalizePx(sc, ts.Price);
+          const double bid = NormalizePx(sc, sc.Bid);
+          const double ask = NormalizePx(sc, sc.Ask);
+          const double tol = sc.TickSize * 0.51; // tolérance demi-tick
+
+          // Inférence de l'agresseur
+          const char* aggr = "TRADE"; // par défaut
+          if (tt == SC_TS_ASK)      aggr = "BUY";   // à l'ASK
+          else if (tt == SC_TS_BID) aggr = "SELL";  // au BID
+          else {
+              // fallback par rapprochement au BBO courant
+              if (fabs(px - ask) <= tol) aggr = "BUY";
+              else if (fabs(px - bid) <= tol) aggr = "SELL";
+          }
+
+          // Ecriture trade détaillée
+          SCString j;
+          j.Format(R"({"t":%.6f,"sym":"%s","type":"trade","side":"%s","px":%.8f,"vol":%d,"seq":%u,"tt":%d,"chart":%d})",
+                   tsec, sc.Symbol.GetChars(), aggr, px, ts.Volume, ts.Sequence, tt, sc.ChartNumber);
+          WriteToSpecializedFile(sc.ChartNumber, "trade", j);
+          UpdateMetrics(sc, "trade");
+
+          // Résumé périodique BUY/SELL (cumulatif)
+          static unsigned long long s_buyTrades = 0ULL, s_sellTrades = 0ULL;
+          static unsigned long long s_buyVol = 0ULL,    s_sellVol  = 0ULL;
+          if (aggr == std::string("BUY")) { s_buyTrades++; s_buyVol += (unsigned long long)ts.Volume; }
+          else if (aggr == std::string("SELL")) { s_sellTrades++; s_sellVol += (unsigned long long)ts.Volume; }
+
+          const unsigned long long totalTrades = s_buyTrades + s_sellTrades;
+          if ((totalTrades % 256ULL) == 0ULL) {
+              SCString s;
+              s.Format(R"({"t":%.6f,"sym":"%s","type":"trade_summary","buy_trades":%llu,"sell_trades":%llu,"buy_vol":%llu,"sell_vol":%llu,"chart":%d})",
+                       tsec, sc.Symbol.GetChars(), (unsigned long long)s_buyTrades, (unsigned long long)s_sellTrades,
+                       (unsigned long long)s_buyVol, (unsigned long long)s_sellVol, sc.ChartNumber);
+              WriteToSpecializedFile(sc.ChartNumber, "trade_summary", s);
           }
       }
   };
@@ -401,14 +734,13 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
 
     // Appliquer le filtrage des volumes si activé
     if (sc.Input[17].GetInt() != 0) {
+      // Recalcul dynamique des stats (fenêtre 100 barres)
       static double volume_median = 0.0;
       static double volume_iqr = 0.0;
-      static bool stats_initialized = false;
-      
-      // Calculer les statistiques de volume sur les 100 dernières barres
-      if (!stats_initialized && sc.ArraySize >= 10) {
+      if (sc.ArraySize >= 10) {
         std::vector<double> volumes;
         int start = ((int)sc.ArraySize - 100 > 0) ? (int)sc.ArraySize - 100 : 0;
+        volumes.reserve(sc.ArraySize - start);
         for (int j = start; j < sc.ArraySize; ++j) {
           volumes.push_back(sc.BaseDataIn[SC_VOLUME][j]);
         }
@@ -417,10 +749,9 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
         double q1 = volumes[volumes.size() / 4];
         double q3 = volumes[3 * volumes.size() / 4];
         volume_iqr = q3 - q1;
-        stats_initialized = true;
       }
-      
-      if (stats_initialized && volume_iqr > 0) {
+
+      if (volume_iqr > 0) {
         double multiplier = sc.Input[18].GetFloat();
         v = CapVolume(v, volume_median, volume_iqr, multiplier);
         bvol = CapVolume(bvol, volume_median, volume_iqr, multiplier);
@@ -439,11 +770,11 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
     int barStatus = sc.GetBarHasClosedStatus(i);
     bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
 
-    // Vérifier déduplication (sym, t, i)
-    bool should_write = ShouldWriteData(symbol, t, barIndex);
+    // Déduplication par type
+    bool should_write_type = ShouldWriteDataWithType(symbol, "basedata", t, barIndex);
 
-    // Écrire si : changement de payload OU clôture de barre OU nouvelle clé
-    if ((should_write && payload_changed) || bar_closed) {
+    // Écrire si : changement de payload OU clôture de barre OU nouvelle clé (typée)
+    if (payload_changed || bar_closed || should_write_type) {
       SCString j;
       j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"basedata\",\"i\":%d,\"o\":%.8f,\"h\":%.8f,\"l\":%.8f,\"c\":%.8f,\"v\":%.0f,\"bidvol\":%.0f,\"askvol\":%.0f,\"chart\":%d}",
         t, symbol, i, o, h, l, c, v, bvol, avol, sc.ChartNumber);
@@ -467,30 +798,34 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
     SCString debugMsg;
     debugMsg.Format("DEBUG G3: VWAP attempt - Input[2]=%d, ArraySize=%d, i=%d, vwapID=%d", 
                    sc.Input[2].GetInt(), sc.ArraySize, i, vwapID);
-    sc.AddMessageToLog(debugMsg, 1);
+    if (ShouldLog(sc, 2)) DebugLog(sc, debugMsg.GetChars());
   
     if (vwapID == -2) {
-      int cand[3];
+      int cand[6]; // Augmenter le nombre de candidats
       cand[0] = sc.Input[3].GetInt(); // ID forcé
       cand[1] = ResolveStudyID(sc, sc.ChartNumber, "Volume Weighted Average Price", 0);
       cand[2] = ResolveStudyID(sc, sc.ChartNumber, "VWAP (Volume Weighted Average Price)", 0);
+      cand[3] = ResolveStudyID(sc, sc.ChartNumber, "VWAP", 0);
+      cand[4] = ResolveStudyID(sc, sc.ChartNumber, "Volume Weighted Average", 0);
+      cand[5] = 22; // ID par défaut pour Chart 3
       
       // DEBUG: Log candidate IDs
       SCString debugMsg2;
-      debugMsg2.Format("DEBUG G3: VWAP candidates - [0]=%d, [1]=%d, [2]=%d", cand[0], cand[1], cand[2]);
-      sc.AddMessageToLog(debugMsg2, 1);
+      debugMsg2.Format("DEBUG G3: VWAP candidates - [0]=%d, [1]=%d, [2]=%d, [3]=%d, [4]=%d, [5]=%d", 
+                      cand[0], cand[1], cand[2], cand[3], cand[4], cand[5]);
+      if (ShouldLog(sc, 2)) DebugLog(sc, debugMsg2.GetChars());
       
       // DEBUG: Test each candidate in detail
-      for (int k = 0; k < 3; k++) {
+      for (int k = 0; k < 6; k++) {
         if (cand[k] > 0) {
           SCString candName;
           candName.Format("VWAP_CAND_%d", k);
-          DebugStudyInfo(sc, cand[k], candName.GetChars(), VWAP_SG_MAIN, "MAIN");
+          if (ShouldLog(sc, 2)) DebugStudyInfo(sc, cand[k], candName.GetChars(), VWAP_SG_MAIN, "MAIN");
         }
       }
   
       vwapID = -1;
-      for (int k = 0; k < 3; ++k) {
+      for (int k = 0; k < 6; ++k) {
         if (cand[k] > 0) {
           SCFloatArray test;
           if (ReadSubgraph(sc, cand[k], VWAP_SG_MAIN, test)) {
@@ -498,7 +833,7 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
               vwapID = cand[k];
               SCString debugMsg3;
               debugMsg3.Format("DEBUG G3: VWAP found - ID=%d, ArraySize=%d", vwapID, test.GetArraySize());
-              sc.AddMessageToLog(debugMsg3, 1);
+              if (ShouldLog(sc, 1)) DebugLog(sc, debugMsg3.GetChars());
               break;
             }
           }
@@ -506,7 +841,7 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
       }
       
       if (vwapID == -1) {
-        sc.AddMessageToLog("DEBUG G3: VWAP NOT FOUND - No valid study data", 1);
+        if (ShouldLog(sc, 1)) DebugLog(sc, "DEBUG G3: VWAP NOT FOUND - No valid study data");
       }
     }
   
@@ -518,7 +853,7 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
       SCString debugMsg4;
       debugMsg4.Format("DEBUG G3: VWAP data read - ArraySize=%d, Value[%d]=%.6f", 
                       VWAP.GetArraySize(), i, (VWAP.GetArraySize() > i) ? VWAP[i] : -999.0);
-      sc.AddMessageToLog(debugMsg4, 1);
+      if (ShouldLog(sc, LOG_VERBOSE)) DebugLog(sc, debugMsg4.GetChars());
       
       int bands = sc.Input[4].GetInt();
       if (bands >= 1) {
@@ -535,7 +870,7 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
       }
 
       if (ValidateStudyData(VWAP, i)) {
-        sc.AddMessageToLog("DEBUG G3: VWAP validation PASSED", 1);
+        if (ShouldLog(sc, LOG_VERBOSE)) DebugLog(sc, "DEBUG G3: VWAP validation PASSED");
         // Récupérer les valeurs actuelles
         double v   = NormalizePx(sc, VWAP[i]);
         double up1 = (ValidateStudyData(UP1, i) ? NormalizePx(sc, UP1[i]) : 0);
@@ -544,6 +879,32 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
         double dn2 = (ValidateStudyData(DN2, i) ? NormalizePx(sc, DN2[i]) : 0);
         double up3 = (ValidateStudyData(UP3, i) ? NormalizePx(sc, UP3[i]) : 0);
         double dn3 = (ValidateStudyData(DN3, i) ? NormalizePx(sc, DN3[i]) : 0);
+
+        // Garde-fou: corriger inversion éventuelle des bandes et forcer l'ordre
+        auto fix_band = [&](double& up, double& dn, double base){
+          if (up < base && dn > base) {
+            double tmp = up; up = dn; dn = tmp;
+          }
+        };
+        fix_band(up1, dn1, v);
+        fix_band(up2, dn2, v);
+        fix_band(up3, dn3, v);
+
+        // Validation de qualité des données VWAP
+        if (v < 0 || v > 10000) {
+          g_quality.invalid_values++;
+          if (ShouldLog(sc, LOG_ERROR)) {
+            SCString qualityMsg;
+            qualityMsg.Format("QUALITY: Invalid VWAP value: %.2f", v);
+            DebugLog(sc, qualityMsg.GetChars());
+          }
+        }
+
+        // Forcer ordre monotone: up1 <= up2 <= up3 et dn1 >= dn2 >= dn3
+        if (up2 < up1) { double tmp = up1; up1 = up2; up2 = tmp; }
+        if (up3 < up2) { double tmp = up2; up2 = up3; up3 = tmp; }
+        if (dn2 > dn1) { double tmp = dn1; dn1 = dn2; dn2 = tmp; }
+        if (dn3 > dn2) { double tmp = dn2; dn2 = dn3; dn3 = tmp; }
 
         // Détection de changement d'état
         std::string symKey = std::string(symbol);
@@ -556,26 +917,42 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
         int barStatus = sc.GetBarHasClosedStatus(i);
         bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
 
-        // Vérifier déduplication (sym, t, i)
-        bool should_write = ShouldWriteData(symbol, t, barIndex);
+        // Déduplication par type
+        bool should_write_type = ShouldWriteDataWithType(symbol, "vwap", t, barIndex);
 
-        // Écrire si : changement de payload OU clôture de barre OU nouvelle clé
-        // TEMPORAIRE: Désactiver la déduplication pour test
-        if ((should_write && payload_changed) || bar_closed) {
-          SCString debugMsg5;
-          debugMsg5.Format("DEBUG G3: VWAP WRITING - should_write=%d, payload_changed=%d, bar_closed=%d", 
-                          should_write, payload_changed, bar_closed);
-          sc.AddMessageToLog(debugMsg5, 1);
-          
-          SCString j;
-          j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"vwap\",\"src\":\"study\",\"i\":%d,\"v\":%.8f,\"up1\":%.8f,\"dn1\":%.8f,\"up2\":%.8f,\"dn2\":%.8f,\"up3\":%.8f,\"dn3\":%.8f,\"chart\":%d}",
-                   t, symbol, i, v, up1, dn1, up2, dn2, up3, dn3, sc.ChartNumber);
-          WriteToSpecializedFile(sc.ChartNumber, "vwap", j);
-          sc.AddMessageToLog("DEBUG G3: VWAP FILE WRITTEN", 1);
-          
-          // Mettre à jour les dernières valeurs
-          lv.vwap = v; lv.up1 = up1; lv.dn1 = dn1; lv.up2 = up2; lv.dn2 = dn2; lv.up3 = up3; lv.dn3 = dn3;
+        // Toujours bufferiser en mode coalesce (sinon seq)
+        SCString j;
+        j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"vwap\",\"src\":\"study\",\"i\":%d,\"v\":%.8f,\"up1\":%.8f,\"dn1\":%.8f,\"up2\":%.8f,\"dn2\":%.8f,\"up3\":%.8f,\"dn3\":%.8f,\"chart\":%d}",
+                 t, symbol, i, v, up1, dn1, up2, dn2, up3, dn3, sc.ChartNumber);
+
+        const int seqMode = sc.Input[31].GetInt();
+        const char* dtype = "vwap";
+        std::string key = MakeBufKey(sc.ChartNumber, symbol, dtype);
+
+        if (seqMode == 1) {
+          uint32_t seq = ++g_SeqByKey[MakeSeqKey(sc.ChartNumber, symbol, dtype, i)];
+          SCString withSeq = InjectSeqField(j, seq);
+          WriteToSpecializedFile(sc.ChartNumber, dtype, withSeq);
+        } else {
+          if (!bar_closed) {
+            BufPayload& slot = g_CoalesceBufByKey[key];
+            if (slot.i >= 0 && slot.i != i) {
+              WriteToSpecializedFile(sc.ChartNumber, dtype, slot.json);
+            }
+            slot.json = j; slot.i = i; slot.t = t; slot.dataType = dtype;
+          } else {
+            auto itbuf = g_CoalesceBufByKey.find(key);
+            if (itbuf != g_CoalesceBufByKey.end()) {
+              WriteToSpecializedFile(sc.ChartNumber, dtype, itbuf->second.json);
+              g_CoalesceBufByKey.erase(itbuf);
+            } else {
+              WriteToSpecializedFile(sc.ChartNumber, dtype, j);
+            }
+          }
         }
+
+        // Mettre à jour les dernières valeurs
+        lv.vwap = v; lv.up1 = up1; lv.dn1 = dn1; lv.up2 = up2; lv.dn2 = dn2; lv.up3 = up3; lv.dn3 = dn3;
       }
     }
   }
@@ -587,21 +964,63 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
     const double t = sc.BaseDateTimeIn[i].GetAsDouble();
     const double barIndex = (double)i;
     const char* symbol = sc.Symbol.GetChars();
+    
+    // DEBUG: Log VVA attempt
+    SCString debugMsg;
+    debugMsg.Format("DEBUG G3: VVA attempt - Input[5]=%d, ArraySize=%d, i=%d", 
+                   sc.Input[5].GetInt(), sc.ArraySize, i);
+    if (ShouldLog(sc, 2)) DebugLog(sc, debugMsg.GetChars());
 
-    const int id_curr = sc.Input[6].GetInt();
-    const int id_prev = sc.Input[7].GetInt();
+    int id_curr = sc.Input[6].GetInt();
+    int id_prev = sc.Input[7].GetInt();
     
-    // DEBUG: Test VVA Study IDs
-    DebugStudyInfo(sc, id_curr, "VVA_CURRENT", VVA_SG_POC, "POC");
-    DebugStudyInfo(sc, id_prev, "VVA_PREVIOUS", VVA_SG_POC, "POC");
-    
-    // DEBUG: Test d'autres Study IDs potentiels pour VVA Previous
-    for (int test_id = 1; test_id <= 10; test_id++) {
-      if (test_id != id_curr && test_id != id_prev) {
-        SCString testName;
-        testName.Format("VVA_TEST_%d", test_id);
-        DebugStudyInfo(sc, test_id, testName.GetChars(), VVA_SG_POC, "POC");
+    // AMÉLIORATION: Résolution automatique des Study IDs VVA
+    if (id_curr <= 0) {
+      // Essayer de résoudre automatiquement VVA Current
+      int vva_candidates[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+      for (int k = 0; k < 10; k++) {
+        if (vva_candidates[k] > 0) {
+          SCFloatArray test;
+          if (ReadSubgraph(sc, vva_candidates[k], VVA_SG_POC, test)) {
+            if (ValidateStudyData(test, i)) {
+              id_curr = vva_candidates[k];
+              SCString debugMsg;
+              debugMsg.Format("DEBUG G3: VVA Current auto-resolved to ID=%d", id_curr);
+              if (ShouldLog(sc, 1)) DebugLog(sc, debugMsg.GetChars());
+              break;
+            }
+          }
+        }
       }
+    }
+    
+    if (id_prev <= 0) {
+      // Essayer de résoudre automatiquement VVA Previous
+      int vva_prev_candidates[] = {8, 9, 10, 11, 12, 13, 14, 15, 16, 17};
+      for (int k = 0; k < 10; k++) {
+        if (vva_prev_candidates[k] > 0 && vva_prev_candidates[k] != id_curr) {
+          SCFloatArray test;
+          if (ReadSubgraph(sc, vva_prev_candidates[k], VVA_SG_POC, test)) {
+            if (ValidateStudyData(test, i)) {
+              id_prev = vva_prev_candidates[k];
+              SCString debugMsg;
+              if (ShouldLog(sc, LOG_KEY)) {
+                debugMsg.Format("DEBUG G3: VVA Previous auto-resolved to ID=%d", id_prev);
+                DebugLog(sc, debugMsg.GetChars());
+              }
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    // DEBUG: Test VVA Study IDs (une seule fois, en verbose)
+    static bool s_vva_ids_logged = false;
+    if (!s_vva_ids_logged && ShouldLog(sc, LOG_VERBOSE)) {
+      DebugStudyInfo(sc, id_curr, "VVA_CURRENT", VVA_SG_POC, "POC");
+      DebugStudyInfo(sc, id_prev, "VVA_PREVIOUS", VVA_SG_POC, "POC");
+      s_vva_ids_logged = true;
     }
 
     auto read_vva = [&](int id, double& vah, double& val, double& vpoc)
@@ -623,6 +1042,16 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
     read_vva(id_curr, vah, val, vpoc);
     read_vva(id_prev, pvah, pval, ppoc);
 
+    // Validation de qualité des données VVA
+    if (val > vpoc || vpoc > vah) {
+      g_quality.invalid_values++;
+      if (ShouldLog(sc, LOG_ERROR)) {
+        SCString qualityMsg;
+        qualityMsg.Format("QUALITY: Invalid VVA order: val=%.2f, vpoc=%.2f, vah=%.2f", val, vpoc, vah);
+        DebugLog(sc, qualityMsg.GetChars());
+      }
+    }
+
     // Détection de changement d'état
     std::string symKey = std::string(symbol);
     LastVVA& lv = g_LastVVABySym[symKey];
@@ -634,23 +1063,50 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
     int barStatus = sc.GetBarHasClosedStatus(i);
     bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
 
-    // Vérifier déduplication (sym, t, i)
-    bool should_write = ShouldWriteData(symbol, t, barIndex);
+    // Déduplication par type
+    bool should_write_type = ShouldWriteDataWithType(symbol, "vva", t, barIndex);
 
-    // Écrire si : changement de payload OU clôture de barre OU nouvelle clé
-    if ((should_write && payload_changed) || bar_closed) {
+    // Écrire si : changement de payload OU clôture de barre OU nouvelle clé (typée)
+    if (payload_changed || bar_closed || should_write_type) {
       SCString j;
-      j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"vva\",\"i\":%d,"
-               "\"vah\":%.8f,\"val\":%.8f,\"vpoc\":%.8f,"
-               "\"pvah\":%.8f,\"pval\":%.8f,\"ppoc\":%.8f,"
-               "\"id_curr\":%d,\"id_prev\":%d,\"chart\":%d}",
-               t, symbol, i,
-               vah, val, vpoc, pvah, pval, ppoc, id_curr, id_prev, sc.ChartNumber);
-      WriteToSpecializedFile(sc.ChartNumber, "vva", j);
-      
+      j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"vva\",\"i\":%d,\"vah\":%.8f,\"val\":%.8f,\"vpoc\":%.8f,\"pvah\":%.8f,\"pval\":%.8f,\"ppoc\":%.8f,\"id_curr\":%d,\"id_prev\":%d,\"chart\":%d}",
+               t, symbol, i, vah, val, vpoc, pvah, pval, ppoc, id_curr, id_prev, sc.ChartNumber);
+
+          const int seqMode = sc.Input[31].GetInt();
+      const char* dtype = "vva";
+      std::string key = MakeBufKey(sc.ChartNumber, symbol, dtype);
+
+      if (seqMode == 1) {
+        uint32_t seq = ++g_SeqByKey[MakeSeqKey(sc.ChartNumber, symbol, dtype, i)];
+        SCString withSeq = InjectSeqField(j, seq);
+        WriteToSpecializedFile(sc.ChartNumber, dtype, withSeq);
+      } else {
+        if (!bar_closed) {
+          BufPayload& slot = g_CoalesceBufByKey[key];
+          if (slot.i >= 0 && slot.i != i) {
+            WriteToSpecializedFile(sc.ChartNumber, dtype, slot.json);
+          }
+          slot.json = j; slot.i = i; slot.t = t; slot.dataType = dtype;
+        } else {
+          auto itbuf = g_CoalesceBufByKey.find(key);
+          if (itbuf != g_CoalesceBufByKey.end()) {
+            WriteToSpecializedFile(sc.ChartNumber, dtype, itbuf->second.json);
+            g_CoalesceBufByKey.erase(itbuf);
+          } else {
+            WriteToSpecializedFile(sc.ChartNumber, dtype, j);
+          }
+        }
+      }
+
       // Mettre à jour les dernières valeurs
       lv.vah = vah; lv.val = val; lv.vpoc = vpoc;
       lv.pvah = pvah; lv.pval = pval; lv.ppoc = ppoc;
+    } else {
+      // DEBUG: Log pourquoi VVA n'est pas écrit
+      SCString debugMsg;
+      debugMsg.Format("DEBUG G3: VVA NOT WRITTEN - should_write_type=%d, payload_changed=%d, bar_closed=%d", 
+                      should_write_type, payload_changed, bar_closed);
+      if (ShouldLog(sc, 2)) DebugLog(sc, debugMsg.GetChars());
     }
   }
 
@@ -747,7 +1203,35 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
     const double barIndex = (double)i;
     const char* symbol = sc.Symbol.GetChars();
     
-    const int nbcv_id = sc.Input[11].GetInt();
+    // DEBUG: Log NBCV attempt
+    if (ShouldLog(sc, LOG_VERBOSE)) {
+      SCString debugMsg;
+      debugMsg.Format("DEBUG G3: NBCV attempt - Input[10]=%d, ArraySize=%d, i=%d", 
+                     sc.Input[10].GetInt(), sc.ArraySize, i);
+      DebugLog(sc, debugMsg.GetChars());
+    }
+    
+    int nbcv_id = sc.Input[11].GetInt();
+    
+    // AMÉLIORATION: Résolution automatique du Study ID NBCV
+    if (nbcv_id <= 0) {
+      // Essayer de résoudre automatiquement NBCV
+      int nbcv_candidates[] = {33, 34, 35, 36, 37, 38, 39, 40, 41, 42};
+      for (int k = 0; k < 10; k++) {
+        if (nbcv_candidates[k] > 0) {
+          SCFloatArray test;
+          if (ReadSubgraph(sc, nbcv_candidates[k], NBCV_SG_ASK_VOLUME, test)) {
+            if (ValidateStudyData(test, i)) {
+              nbcv_id = nbcv_candidates[k];
+              SCString debugMsg;
+              debugMsg.Format("DEBUG G3: NBCV auto-resolved to ID=%d", nbcv_id);
+              DebugLog(sc, debugMsg.GetChars());
+              break;
+            }
+          }
+        }
+      }
+    }
     
     // DEBUG: Test NBCV Study ID
     DebugStudyInfo(sc, nbcv_id, "NBCV", 0, "ASK_VOL");
@@ -797,6 +1281,17 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
           dltPct = (delta / totalVolume);
         }
 
+        // Validation de qualité des données NBCV
+        if (totalVolume < (askVolume + bidVolume)) {
+          g_quality.invalid_values++;
+          if (ShouldLog(sc, LOG_ERROR)) {
+            SCString qualityMsg;
+            qualityMsg.Format("QUALITY: NBCV total < ask+bid: total=%.0f, ask=%.0f, bid=%.0f", 
+                             totalVolume, askVolume, bidVolume);
+            DebugLog(sc, qualityMsg.GetChars());
+          }
+        }
+
         // Ratios croisés
         const double bidAskRatio = (askPct > 0.0) ? (bidPct / askPct) : 0.0;
         const double askBidRatio = (bidPct > 0.0) ? (askPct / bidPct) : 0.0;
@@ -843,19 +1338,50 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
         int barStatus = sc.GetBarHasClosedStatus(i);
         bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
 
-        // Vérifier déduplication (sym, t, i)
-        bool should_write = ShouldWriteData(symbol, t, barIndex);
+        // Déduplication par type
+        bool should_write_type = ShouldWriteDataWithType(symbol, "nbcv", t, barIndex);
 
-        // Écrire si : changement de payload OU clôture de barre OU nouvelle clé
-        if ((should_write && payload_changed) || bar_closed) {
+        // Écrire si : changement de payload OU clôture de barre OU nouvelle clé (typée)
+        if (payload_changed || bar_closed || should_write_type) {
           SCString j;
-          j.Format(R"({"t":%.6f,"sym":"%s","type":"nbcv_footprint","i":%d,"ask_volume":%.0f,"bid_volume":%.0f,"delta":%.0f,"trades":%.0f,"cumulative_delta":%.0f,"total_volume":%.0f,"delta_ratio":%.6f,"ask_percent":%.6f,"bid_percent":%.6f,"bid_ask_ratio":%.6f,"ask_bid_ratio":%.6f,"pressure_bullish":%d,"pressure_bearish":%d,"pressure":%d,"chart":%d})",
+          j.Format(R"({"t":%.6f,"sym":"%s","type":"nbcv","i":%d,"ask_volume":%.0f,"bid_volume":%.0f,"delta":%.0f,"trades":%.0f,"cumulative_delta":%.0f,"total_volume":%.0f,"delta_ratio":%.6f,"ask_percent":%.6f,"bid_percent":%.6f,"bid_ask_ratio":%.6f,"ask_bid_ratio":%.6f,"pressure_bullish":%d,"pressure_bearish":%d,"pressure":%d,"chart":%d})",
                    t, symbol, i, askVolume, bidVolume, delta, numberOfTrades, cumulativeDelta, totalVolume, dltPct, askPct, bidPct, bidAskRatio, askBidRatio, pressure_bullish, pressure_bearish, of_pressure, sc.ChartNumber);
-          WriteToSpecializedFile(sc.ChartNumber, "nbcv", j);
-          
+
+          const int seqMode = sc.Input[31].GetInt();
+          const char* dtype = "nbcv";
+          std::string key = MakeBufKey(sc.ChartNumber, symbol, dtype);
+
+          if (seqMode == 1) {
+            uint32_t seq = ++g_SeqByKey[MakeSeqKey(sc.ChartNumber, symbol, dtype, i)];
+            SCString withSeq = InjectSeqField(j, seq);
+            WriteToSpecializedFile(sc.ChartNumber, dtype, withSeq);
+          } else {
+            if (!bar_closed) {
+              BufPayload& slot = g_CoalesceBufByKey[key];
+              if (slot.i >= 0 && slot.i != i) {
+                WriteToSpecializedFile(sc.ChartNumber, dtype, slot.json);
+              }
+              slot.json = j; slot.i = i; slot.t = t; slot.dataType = dtype;
+            } else {
+              auto itbuf = g_CoalesceBufByKey.find(key);
+              if (itbuf != g_CoalesceBufByKey.end()) {
+                WriteToSpecializedFile(sc.ChartNumber, dtype, itbuf->second.json);
+                g_CoalesceBufByKey.erase(itbuf);
+              } else {
+                WriteToSpecializedFile(sc.ChartNumber, dtype, j);
+              }
+            }
+          }
+
           // Mettre à jour les dernières valeurs
           ln.askVolume = askVolume; ln.bidVolume = bidVolume; ln.delta = delta; ln.totalVolume = totalVolume;
           ln.deltaPct = dltPct; ln.askPct = askPct; ln.bidPct = bidPct; ln.pressure = of_pressure;
+        } else {
+          // DEBUG: Log pourquoi NBCV n'est pas écrit
+          SCString debugMsg;
+          debugMsg.Format("DEBUG G3: NBCV NOT WRITTEN - should_write_type=%d, payload_changed=%d, bar_closed=%d", 
+                          should_write_type, payload_changed, bar_closed);
+          if (ShouldLog(sc, 2)) DebugLog(sc, debugMsg.GetChars());
         }
       }
     }
@@ -901,39 +1427,140 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
     }
   }
 
-  // ========== T&S ANTI-DOUBLONS ==========
+  // ========== T&S BATCH + SÉQUENCE (ZÉRO PERTE) ==========
   if (sc.Input[12].GetInt() != 0 || sc.Input[13].GetInt() != 0) {
     c_SCTimeAndSalesArray TnS;
     sc.GetTimeAndSales(TnS);
     const int sz = (int)TnS.Size();
+    if (sz <= 0) return;
 
-    // Reset si Sierra a purgé l'historique
-    if (sz < g_LastTsIndex) g_LastTsIndex = 0;
+    // États persistants pour batch + séquence
+    static int        g_LastTsIndex = 0;         // fallback index
+    static uint32_t   g_LastSeq     = 0;         // progression par séquence
+    static SCDateTime s_LastTsTime(0.0);         // fallback par temps
+    static int        s_stale_loops = 0;
 
-    // Première détection de support du Sequence
+    const bool use_seq_input = (sc.Input[31].GetInt() != 0); // "Intrabar Seq Mode"
+    static bool g_UseSeq = use_seq_input;                    // ou détection auto ailleurs
+
+    // Paramètres batch
+    const int BATCH_SIZE       = 1000;           // taille de lot
+    const int SCAN_LAST_WINDOW = 2000;           // fenêtre de scan pour retrouver le point de reprise
+    const int KEEP_TAIL        = 1000;           // marges quand on est au bout du buffer
+    const int STALE_LIMIT      = 10;             // nb de cycles "stale" avant repositionnement
+
+    // Première détection du support du Sequence
     static bool seqChecked = false;
-    if (!seqChecked) { DetectSequenceSupport(TnS, g_UseSeq); seqChecked = true; }
-
-    if (g_UseSeq)
-    {
-      // Mode "Sequence"
-      for (int i = 0; i < sz; ++i)
-      {
-        const s_TimeAndSales& ts = TnS[i];
-        if (ts.Sequence == 0) continue;
-        if (ts.Sequence <= g_LastSeq) continue;
-
-        ProcessTS(ts);
-        g_LastSeq = ts.Sequence;
+    if (!seqChecked) { 
+      DetectSequenceSupport(TnS, g_UseSeq); 
+      seqChecked = true; 
+      if (ShouldLog(sc, LOG_KEY)) {
+        SCString seqMsg;
+        seqMsg.Format("DEBUG G3: T&S Sequence support detected: %s", g_UseSeq ? "YES" : "NO");
+        DebugLog(sc, seqMsg.GetChars());
       }
     }
-    else
-    {
-      // Mode "Index cursor"
-      for (int i = g_LastTsIndex; i < sz; ++i)
-        ProcessTS(TnS[i]);
 
-      g_LastTsIndex = sz;
+    // --- Détection stale ---
+    uint32_t seq_tail = (sz > 0 ? TnS[sz-1].Sequence : 0);
+    if ((g_UseSeq && seq_tail == g_LastSeq) || (!g_UseSeq && g_LastTsIndex >= sz)) {
+      s_stale_loops++;
+    } else {
+      s_stale_loops = 0;
+    }
+
+    // --- Point de départ ---
+    int start = 0;
+    if (g_UseSeq) {
+      // 1) Normal: trouver le 1er idx avec Sequence > g_LastSeq (scan fenêtre de fin)
+      int scan_from = max(0, sz - SCAN_LAST_WINDOW);
+      start = sz; // défaut: rien de nouveau
+      for (int i = scan_from; i < sz; ++i) {
+        if (TnS[i].Sequence > g_LastSeq) { start = i; break; }
+      }
+
+      // 2) Cas "stale" persistant: on ramène sur la queue
+      if (s_stale_loops >= STALE_LIMIT) {
+        start = max(0, sz - KEEP_TAIL);
+        s_stale_loops = 0;
+        if (ShouldLog(sc, LOG_KEY)) {
+          SCString staleMsg;
+          staleMsg.Format("DEBUG G3: T&S stale -> seq tail reposition to %d", start);
+          DebugLog(sc, staleMsg.GetChars());
+        }
+      }
+
+      if (start >= sz) {
+        // rien de nouveau
+        return;
+      }
+    } else {
+      // Fallback index (si pas de Sequence exploitable)
+      if (g_LastTsIndex >= sz) {
+        // index dépassé (buffer a tourné) → ramener en queue
+        g_LastTsIndex = max(0, sz - KEEP_TAIL);
+      }
+      start = g_LastTsIndex;
+
+      // Cas "stale" persistant → ramener en queue
+      if (s_stale_loops >= STALE_LIMIT) {
+        start = max(0, sz - KEEP_TAIL);
+        s_stale_loops = 0;
+        if (ShouldLog(sc, LOG_KEY)) {
+          SCString staleMsg;
+          staleMsg.Format("DEBUG G3: T&S stale -> index tail reposition to %d", start);
+          DebugLog(sc, staleMsg.GetChars());
+        }
+      }
+    }
+
+    // --- Fin de batch ---
+    int end = min(sz, start + BATCH_SIZE);
+
+    // --- Traitement ---
+    uint32_t last_seq_seen = g_LastSeq;
+    SCDateTime last_time   = s_LastTsTime;
+    int processed_count = 0;
+
+    for (int i = start; i < end; ++i) {
+      const s_TimeAndSales& ts = TnS[i];
+
+      // Émettre vers quote/trade/depth writers
+      ProcessTS(ts);
+      processed_count++;
+
+      // Avancer les repères
+      if (ts.Sequence > 0) last_seq_seen = ts.Sequence;
+      if (ts.DateTime > last_time)       last_time   = ts.DateTime;
+    }
+
+    // --- Mise à jour des curseurs ---
+    if (g_UseSeq) {
+      if (end > start && last_seq_seen > 0) g_LastSeq = last_seq_seen;
+
+      // Sécurité: si on est collé à la fin, garde une marge pour les prochains tours
+      if (end >= sz - (KEEP_TAIL / 10)) {
+        // rien à faire, on traitera la suite au prochain appel
+      }
+    } else {
+      g_LastTsIndex = end;
+
+      // Si on a "rattrapé" la fin du buffer, conserve une queue pour
+      // absorber les rotations sans perdre d'événements
+      if (g_LastTsIndex >= sz - 100) {
+        g_LastTsIndex = max(0, sz - KEEP_TAIL);
+      }
+    }
+
+    // Fallback temps (optionnel) si pas de Sequence: tu peux mettre à jour s_LastTsTime
+    s_LastTsTime = last_time;
+
+    // DEBUG: Log batch processing
+    if (ShouldLog(sc, LOG_VERBOSE) && processed_count > 0) {
+      SCString batchMsg;
+      batchMsg.Format("DEBUG G3: T&S batch processed %d events (start=%d, end=%d, sz=%d, seq=%u)", 
+                     processed_count, start, end, sz, last_seq_seen);
+      DebugLog(sc, batchMsg.GetChars());
     }
   }
 
@@ -942,8 +1569,34 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
     const int i = sc.ArraySize - 1;
     const double t = sc.BaseDateTimeIn[i].GetAsDouble();
     
-    const int deltaStudyID = sc.Input[15].GetInt();
+    // DEBUG: Log Cumulative Delta attempt
+    SCString debugMsg;
+    debugMsg.Format("DEBUG G3: Cumulative Delta attempt - Input[14]=%d, ArraySize=%d, i=%d", 
+                   sc.Input[14].GetInt(), sc.ArraySize, i);
+    DebugLog(sc, debugMsg.GetChars());
+    
+    int deltaStudyID = sc.Input[15].GetInt();
     const int deltaSG = sc.Input[16].GetInt();
+    
+    // AMÉLIORATION: Résolution automatique du Study ID Cumulative Delta
+    if (deltaStudyID <= 0) {
+      // Essayer de résoudre automatiquement Cumulative Delta
+      int delta_candidates[] = {32, 33, 34, 35, 36, 37, 38, 39, 40, 41};
+      for (int k = 0; k < 10; k++) {
+        if (delta_candidates[k] > 0) {
+          SCFloatArray test;
+          if (ReadSubgraph(sc, delta_candidates[k], deltaSG, test)) {
+            if (ValidateStudyData(test, i)) {
+              deltaStudyID = delta_candidates[k];
+              SCString debugMsg;
+              debugMsg.Format("DEBUG G3: Cumulative Delta auto-resolved to ID=%d", deltaStudyID);
+              DebugLog(sc, debugMsg.GetChars());
+              break;
+            }
+          }
+        }
+      }
+    }
     
     if (deltaStudyID > 0) {
       SCFloatArray deltaData;
@@ -952,23 +1605,324 @@ SCSFExport scsf_MIA_Dumper_G3_Core(SCStudyInterfaceRef sc)
       if (ValidateStudyData(deltaData, i)) {
         const double barIndex = (double)i;
         const char* symbol = sc.Symbol.GetChars();
+        const double deltaClose = deltaData[i];
+
+        // NEW: payload_changed vs dernière valeur
+        std::string symKey = std::string(symbol);
+        LastCD& lcd = g_LastCDBySym[symKey];
+        bool payload_changed = has_changed(deltaClose, lcd.close);
         
-        // Vérifier déduplication (sym, t, i)
-        bool should_write = ShouldWriteData(symbol, t, barIndex);
+        // Déduplication par type
+        bool should_write_type = ShouldWriteDataWithType(symbol, "cumulative_delta", t, barIndex);
         
         // Vérifier clôture de barre
         int barStatus = sc.GetBarHasClosedStatus(i);
         bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
         
-        // Écrire si : nouvelle clé OU clôture de barre
-        if (should_write || bar_closed) {
-          const double delta = deltaData[i];
+        // Écrire si : payload changé OU clôture de barre OU nouvelle clé typée
+        if (payload_changed || bar_closed || should_write_type) {
           SCString j;
-          j.Format("{\"t\":%.6f,\"type\":\"cumulative_delta\",\"i\":%d,\"close\":%.6f,\"study\":%d,\"sg\":%d,\"chart\":%d}",
-                   t, i, delta, deltaStudyID, deltaSG, sc.ChartNumber);
-          WriteToSpecializedFile(sc.ChartNumber, "cumulative_delta", j);
+          j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"cumulative_delta\",\"i\":%d,\"close\":%.6f,\"study\":%d,\"sg\":%d,\"chart\":%d}",
+                   t, sc.Symbol.GetChars(), i, deltaClose, deltaStudyID, deltaSG, sc.ChartNumber);
+
+          const int seqMode = sc.Input[31].GetInt();
+          const char* dtype = "cumulative_delta";
+          std::string key = MakeBufKey(sc.ChartNumber, sc.Symbol.GetChars(), dtype);
+
+          if (seqMode == 1) {
+            uint32_t seq = ++g_SeqByKey[MakeSeqKey(sc.ChartNumber, sc.Symbol.GetChars(), dtype, i)];
+            SCString withSeq = InjectSeqField(j, seq);
+            WriteToSpecializedFile(sc.ChartNumber, dtype, withSeq);
+          } else {
+            if (!bar_closed) {
+              BufPayload& slot = g_CoalesceBufByKey[key];
+              if (slot.i >= 0 && slot.i != i) {
+                WriteToSpecializedFile(sc.ChartNumber, dtype, slot.json);
+              }
+              slot.json = j; slot.i = i; slot.t = t; slot.dataType = dtype;
+            } else {
+              auto itbuf = g_CoalesceBufByKey.find(key);
+              if (itbuf != g_CoalesceBufByKey.end()) {
+                WriteToSpecializedFile(sc.ChartNumber, dtype, itbuf->second.json);
+                g_CoalesceBufByKey.erase(itbuf);
+              } else {
+                WriteToSpecializedFile(sc.ChartNumber, dtype, j);
+              }
+            }
+          }
+
+          // update cache
+          lcd.close = deltaClose;
+        } else {
+          // DEBUG: Log pourquoi Cumulative Delta n'est pas écrit
+          SCString debugMsg;
+          debugMsg.Format("DEBUG G3: Cumulative Delta NOT WRITTEN - should_write_type=%d, payload_changed=%d, bar_closed=%d", 
+                          should_write_type, payload_changed, bar_closed);
+          if (ShouldLog(sc, 2)) DebugLog(sc, debugMsg.GetChars());
         }
       }
+    }
+  }
+
+  // ========== ATR EXPORT ==========
+  if (sc.Input[22].GetInt() != 0 && sc.ArraySize > 0) {
+    const int i = sc.ArraySize - 1;
+    const double t = sc.BaseDateTimeIn[i].GetAsDouble();
+
+    SCString dbg; dbg.Format("DEBUG G3: ATR attempt - Input[22]=%d, ArraySize=%d, i=%d",
+                             sc.Input[22].GetInt(), sc.ArraySize, i);
+    DebugLog(sc, dbg.GetChars());
+
+    int atrStudyID = sc.Input[23].GetInt();
+    const int atrSG = sc.Input[24].GetInt();
+
+    if (atrStudyID <= 0) {
+      int candidates[] = {45};
+      for (int k = 0; k < 1; ++k) {
+        SCFloatArray test;
+        if (ReadSubgraph(sc, candidates[k], atrSG, test) && ValidateStudyData(test, i)) {
+          atrStudyID = candidates[k];
+          SCString m; m.Format("DEBUG G3: ATR auto-resolved ID=%d", atrStudyID); DebugLog(sc, m.GetChars());
+          break;
+        }
+      }
+    }
+
+    if (atrStudyID > 0) {
+      SCFloatArray atrArr; ReadSubgraph(sc, atrStudyID, atrSG, atrArr);
+      if (ValidateStudyData(atrArr, i)) {
+        const double val = atrArr[i];
+        const double barIndex = (double)i;
+        const char* symbol = sc.Symbol.GetChars();
+
+        std::string symKey = std::string(symbol);
+        LastATR& last = g_LastATRBySym[symKey];
+        bool payload_changed = has_changed(val, last.atr);
+
+        bool should_write_type = ShouldWriteDataWithType(symbol, "atr", t, barIndex);
+        bool bar_closed = (sc.GetBarHasClosedStatus(i) == BHCS_BAR_HAS_CLOSED);
+
+        if (payload_changed || bar_closed || should_write_type) {
+          SCString j;
+          j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"atr\",\"i\":%d,\"atr\":%.6f,\"study\":%d,\"sg\":%d,\"chart\":%d}",
+                   t, symbol, i, val, atrStudyID, atrSG, sc.ChartNumber);
+
+          const int seqMode = sc.Input[31].GetInt();
+          const char* dtype = "atr";
+          std::string key = MakeBufKey(sc.ChartNumber, symbol, dtype);
+
+          if (seqMode == 1) {
+            uint32_t seq = ++g_SeqByKey[MakeSeqKey(sc.ChartNumber, symbol, dtype, i)];
+            SCString withSeq = InjectSeqField(j, seq);
+            WriteToSpecializedFile(sc.ChartNumber, dtype, withSeq);
+          } else {
+            if (!bar_closed) {
+              BufPayload& slot = g_CoalesceBufByKey[key];
+              if (slot.i >= 0 && slot.i != i) {
+                WriteToSpecializedFile(sc.ChartNumber, dtype, slot.json);
+              }
+              slot.json = j; slot.i = i; slot.t = t; slot.dataType = dtype;
+            } else {
+              auto itbuf = g_CoalesceBufByKey.find(key);
+              if (itbuf != g_CoalesceBufByKey.end()) {
+                WriteToSpecializedFile(sc.ChartNumber, dtype, itbuf->second.json);
+                g_CoalesceBufByKey.erase(itbuf);
+              } else {
+                WriteToSpecializedFile(sc.ChartNumber, dtype, j);
+              }
+            }
+          }
+
+          last.atr = val;
+        }
+      }
+    }
+  }
+
+  // ========== VIX EXPORT ==========
+  if (sc.Input[28].GetInt() != 0 && sc.ArraySize > 0) {
+    const int i = sc.ArraySize - 1;
+    const double t = sc.BaseDateTimeIn[i].GetAsDouble();
+    const double barIndex = (double)i;
+    const char* symbol = sc.Symbol.GetChars();
+
+    // DEBUG: Log VIX attempt
+    SCString debugMsg;
+    debugMsg.Format("DEBUG G3: VIX attempt - Input[28]=%d, ArraySize=%d, i=%d", 
+                   sc.Input[28].GetInt(), sc.ArraySize, i);
+    if (ShouldLog(sc, LOG_VERBOSE)) DebugLog(sc, debugMsg.GetChars());
+
+    int vixStudyID = sc.Input[29].GetInt();
+    const int vixSG = sc.Input[30].GetInt();
+
+    // AMÉLIORATION: Résolution automatique du Study ID VIX
+    if (vixStudyID <= 0) {
+      // Essayer de résoudre automatiquement VIX
+      int vix_candidates[] = {23, 24, 25, 26, 27, 28, 29, 30, 31, 32};
+      for (int k = 0; k < 10; k++) {
+        if (vix_candidates[k] > 0) {
+          SCFloatArray test;
+          if (ReadSubgraph(sc, vix_candidates[k], vixSG, test)) {
+            if (ValidateStudyData(test, i)) {
+              vixStudyID = vix_candidates[k];
+              SCString debugMsg;
+              debugMsg.Format("DEBUG G3: VIX auto-resolved to ID=%d", vixStudyID);
+              if (ShouldLog(sc, LOG_KEY)) DebugLog(sc, debugMsg.GetChars());
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (vixStudyID > 0) {
+      SCFloatArray vixArr;
+      ReadSubgraph(sc, vixStudyID, vixSG, vixArr);
+      
+      if (ValidateStudyData(vixArr, i)) {
+        const double vixValue = vixArr[i];
+
+        // Détection de changement d'état
+        std::string symKey = std::string(symbol);
+        static std::unordered_map<std::string, double> g_LastVIXBySym;
+        double& lastVix = g_LastVIXBySym[symKey];
+        bool payload_changed = has_changed(vixValue, lastVix);
+
+        // Vérifier clôture de barre
+        int barStatus = sc.GetBarHasClosedStatus(i);
+        bool bar_closed = (barStatus == BHCS_BAR_HAS_CLOSED);
+
+        // Déduplication par type
+        bool should_write_type = ShouldWriteDataWithType(symbol, "vix", t, barIndex);
+
+        // Écrire si : payload changé OU clôture de barre OU nouvelle clé typée
+        if (payload_changed || bar_closed || should_write_type) {
+          SCString j;
+          j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"vix\",\"i\":%d,\"vix\":%.6f,\"study\":%d,\"sg\":%d,\"chart\":%d}",
+                   t, symbol, i, vixValue, vixStudyID, vixSG, sc.ChartNumber);
+
+          const int seqMode = sc.Input[31].GetInt();
+          const char* dtype = "vix";
+          std::string key = MakeBufKey(sc.ChartNumber, symbol, dtype);
+
+          if (seqMode == 1) {
+            uint32_t seq = ++g_SeqByKey[MakeSeqKey(sc.ChartNumber, symbol, dtype, i)];
+            SCString withSeq = InjectSeqField(j, seq);
+            WriteToSpecializedFile(sc.ChartNumber, dtype, withSeq);
+          } else {
+            if (!bar_closed) {
+              BufPayload& slot = g_CoalesceBufByKey[key];
+              if (slot.i >= 0 && slot.i != i) {
+                WriteToSpecializedFile(sc.ChartNumber, dtype, slot.json);
+              }
+              slot.json = j; slot.i = i; slot.t = t; slot.dataType = dtype;
+            } else {
+              auto itbuf = g_CoalesceBufByKey.find(key);
+              if (itbuf != g_CoalesceBufByKey.end()) {
+                WriteToSpecializedFile(sc.ChartNumber, dtype, itbuf->second.json);
+                g_CoalesceBufByKey.erase(itbuf);
+              } else {
+                WriteToSpecializedFile(sc.ChartNumber, dtype, j);
+              }
+            }
+          }
+
+          // Mettre à jour la dernière valeur
+          lastVix = vixValue;
+
+          if (ShouldLog(sc, LOG_VERBOSE)) {
+            SCString debugMsg;
+            debugMsg.Format("DEBUG G3: VIX written - Value=%.6f, Study=%d, SG=%d", 
+                           vixValue, vixStudyID, vixSG);
+            DebugLog(sc, debugMsg.GetChars());
+          }
+        } else {
+          // DEBUG: Log pourquoi VIX n'est pas écrit
+          SCString debugMsg;
+          debugMsg.Format("DEBUG G3: VIX NOT WRITTEN - should_write_type=%d, payload_changed=%d, bar_closed=%d", 
+                          should_write_type, payload_changed, bar_closed);
+          if (ShouldLog(sc, LOG_VERBOSE)) DebugLog(sc, debugMsg.GetChars());
+        }
+      } else {
+        if (ShouldLog(sc, LOG_ERROR)) {
+          SCString errorMsg;
+          errorMsg.Format("ERROR G3: VIX validation failed - Study=%d, SG=%d, ArraySize=%d", 
+                         vixStudyID, vixSG, vixArr.GetArraySize());
+          DebugLog(sc, errorMsg.GetChars());
+        }
+      }
+    } else {
+      if (ShouldLog(sc, LOG_ERROR)) {
+        SCString errorMsg;
+        errorMsg.Format("ERROR G3: VIX Study ID not found - Input[29]=%d", sc.Input[29].GetInt());
+        DebugLog(sc, errorMsg.GetChars());
+      }
+    }
+  }
+
+  // ========== MÉTRIQUES ET FLUSH AUTOMATIQUE ==========
+  CheckAutoFlush(sc);
+  UpdateMetrics(sc, "study");
+
+  // ========== CORRELATION EXPORT ==========
+  if (sc.Input[25].GetInt() != 0 && sc.ArraySize > 0) {
+    const int i = sc.ArraySize - 1;
+    const double t = sc.BaseDateTimeIn[i].GetAsDouble();
+
+    if (ShouldLog(sc, LOG_VERBOSE)) {
+      SCString dbg; dbg.Format("DEBUG G3: Correlation attempt - Input[25]=%d, ArraySize=%d, i=%d",
+                               sc.Input[25].GetInt(), sc.ArraySize, i);
+      DebugLog(sc, dbg.GetChars());
+    }
+
+    int corrStudyID = sc.Input[26].GetInt();
+    const int corrSG = sc.Input[27].GetInt();
+
+    if (corrStudyID <= 0) {
+      int candidates[] = {46};
+      for (int k = 0; k < 1; ++k) {
+        SCFloatArray test;
+        if (ReadSubgraph(sc, candidates[k], corrSG, test) && ValidateStudyData(test, i)) {
+          corrStudyID = candidates[k];
+          if (ShouldLog(sc, LOG_KEY)) {
+            SCString m; m.Format("DEBUG G3: Correlation auto-resolved ID=%d", corrStudyID); 
+            DebugLog(sc, m.GetChars());
+          }
+          break;
+        }
+      }
+    }
+
+    if (corrStudyID > 0) {
+      SCFloatArray corrArr; ReadSubgraph(sc, corrStudyID, corrSG, corrArr);
+      if (ValidateStudyData(corrArr, i)) {
+        const double cc = corrArr[i];
+        const double barIndex = (double)i;
+        const char* symbol = sc.Symbol.GetChars();
+
+        std::string symKey = std::string(symbol);
+        LastCorr& last = g_LastCorrBySym[symKey];
+        bool payload_changed = has_changed(cc, last.cc);
+
+        bool should_write_type = ShouldWriteDataWithType(symbol, "correlation", t, barIndex);
+        bool bar_closed = (sc.GetBarHasClosedStatus(i) == BHCS_BAR_HAS_CLOSED);
+
+        if (payload_changed || bar_closed || should_write_type) {
+          SCString j;
+          j.Format("{\"t\":%.6f,\"sym\":\"%s\",\"type\":\"correlation\",\"i\":%d,\"cc\":%.6f,\"study\":%d,\"sg\":%d,\"chart\":%d}",
+                   t, symbol, i, cc, corrStudyID, corrSG, sc.ChartNumber);
+          WriteToSpecializedFile(sc.ChartNumber, "correlation", j);
+          last.cc = cc;
+        }
+      }
+    }
+  }
+
+  // ========== FLUSH FINAL DE SÉCURITÉ ==========
+  if (sc.LastCallToFunction) {
+    FlushAllBuffers(sc, "LAST_CALL");
+    if (ShouldLog(sc, LOG_KEY)) {
+      DebugLog(sc, "DEBUG G3: Study terminated - final flush completed");
     }
   }
 }

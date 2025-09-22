@@ -347,3 +347,4 @@ class MenthorQBattleNavaleHybrid:
             ) * 100
         }
 
+

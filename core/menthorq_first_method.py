@@ -605,22 +605,22 @@ class MenthorQFirstMethod:
             if not menthorq_level or action == 'NO_SIGNAL':
                 return {}
             
-            # Prix d'entrée (±1 tick du niveau MenthorQ)
+            # Prix d'entrée (±4 ticks du niveau MenthorQ)
             if 'GO_LONG' in action:
-                entry_price = menthorq_level + ES_TICK_SIZE  # +1 tick
+                entry_price = menthorq_level + (4 * ES_TICK_SIZE)  # +4 ticks
                 side = "LONG"
             elif 'GO_SHORT' in action:
-                entry_price = menthorq_level - ES_TICK_SIZE  # -1 tick
+                entry_price = menthorq_level - (4 * ES_TICK_SIZE)  # -4 ticks
                 side = "SHORT"
             else:
                 return {}
             
-            # Utiliser le système unifié (7 ticks partout)
+            # Utiliser le système unifié (entrée 4 ticks, stop 7 ticks)
             unified_stops = calculate_unified_stops(
                 entry_price=entry_price,
                 side=side,
                 level_price=menthorq_level,
-                use_fixed=True  # Force l'utilisation des 7 ticks fixes
+                use_fixed=True  # Force l'utilisation des stops fixes (entrée 4, stop 7)
             )
             
             if not unified_stops:

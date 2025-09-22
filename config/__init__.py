@@ -20,7 +20,7 @@ get_automation_config = None
 MLConfig = None
 get_ml_config = None
 
-SierraIBKRConfig = None
+SierraConfig = None
 get_sierra_config = None
 
 # --- Imports try/except ---
@@ -53,12 +53,12 @@ except ImportError as e:
     get_ml_config = None
 
 try:
-    from .sierra_config import SierraIBKRConfig, get_sierra_config
+    from .sierra_config import SierraConfig, get_sierra_config
     SIERRA_CONFIG_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"Could not import sierra_config: {e}")
     SIERRA_CONFIG_AVAILABLE = False
-    SierraIBKRConfig = None
+    SierraConfig = None
     get_sierra_config = None
 
 # --- Exports seulement les imports OK ---
@@ -71,7 +71,7 @@ if AUTOMATION_CONFIG_AVAILABLE:
 if ML_CONFIG_AVAILABLE:
     __all__.extend(['MLConfig', 'get_ml_config'])
 if SIERRA_CONFIG_AVAILABLE:
-    __all__.extend(['SierraIBKRConfig', 'get_sierra_config'])
+    __all__.extend(['SierraConfig', 'get_sierra_config'])
 
 # --- Fonction helper pour vérifier disponibilité ---
 def is_module_available(module_name: str) -> bool:
@@ -85,7 +85,7 @@ def is_module_available(module_name: str) -> bool:
         'TradingConfig': TRADING_CONFIG_AVAILABLE,
         'AutomationConfig': AUTOMATION_CONFIG_AVAILABLE,
         'MLConfig': ML_CONFIG_AVAILABLE,
-        'SierraIBKRConfig': SIERRA_CONFIG_AVAILABLE,
+        'SierraConfig': SIERRA_CONFIG_AVAILABLE,
     }
     
     # Vérifier dans le mapping

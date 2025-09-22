@@ -47,7 +47,7 @@ from config.sierra_config import (
     create_paper_trading_config,
     create_live_trading_config,
     create_data_collection_config,
-    SierraIBKRConfig
+    SierraConfig
 )
 
 # === CORE ===
@@ -187,20 +187,20 @@ class SimpleBattleNavaleTrader:
         # Stocker les seuils pour usage dans la boucle
         self.min_probability = risk_params.min_signal_probability
 
-        # === SIERRA CHART + IBKR CONFIGURATION ===
-        self.sierra_config = self._setup_sierra_ibkr_config(mode)
-        logger.info(f"[OK] Sierra/IBKR configuré: {self.sierra_config.environment}")
-        logger.info(f"   - Data Provider: IBKR")
-        logger.info(f"   - Order Provider: Sierra Chart")
-        logger.info(f"   - IBKR Port: {self.sierra_config.ibkr.port}")
+        # === SIERRA CHART CONFIGURATION ===
+        self.sierra_config = self._setup_sierra_dtc_config(mode)
+        logger.info(f"[OK] Sierra Chart configuré: {self.sierra_config.environment}")
+        logger.info(f"   - Data Provider: Sierra Chart (C++ Dumpers)")
+        logger.info(f"   - Order Provider: Sierra Chart (DTC Protocol)")
+        logger.info(f"   - DTC Port: {self.sierra_config.dtc.port}")
         logger.info(f"   - Sierra Trading: {self.sierra_config.sierra_chart.trading_enabled}")
         logger.info(f"   - Primary Symbol: {self.sierra_config.contracts.primary_symbol}")
         logger.info(f"   - Enabled Symbols: {self.sierra_config.contracts.enabled_symbols}")
 
-        # Validation configuration Sierra/IBKR
+        # Validation configuration Sierra Chart
         if not True:  # True remplacé
-            logger.error("[ERROR] Configuration Sierra/IBKR invalide")
-            raise ValueError("Configuration Sierra/IBKR invalide")
+            logger.error("[ERROR] Configuration Sierra Chart invalide")
+            raise ValueError("Configuration Sierra Chart invalide")
 
         # === EXECUTION ===
         self.order_manager = create_order_manager(self.mode.value.lower(), self.sierra_config)
@@ -298,9 +298,9 @@ class SimpleBattleNavaleTrader:
         self.risk_manager.params = risk_params
         self.min_probability = risk_params.min_signal_probability
 
-        # Mettre à jour la configuration Sierra/IBKR
+        # Mettre à jour la configuration Sierra Chart
         old_sierra_config = self.sierra_config
-        self.sierra_config = self._setup_sierra_ibkr_config(new_mode)
+        self.sierra_config = self._setup_sierra_dtc_config(new_mode)
 
         # Mettre à jour le mode
         self.mode = TradingMode(new_mode.upper())
@@ -310,13 +310,13 @@ class SimpleBattleNavaleTrader:
         logger.info(f"   - Min probabilité: {risk_params.min_signal_probability:.1%}")
         logger.info(f"   - Daily loss limit: ${risk_params.daily_loss_limit:.0f}")
         logger.info(f"   - Mode collecte: {risk_params.data_collection_mode}")
-        logger.info(f"   - Sierra/IBKR: {self.sierra_config.environment}")
-        logger.info(f"   - Data Provider: IBKR")
-        logger.info(f"   - Order Provider: Sierra Chart")
+        logger.info(f"   - Sierra Chart: {self.sierra_config.environment}")
+        logger.info(f"   - Data Provider: Sierra Chart (C++ Dumpers)")
+        logger.info(f"   - Order Provider: Sierra Chart (DTC Protocol)")
 
         # Validation nouvelle configuration
         if not True:  # True remplacé
-            logger.error("[ERROR] Nouvelle configuration Sierra/IBKR invalide")
+            logger.error("[ERROR] Nouvelle configuration Sierra Chart invalide")
             # Rollback
             self.sierra_config = old_sierra_config
             logger.warning("[WARN] Rollback vers ancienne configuration")
@@ -331,8 +331,8 @@ class SimpleBattleNavaleTrader:
                     f"Nouveaux seuils appliqués\n"
                     f"Probabilité min: {risk_params.min_signal_probability:.1%}\n"
                     f"Daily limit: ${risk_params.daily_loss_limit:.0f}\n"
-                    f"Data: IBKR\n"
-                    f"Orders: Sierra Chart\n"
+                    f"Data: Sierra Chart (C++ Dumpers)\n"
+                    f"Orders: Sierra Chart (DTC)\n"
                     f"📊 Order Book: {'✅ ACTIVÉ' if ORDER_BOOK_IMBALANCE_AVAILABLE else '⚠️ NON DISPO'}"
                 )
             )
@@ -367,15 +367,15 @@ class SimpleBattleNavaleTrader:
                     self.daily_stats['trades_count'],
                     1):.1%}")
         logger.info("-" * 60)
-        logger.info(f"[SIGNAL] SIERRA CHART + IBKR CONFIG")
+        logger.info(f"[SIGNAL] SIERRA CHART CONFIG")
         logger.info(f"Environment:               {self.sierra_config.environment}")
-        logger.info(f"Data Provider:             IBKR")
-        logger.info(f"Order Provider:            Sierra Chart")
+        logger.info(f"Data Provider:             Sierra Chart (C++ Dumpers)")
+        logger.info(f"Order Provider:            Sierra Chart (DTC Protocol)")
         logger.info(
-            f"IBKR Host:Port:            {
-                self.sierra_config.ibkr.host}:{
-                self.sierra_config.ibkr.port}")
-        logger.info(f"IBKR Client ID:            {self.sierra_config.ibkr.client_id}")
+            f"DTC Host:Port:             {
+                self.sierra_config.dtc.host}:{
+                self.sierra_config.dtc.port}")
+        logger.info(f"DTC Client ID:             {self.sierra_config.dtc.client_id}")
         logger.info(f"Sierra Address:Port:       127.0.0.1:26400")
         logger.info(f"Primary Symbol:            {self.sierra_config.contracts.primary_symbol}")
         logger.info(f"Enabled Symbols:           {self.sierra_config.contracts.enabled_symbols}")
@@ -387,8 +387,8 @@ class SimpleBattleNavaleTrader:
         logger.info(f"📊 ORDER BOOK IMBALANCE:    {'✅ ACTIVÉ' if ORDER_BOOK_IMBALANCE_AVAILABLE else '⚠️ NON DISPONIBLE'}")
         logger.info("=" * 60)
 
-    def _setup_sierra_ibkr_config(self, mode: str) -> SierraIBKRConfig:
-        """Configure Sierra Chart + IBKR selon le mode"""
+    def _setup_sierra_dtc_config(self, mode: str) -> SierraConfig:
+        """Configure Sierra Chart selon le mode"""
         mode_upper = mode.upper()
 
         if mode_upper == "LIVE":
@@ -396,7 +396,7 @@ class SimpleBattleNavaleTrader:
             config = create_live_trading_config()
 
             # Personnalisation live
-            config.ibkr.client_id = 1  # Client ID live
+            config.dtc.port = 11099  # Port DTC live
             config.sierra_chart.daily_loss_limit = self.risk_manager.params.daily_loss_limit
             config.security.kill_switch_loss_threshold = self.risk_manager.params.daily_loss_limit * 0.8
             config.security.max_gross_position = self.risk_manager.params.max_positions_concurrent * 2
@@ -414,14 +414,10 @@ class SimpleBattleNavaleTrader:
             config = create_data_collection_config()
 
             # Optimisation pour collecte
-            config.ibkr.client_id = 3  # ID séparé pour data collection
-            config.ibkr.enable_tick_data = True
-            config.ibkr.log_market_data = True
-            config.ibkr.max_requests_per_second = 100
+            config.dtc.port = 11100  # Port DTC data collection
 
             # Tous les symboles pour ML
             config.contracts.enabled_symbols = ["ES", "MES", "NQ", "MNQ"]
-            config.ibkr.auto_subscribe_symbols = ["ES", "MES", "NQ", "MNQ"]
 
             # Pas de trading réel
             config.sierra_chart.trading_enabled = False
@@ -431,7 +427,7 @@ class SimpleBattleNavaleTrader:
             config = create_paper_trading_config()
 
             # Personnalisation paper
-            config.ibkr.client_id = 2  # Client ID paper
+            config.dtc.port = 11100  # Port DTC paper
             config.sierra_chart.daily_loss_limit = self.risk_manager.params.daily_loss_limit
             config.security.kill_switch_threshold = self.risk_manager.params.daily_loss_limit * 0.9
 
@@ -442,48 +438,42 @@ class SimpleBattleNavaleTrader:
         # Application globale
         # set_sierra_config(config)  # Commenté - la config est déjà stockée dans self.sierra_config
 
-        logger.info(f"[CONFIG] Configuration Sierra/IBKR pour mode {mode_upper}:")
+        logger.info(f"[CONFIG] Configuration Sierra Chart pour mode {mode_upper}:")
         logger.info(f"   - Environment: {config.environment}")
-        logger.info(f"   - Data via: IBKR")
-        logger.info(f"   - Orders via: Sierra Chart")
-        logger.info(f"   - IBKR Client ID: {config.ibkr.client_id}")
+        logger.info(f"   - Data via: Sierra Chart (C++ Dumpers)")
+        logger.info(f"   - Orders via: Sierra Chart (DTC Protocol)")
+        logger.info(f"   - DTC Port: {config.dtc.port}")
         logger.info(f"   - Sierra Port: 26400")
 
         return config
 
-    def log_sierra_ibkr_diagnostics(self):
-        """Log diagnostics Sierra Chart + IBKR"""
+    def log_sierra_diagnostics(self):
+        """Log diagnostics Sierra Chart"""
         config = self.sierra_config
 
         logger.info("=" * 60)
-        logger.info("[CONFIG] DIAGNOSTICS SIERRA CHART + IBKR")
+        logger.info("[CONFIG] DIAGNOSTICS SIERRA CHART")
         logger.info("=" * 60)
 
         # Configuration générale
         logger.info(f"[STATS] CONFIGURATION GÉNÉRALE")
         logger.info(f"Environment:               {config.environment}")
-        logger.info(f"Data Provider:             IBKR")
-        logger.info(f"Order Provider:            Sierra Chart")
+        logger.info(f"Data Provider:             Sierra Chart (C++ Dumpers)")
+        logger.info(f"Order Provider:            Sierra Chart (DTC Protocol)")
         logger.info(f"Config Valid:              [OK]")
 
-        # IBKR Configuration
-        logger.info(f"\n[SIGNAL] IBKR CONFIGURATION")
-        logger.info(f"Host:                      {config.ibkr.host}")
+        # DTC Configuration
+        logger.info(f"\n[SIGNAL] DTC CONFIGURATION")
+        logger.info(f"Host:                      {config.dtc.host}")
         logger.info(
             f"Port:                      {
-                config.ibkr.port} ({
-                'Live' if config.ibkr.port == 7496 else 'Paper' if config.ibkr.port == 7497 else 'Custom'})")
-        logger.info(f"Client ID:                 {config.ibkr.client_id}")
-        logger.info(
-            f"Market Data Type:          {
-                config.ibkr.market_data_type} ({
-                'Live' if config.ibkr.market_data_type == 1 else 'Delayed' if config.ibkr.market_data_type == 3 else 'Other'})")
-        logger.info(f"Auto Connect:              {'[OK]' if config.ibkr.auto_connect else '[ERROR]'}")
-        logger.info(f"Tick Data Enabled:         {'[OK]' if config.ibkr.enable_tick_data else '[ERROR]'}")
-        logger.info(
-            f"Historical Data:           {
-                '[OK]' if config.ibkr.enable_historical_data else '[ERROR]'}")
-        logger.info(f"Auto Subscribe Symbols:    {config.ibkr.auto_subscribe_symbols}")
+                config.dtc.port} ({
+                'Live' if config.dtc.port == 11099 else 'Paper' if config.dtc.port == 11100 else 'Custom'})")
+        logger.info(f"Client ID:                 {config.dtc.client_id}")
+        logger.info(f"Auto Connect:              {'[OK]' if config.dtc.auto_connect else '[ERROR]'}")
+        logger.info(f"Trading Enabled:           {'[OK]' if config.dtc.trading_enabled else '[ERROR]'}")
+        logger.info(f"Data Collection:           {'[OK]' if config.dtc.data_collection_enabled else '[ERROR]'}")
+        logger.info(f"Enabled Symbols:           {config.contracts.enabled_symbols}")
 
         # Sierra Chart Configuration
         logger.info(f"\n🏔️ SIERRA CHART CONFIGURATION")
@@ -555,8 +545,8 @@ class SimpleBattleNavaleTrader:
             f"Sierra Chart Priority:     {
                 '[OK]' if config.sync.sierra_chart_priority else '[ERROR]'}")
         logger.info(
-            f"IBKR Data Priority:        {
-                '[OK]' if config.sync.ibkr_data_priority else '[ERROR]'}")
+            f"DTC Data Priority:         {
+                '[OK]' if config.sync.dtc_data_priority else '[ERROR]'}")
         logger.info(
             f"Failover Enabled:          {
                 '[OK]' if config.sync.enable_failover else '[ERROR]'}")
@@ -565,10 +555,10 @@ class SimpleBattleNavaleTrader:
         logger.info(f"\n[IDEA] RECOMMANDATIONS")
         if config.environment == "LIVE":
             logger.info("[HOT] MODE LIVE - Vérifications:")
-            if config.ibkr.port != 7496:
-                logger.warning("   [WARN] Port IBKR non standard pour LIVE (7496)")
-            if config.ibkr.market_data_type != 1:
-                logger.warning("   [WARN] Market data non live")
+            if config.dtc.port != 11099:
+                logger.warning("   [WARN] Port DTC non standard pour LIVE (11099)")
+            if not config.dtc.trading_enabled:
+                logger.warning("   [WARN] DTC trading désactivé")
             if not config.sierra_chart.trading_enabled:
                 logger.warning("   [WARN] Sierra Chart trading désactivé")
             if config.security.kill_switch_loss_threshold > 1500:
@@ -576,8 +566,8 @@ class SimpleBattleNavaleTrader:
 
         elif config.environment == "PAPER":
             logger.info("[LOG] MODE PAPER - Vérifications:")
-            if config.ibkr.port != 7497:
-                logger.warning("   [WARN] Port IBKR non standard pour PAPER (7497)")
+            if config.dtc.port != 11100:
+                logger.warning("   [WARN] Port DTC non standard pour PAPER (11100)")
             if config.sierra_chart.trading_enabled:
                 logger.info("   [OK] Sierra Chart simulation mode recommandé")
 
@@ -585,8 +575,8 @@ class SimpleBattleNavaleTrader:
             logger.info("[STATS] MODE DATA COLLECTION - Vérifications:")
             if config.sierra_chart.trading_enabled:
                 logger.warning("   [WARN] Sierra Chart trading activé (non recommandé)")
-            if not config.ibkr.enable_tick_data:
-                logger.warning("   [WARN] Tick data désactivé")
+            if not config.dtc.data_collection_enabled:
+                logger.warning("   [WARN] Data collection désactivé")
 
         logger.info("🔍 POST-MORTEM ANALYZER:    [OK] Intégré")
         logger.info(f"📊 ORDER BOOK IMBALANCE:    {'[OK] Intégré' if ORDER_BOOK_IMBALANCE_AVAILABLE else '[WARN] Non disponible'}")
@@ -1152,9 +1142,9 @@ class SimpleBattleNavaleTrader:
         else:
             logger.warning("[WARN] Order Book Imbalance non disponible - mode standard")
 
-        # Validation configuration Sierra/IBKR
+        # Validation configuration Sierra Chart
         if not True:  # True remplacé
-            logger.error("[ERROR] Configuration Sierra/IBKR invalide")
+            logger.error("[ERROR] Configuration Sierra Chart invalide")
             all_ok = False
 
         # Order Manager selon le provider
@@ -1171,16 +1161,16 @@ class SimpleBattleNavaleTrader:
         # Vérifications spécifiques par mode
         if self.mode == TradingMode.LIVE:
             # Mode live: vérifications strictes
-            if self.sierra_config.ibkr.port != 7496:
-                logger.warning("[WARN] Mode LIVE mais port IBKR n'est pas 7496 (live port)")
+            if self.sierra_config.dtc.port != 11099:
+                logger.warning("[WARN] Mode LIVE mais port DTC n'est pas 11099 (live port)")
 
-            if self.sierra_config.ibkr.market_data_type != 1:
-                logger.warning("[WARN] Mode LIVE mais market data type n'est pas 1 (live data)")
+            if not self.sierra_config.dtc.trading_enabled:
+                logger.warning("[WARN] Mode LIVE mais DTC trading désactivé")
 
         elif self.mode == TradingMode.PAPER:
             # Mode paper: vérifications paper
-            if self.sierra_config.ibkr.port != 7497:
-                logger.warning("[WARN] Mode PAPER mais port IBKR n'est pas 7497 (paper port)")
+            if self.sierra_config.dtc.port != 11100:
+                logger.warning("[WARN] Mode PAPER mais port DTC n'est pas 11100 (paper port)")
 
         elif self.mode == TradingMode.DATA_COLLECTION:
             # Mode data collection: vérifier que trading est désactivé
@@ -1199,8 +1189,8 @@ class SimpleBattleNavaleTrader:
         if all_ok:
             logger.info("[OK] Toutes les vérifications pré-trading réussies")
             logger.info(f"   - Mode: {self.mode.value}")
-            logger.info(f"   - Data: IBKR")
-            logger.info(f"   - Orders: Sierra Chart")
+            logger.info(f"   - Data: Sierra Chart (C++ Dumpers)")
+            logger.info(f"   - Orders: Sierra Chart (DTC Protocol)")
             logger.info(f"   - Symboles: {self.sierra_config.contracts.enabled_symbols}")
             logger.info(f"   - Post-Mortem: ACTIVÉ")
             logger.info(f"   - Order Book: {'✅ ACTIVÉ' if ORDER_BOOK_IMBALANCE_AVAILABLE else '⚠️ NON DISPO'}")
@@ -1511,14 +1501,14 @@ class SimpleBattleNavaleTrader:
                 'remaining_trades': getattr(self, 'target_trades', 500) - self.session_stats['trades_completed']
             }
 
-        # Status Sierra/IBKR
+        # Status Sierra Chart
         sierra_status = {
             'environment': self.sierra_config.environment,
-            'data_provider': 'IBKR',
-            'order_provider': 'sierra_chart',
-            'ibkr_host': self.sierra_config.ibkr.host,
-            'ibkr_port': self.sierra_config.ibkr.port,
-            'ibkr_client_id': self.sierra_config.ibkr.client_id,
+            'data_provider': 'sierra_chart_cpp_dumpers',
+            'order_provider': 'sierra_chart_dtc',
+            'dtc_host': self.sierra_config.dtc.host,
+            'dtc_port': self.sierra_config.dtc.port,
+            'dtc_client_id': self.sierra_config.dtc.client_id,
             'sierra_address': '127.0.0.1',
             'sierra_port': 26400,
             'sierra_trading_enabled': self.sierra_config.sierra_chart.trading_enabled,
@@ -1564,7 +1554,7 @@ class SimpleBattleNavaleTrader:
                 'daily_loss_limit': self.risk_manager.params.daily_loss_limit if self.risk_manager else 0,
                 'max_daily_trades': self.risk_manager.params.max_daily_trades if self.risk_manager else 0
             },
-            'sierra_ibkr_status': sierra_status,
+            'sierra_status': sierra_status,
             'data_collection_progress': progress_info,
             'post_mortem_status': post_mortem_status,  # 🆕 NOUVEAU
             'order_book_status': order_book_status     # 🆕 NOUVEAU
@@ -1783,9 +1773,9 @@ if __name__ == "__main__":
     parser.add_argument('--diagnose', action='store_true',
                         help='Show risk configuration diagnostics')
     parser.add_argument('--diagnose-sierra', action='store_true',
-                        help='Show Sierra Chart + IBKR diagnostics')
+                        help='Show Sierra Chart diagnostics')
     parser.add_argument('--diagnose-all', action='store_true',
-                        help='Show all diagnostics (risk + sierra/ibkr)')
+                        help='Show all diagnostics (risk + sierra)')
     parser.add_argument('--post-mortem-test', action='store_true',
                         help='Test Post-Mortem Analysis system')
     parser.add_argument('--order-book-test', action='store_true',
@@ -1828,8 +1818,8 @@ if __name__ == "__main__":
     if args.diagnose_sierra or args.diagnose_all:
         # Créer trader temporaire pour diagnostics
         temp_trader = create_simple_trader(args.mode.upper())
-        logger.info("[CONFIG] DIAGNOSTICS SIERRA CHART + IBKR")
-        temp_trader.log_sierra_ibkr_diagnostics()
+        logger.info("[CONFIG] DIAGNOSTICS SIERRA CHART")
+        temp_trader.log_sierra_diagnostics()
         if not args.diagnose_all:
             sys.exit(0)
 

@@ -14,19 +14,33 @@ import sys
 import os
 import time
 import pandas as pd
+from datetime import datetime
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
 # Ajouter le répertoire parent au path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+# Ajouter le répertoire racine du projet au path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
+
+# Ajouter le répertoire utils au path
+sys.path.append(os.path.join(project_root, 'utils'))
+
 # === IMPORTS SYSTÈME ===
 try:
     from core.logger import get_logger
     from features import create_market_regime_detector
+    # Forcer le rechargement du module optimisé
+    import importlib
+    import sys
+    if 'features.feature_calculator_optimized' in sys.modules:
+        importlib.reload(sys.modules['features.feature_calculator_optimized'])
     from features.feature_calculator_optimized import create_feature_calculator_optimized as create_feature_calculator
     from strategies.strategy_selector_integrated import IntegratedStrategySelector, create_integrated_strategy_selector, TradingContext
     from strategies.menthorq_of_bundle import MENTHORQ_STRATEGIES, FAMILY_TAGS
+    from utils.enhanced_data_validator import EnhancedDataValidator as DataValidator
     
     # === IMPORTS SIERRA CHART (OPTIMISÉS) ===
     from execution.imports_optimizer import (
@@ -48,12 +62,20 @@ except ImportError as e:
     get_trading_executor = None
     preload_execution_modules = None
     get_execution_import_metrics = None
+
+# === FALLBACK LOGGER ===
+import logging
+if 'get_logger' in globals() and callable(get_logger):
+    logger = get_logger(__name__)
+else:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logger = logging.getLogger("MIA")
     UnifiedEmitter = None
     DataCollectorEnhanced = None
     AdvancedMetrics = None
     BullishScorer = None
 
-logger = get_logger(__name__)
+# Logger déjà initialisé dans le bloc try/except ci-dessus
 
 # === CONFIGURATION FINALE ===
 FINAL_CONFIG = {
@@ -71,9 +93,10 @@ FINAL_CONFIG = {
     # Sierra Chart Integration
     'sierra_enabled': True,
     'sierra_data_path': 'D:/MIA_IA_system',
-    'sierra_unified_pattern': 'mia_unified_*.jsonl',
-    'sierra_charts': [3, 4, 8, 10],
-    'sierra_fallback_simulation': True,
+    'sierra_unified_pattern': 'unified_*.jsonl',
+    'sierra_charts': [3, 8, 10],
+    'sierra_fallback_simulation': False,  # Désactivé pour mode live
+    'sierra_live_mode': True,  # Mode live activé
     
     # Performance
     'max_signals_per_day': 12,
@@ -117,8 +140,11 @@ class MIAFinalSystem:
     
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """Initialisation du système final"""
+        logger.info("🚀 Début initialisation MIAFinalSystem...")
         self.config = config or FINAL_CONFIG
         self.metrics = SystemMetrics()
+        self.data_validator = DataValidator()
+        self.logger = logger  # Utiliser le logger global
         
         # Sierra Chart Integration
         self.sierra_connector = None
@@ -135,6 +161,18 @@ class MIAFinalSystem:
         self.previous_delta = None
         self.previous_price = None
         self.previous_gamma_levels = None
+        
+        # Composants système
+        self.strategy_selector = None
+        self.regime_detector = None
+        self.feature_calculator = None
+        self.advanced_metrics_calculator = None
+        self.last_reset_date = None
+        
+        # Vérification des fichiers au démarrage
+        logger.info("🔄 Validation des fichiers...")
+        self._validate_data_files()
+        logger.info("✅ Validation des fichiers terminée")
         
         # Calculateur de métriques avancées professionnel
         if AdvancedMetrics is not None:
@@ -161,11 +199,24 @@ class MIAFinalSystem:
                 logger.info(f"✅ {success_count}/{len(preload_results)} modules execution/ préchargés")
             
             # Strategy Selector avec toutes les stratégies
-            self.strategy_selector = create_integrated_strategy_selector(self.config)
-            logger.info("✅ Strategy Selector initialisé avec 16 stratégies")
+            logger.info("🔄 Initialisation Strategy Selector...")
+            try:
+                self.strategy_selector = create_integrated_strategy_selector(self.config)
+                if self.strategy_selector:
+                    logger.info("✅ Strategy Selector initialisé avec 16 stratégies")
+                else:
+                    logger.error("❌ Strategy Selector retourné None")
+            except Exception as e:
+                logger.error(f"❌ Erreur initialisation Strategy Selector: {e}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                self.strategy_selector = None
             
             # Composants système
             self.regime_detector = create_market_regime_detector(self.config.get('regime_config', {}))
+            
+            # 🔥 FORCER L'UTILISATION DE NOTRE VERSION OPTIMISÉE
+            logger.info("🔥 Création du FeatureCalculator ULTRA-OPTIMISÉ...")
             self.feature_calculator = create_feature_calculator(self.config.get('features_config', {}))
             logger.info("✅ Composants système initialisés")
             
@@ -178,30 +229,69 @@ class MIAFinalSystem:
                     logger.warning(f"⚠️ Erreur initialisation Sierra Chart: {e}")
                     logger.info("🔄 Fallback vers mode simulation activé")
             else:
-                logger.info("📊 Mode simulation activé (Sierra Chart non disponible)")
-            
-            # Métriques
-            self.daily_signal_count = 0
-            self.last_reset_date = pd.Timestamp.now().date()
-            
-            logger.info("🎯 Système MIA Final prêt - Impact projeté: +20-28% win rate")
-            
+                logger.info("🔄 Mode simulation activé (Sierra Chart désactivé)")
+                
         except Exception as e:
-            logger.error(f"❌ Erreur initialisation: {e}")
+            logger.error(f"❌ Erreur initialisation composants: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
+    
+    def _validate_data_files(self):
+        """Vérifie que tous les fichiers nécessaires sont présents et valides"""
+        try:
+            today = datetime.now().strftime("%Y%m%d")
+            results = self.data_validator.validate_all_files_enhanced(today)
+            
+            if results['valid']:
+                self.logger.info(f"✅ Validation des fichiers réussie pour {today}")
+                self.logger.info(f"📊 {results['summary']['files_ok']}/{results['summary']['files_total']} fichiers valides")
+            else:
+                self.logger.warning(f"⚠️  Validation des fichiers partielle pour {today}")
+                self.logger.warning(f"📊 {results['summary']['files_ok']}/{results['summary']['files_total']} fichiers valides")
+                
+                if results['summary'].get('missing'):
+                    self.logger.warning(f"❌ Fichiers manquants: {', '.join(results['summary']['missing'])}")
+                
+                if results['summary'].get('invalid'):
+                    self.logger.warning(f"⚠️  Fichiers invalides: {', '.join(results['summary']['invalid'])}")
+                    
+        except Exception as e:
+            self.logger.error(f"❌ Erreur validation des fichiers: {e}")
+    
+    def check_daily_files_status(self) -> Dict[str, any]:
+        """Vérifie le statut des fichiers du jour"""
+        try:
+            today = datetime.now().strftime("%Y%m%d")
+            return self.data_validator.validate_all_files_enhanced(today)
+        except Exception as e:
+            self.logger.error(f"❌ Erreur vérification statut fichiers: {e}")
+            return {"valid": False, "error": str(e)}
     
     def _initialize_sierra_components(self):
         """Initialise les composants Sierra Chart"""
         try:
-            # Sierra Connector pour lecture des données unifiées (import optimisé)
-            if get_sierra_connector is not None:
-                self.sierra_connector = get_sierra_connector({
+            # Sierra Connector pour lecture des données unifiées (import direct)
+            try:
+                from execution.sierra_connector import SierraConnector
+                self.sierra_connector = SierraConnector({
                     'data_path': self.config.get('sierra_data_path', 'D:/MIA_IA_system'),
-                    'unified_pattern': self.config.get('sierra_unified_pattern', 'mia_unified_*.jsonl'),
+                    'unified_pattern': self.config.get('sierra_unified_pattern', 'unified_*.jsonl'),
                     'charts': self.config.get('sierra_charts', [3, 4, 8, 10])
                 })
                 if self.sierra_connector:
-                    logger.info("✅ Sierra Connector initialisé (import optimisé)")
+                    logger.info("✅ Sierra Connector initialisé (import direct)")
+            except Exception as e:
+                logger.warning(f"⚠️ Erreur import direct SierraConnector: {e}")
+                # Fallback vers import optimisé
+                if get_sierra_connector is not None:
+                    self.sierra_connector = get_sierra_connector({
+                        'data_path': self.config.get('sierra_data_path', 'D:/MIA_IA_system'),
+                        'unified_pattern': self.config.get('sierra_unified_pattern', 'unified_*.jsonl'),
+                        'charts': self.config.get('sierra_charts', [3, 4, 8, 10])
+                    })
+                    if self.sierra_connector:
+                        logger.info("✅ Sierra Connector initialisé (import optimisé fallback)")
             
             # Unified Emitter pour traitement des données
             self.unified_emitter = create_unified_emitter()
@@ -218,12 +308,15 @@ class MIAFinalSystem:
             
             # === INITIALISATION COMPOSANTS EXÉCUTION (OPTIMISÉS) ===
             if get_simple_trader is not None:
-                self.trading_system = get_simple_trader(self.config)
+                # Mode live ou paper selon la configuration
+                trading_mode = "LIVE" if self.config.get('sierra_live_mode', False) else "PAPER"
+                self.trading_system = get_simple_trader(trading_mode)
                 if self.trading_system:
-                    logger.info("✅ Trading System initialisé (import optimisé)")
+                    logger.info(f"✅ Trading System initialisé en mode {trading_mode} (import optimisé)")
             
             if get_risk_manager is not None:
-                self.risk_manager = get_risk_manager(self.config)
+                # RiskManager n'a pas besoin de paramètres spécifiques
+                self.risk_manager = get_risk_manager()
                 if self.risk_manager:
                     logger.info("✅ Risk Manager initialisé (import optimisé)")
             
@@ -245,6 +338,222 @@ class MIAFinalSystem:
             self.daily_signal_count = 0
             self.last_reset_date = current_date
             logger.info("📊 Métriques quotidiennes remises à zéro")
+    
+    def _process_cluster_alerts(self, market_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Traite les cluster alerts depuis les données MenthorQ
+        
+        Args:
+            market_data: Données de marché contenant les alerts
+            
+        Returns:
+            Signaux cluster traités ou None
+        """
+        try:
+            # Récupérer les alerts depuis menthorq
+            menthorq = market_data.get("menthorq", {})
+            alerts = menthorq.get("alerts", {})
+            
+            if not alerts:
+                return None
+            
+            # Extraire les signaux depuis alerts.summary
+            summary = alerts.get("summary", {})
+            signals = summary.get("signals", {})
+            nearest_cluster = summary.get("nearest_cluster", {})
+            
+            if not signals or not nearest_cluster:
+                return None
+            
+            # Traiter les signaux cluster
+            cluster_signals = {
+                "cluster_confluence": signals.get("cluster_confluence", False),
+                "cluster_strong": signals.get("cluster_strong", False),
+                "cluster_touch": signals.get("cluster_touch", False),
+                "confluence_strength": alerts.get("confluence_strength", 0.0),
+                "nearest_cluster": {
+                    "zone_min": nearest_cluster.get("zone_min"),
+                    "zone_max": nearest_cluster.get("zone_max"),
+                    "center": nearest_cluster.get("center"),
+                    "width_ticks": nearest_cluster.get("width_ticks"),
+                    "distance_ticks": nearest_cluster.get("distance_ticks"),
+                    "status": nearest_cluster.get("status"),  # "inside", "above", "below"
+                    "groups": nearest_cluster.get("groups", []),
+                    "score": nearest_cluster.get("score", 0.0)
+                }
+            }
+            
+            # Calculer la stratégie recommandée
+            strategy = self._determine_cluster_strategy(cluster_signals)
+            cluster_signals["recommended_strategy"] = strategy
+            
+            return cluster_signals
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur traitement cluster alerts: {e}")
+            return None
+    
+    def _determine_cluster_strategy(self, cluster_signals: Dict[str, Any]) -> str:
+        """
+        Détermine la stratégie recommandée basée sur les signaux cluster
+        
+        Args:
+            cluster_signals: Signaux cluster traités
+            
+        Returns:
+            Stratégie recommandée: "fade", "breakout", "breakdown", "wait"
+        """
+        try:
+            nearest = cluster_signals.get("nearest_cluster", {})
+            status = nearest.get("status")
+            
+            # Logique de trading basée sur les clusters
+            if status == "inside" and cluster_signals.get("cluster_confluence"):
+                return "fade"  # Prix dans cluster → Fade strategy
+            elif status == "below" and cluster_signals.get("cluster_strong"):
+                return "breakout"  # Prix sous cluster → Breakout strategy
+            elif status == "above" and cluster_signals.get("cluster_strong"):
+                return "breakdown"  # Prix au-dessus cluster → Breakdown strategy
+            elif cluster_signals.get("cluster_touch"):
+                return "touch"  # Prix touche le cluster → Touch strategy
+            else:
+                return "wait"  # Attendre un meilleur setup
+                
+        except Exception as e:
+            logger.error(f"❌ Erreur détermination stratégie cluster: {e}")
+            return "wait"
+    
+    def _generate_cluster_signal(self, market_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Génère un signal de trading basé sur les cluster alerts
+        
+        Args:
+            market_data: Données de marché contenant les cluster signals
+            
+        Returns:
+            Signal de trading ou None
+        """
+        try:
+            cluster_signals = market_data.get("cluster_signals")
+            if not cluster_signals:
+                return None
+            
+            # Vérifier les conditions pour générer un signal
+            confluence = cluster_signals.get("cluster_confluence", False)
+            strong = cluster_signals.get("cluster_strong", False)
+            touch = cluster_signals.get("cluster_touch", False)
+            strategy = cluster_signals.get("recommended_strategy", "wait")
+            
+            # Seuils de confiance
+            min_confidence = 0.70
+            
+            if strategy == "wait":
+                return None
+            
+            # Calculer la confiance basée sur les signaux
+            confidence = 0.0
+            if confluence and strong:
+                confidence = 0.85  # Très haute confiance
+            elif confluence or strong:
+                confidence = 0.75  # Haute confiance
+            elif touch:
+                confidence = 0.65  # Confiance moyenne
+            
+            # Ajouter bonus confluence strength
+            confluence_strength = cluster_signals.get("confluence_strength", 0.0)
+            if confluence_strength >= 0.8:
+                confidence += 0.05
+            elif confluence_strength >= 0.6:
+                confidence += 0.03
+            
+            # Vérifier seuil minimum
+            if confidence < min_confidence:
+                return None
+            
+            # Déterminer le côté et les niveaux
+            nearest = cluster_signals.get("nearest_cluster", {})
+            zone_min = nearest.get("zone_min")
+            zone_max = nearest.get("zone_max")
+            center = nearest.get("center")
+            status = nearest.get("status")
+            
+            if not all([zone_min, zone_max, center]):
+                return None
+            
+            # Calculer entry, stop, targets selon la stratégie
+            side = None
+            entry = None
+            stop = None
+            targets = []
+            
+            if strategy == "fade":
+                # Fade strategy: contre le cluster
+                if status == "inside":
+                    # Déterminer le côté basé sur la position dans le cluster
+                    price = market_data.get("price", center)
+                    if price > center:
+                        side = "short"  # Fade vers le bas
+                        entry = price
+                        stop = zone_max + 2.0  # Stop au-delà du cluster
+                        targets = [center, zone_min]
+                    else:
+                        side = "long"   # Fade vers le haut
+                        entry = price
+                        stop = zone_min - 2.0  # Stop au-delà du cluster
+                        targets = [center, zone_max]
+            
+            elif strategy == "breakout":
+                # Breakout strategy: prix sous cluster
+                side = "long"
+                entry = zone_max + 0.5  # Entrée au-dessus du cluster
+                stop = zone_min - 1.0   # Stop sous le cluster
+                targets = [center + (zone_max - zone_min), center + 2 * (zone_max - zone_min)]
+            
+            elif strategy == "breakdown":
+                # Breakdown strategy: prix au-dessus cluster
+                side = "short"
+                entry = zone_min - 0.5  # Entrée sous le cluster
+                stop = zone_max + 1.0   # Stop au-dessus du cluster
+                targets = [center - (zone_max - zone_min), center - 2 * (zone_max - zone_min)]
+            
+            elif strategy == "touch":
+                # Touch strategy: prix touche le cluster
+                price = market_data.get("price", center)
+                if price >= center:
+                    side = "short"  # Touch depuis le haut
+                    entry = price
+                    stop = zone_max + 1.5
+                    targets = [center, zone_min]
+                else:
+                    side = "long"   # Touch depuis le bas
+                    entry = price
+                    stop = zone_min - 1.5
+                    targets = [center, zone_max]
+            
+            if not side or not entry or not stop:
+                return None
+            
+            return {
+                "strategy": f"cluster_{strategy}",
+                "side": side,
+                "confidence": min(0.95, confidence),
+                "entry": entry,
+                "stop": stop,
+                "targets": targets,
+                "reason": f"Cluster {strategy} - Confluence: {confluence}, Strong: {strong}, Touch: {touch}",
+                "metadata": {
+                    "cluster_signals": cluster_signals,
+                    "zone_min": zone_min,
+                    "zone_max": zone_max,
+                    "center": center,
+                    "width_ticks": nearest.get("width_ticks"),
+                    "groups": nearest.get("groups", [])
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur génération signal cluster: {e}")
+            return None
     
     def _create_trading_context(self, market_data: Dict[str, Any]) -> TradingContext:
         """Crée un contexte de trading à partir des données de marché avec métriques avancées"""
@@ -279,6 +588,12 @@ class MIAFinalSystem:
             enriched_market_data['orderflow'] = market_data['orderflow']
         if 'menthorq' in market_data:
             enriched_market_data['menthorq'] = market_data['menthorq']
+        
+        # === CLUSTER ALERTS INTEGRATION ===
+        cluster_signals = self._process_cluster_alerts(market_data)
+        if cluster_signals:
+            enriched_market_data['cluster_signals'] = cluster_signals
+            logger.debug(f"🎯 Cluster signals: {cluster_signals}")
         
         return TradingContext(
             timestamp=pd.Timestamp.now(),
@@ -337,16 +652,23 @@ class MIAFinalSystem:
                 logger.debug("📊 Limite quotidienne de signaux atteinte")
                 return {"signal": None, "reason": "daily_limit_reached"}
             
-            # === RÉCUPÉRATION DES DONNÉES SIERRA CHART ===
+            # === RÉCUPÉRATION DES DONNÉES SIERRA CHART (MODE LIVE) ===
             if market_data is None and self.sierra_connector:
                 try:
                     market_data = await self._get_sierra_market_data()
                     if not market_data:
-                        logger.debug("📊 Aucune donnée Sierra Chart disponible")
+                        logger.debug("📊 Aucune donnée Sierra Chart disponible - attente...")
                         return {"signal": None, "reason": "no_sierra_data"}
                 except Exception as e:
                     logger.warning(f"⚠️ Erreur récupération données Sierra Chart: {e}")
-                    market_data = self._get_fallback_market_data()
+                    if self.config.get('sierra_fallback_simulation', False):
+                        market_data = self._get_fallback_market_data()
+                    else:
+                        logger.debug("📊 Mode live activé - pas de fallback")
+                        return {"signal": None, "reason": "sierra_error_no_fallback"}
+            elif market_data is None and not self.config.get('sierra_fallback_simulation', False):
+                logger.debug("📊 Mode live activé - attente données Sierra Chart")
+                return {"signal": None, "reason": "waiting_sierra_data"}
             elif market_data is None:
                 market_data = self._get_fallback_market_data()
             
@@ -354,6 +676,9 @@ class MIAFinalSystem:
             trading_context = self._create_trading_context(market_data)
             
             # Analyse avec le strategy selector
+            if self.strategy_selector is None:
+                logger.error("❌ Strategy Selector non initialisé")
+                return {"signal": None, "reason": "strategy_selector_not_initialized"}
             result = self.strategy_selector.analyze_and_select(trading_context)
             
             # Calcul temps de traitement
@@ -392,6 +717,15 @@ class MIAFinalSystem:
                     "metadata": result.pattern_signal.metadata
                 }
             
+            # === CLUSTER ALERTS SIGNAL OVERRIDE ===
+            cluster_signal = self._generate_cluster_signal(market_data)
+            if cluster_signal:
+                # Override le signal pattern si cluster signal plus fort
+                if not analysis_result.get("signal") or cluster_signal.get("confidence", 0) > analysis_result["signal"].get("confidence", 0):
+                    analysis_result["signal"] = cluster_signal
+                    analysis_result["signal_source"] = "cluster_alerts"
+                    logger.info(f"🎯 Signal cluster override: {cluster_signal['strategy']} ({cluster_signal['side']})")
+            
             # Logging
             if result.signal_generated:
                 logger.info(f"🎯 Signal généré: {result.best_pattern} ({result.pattern_signal.side}) "
@@ -412,70 +746,52 @@ class MIAFinalSystem:
             }
     
     async def _get_sierra_market_data(self) -> Optional[Dict[str, Any]]:
-        """Récupère les données de marché depuis Sierra Chart"""
+        """Récupère les données de marché depuis Sierra Chart en temps réel"""
         try:
             if not self.sierra_connector:
                 return None
             
-            # Récupérer les dernières données unifiées
-            latest_data = self.sierra_connector.get_latest_unified_data()
-            if not latest_data:
-                return None
+            # Mode LIVE : Lire directement depuis Sierra Chart (pas de fichiers unifiés)
+            if self.config.get('sierra_live_mode', False):
+                # Récupérer les données temps réel depuis les dumpers C++
+                latest_data = self.sierra_connector.get_live_market_data()
+                if not latest_data:
+                    logger.debug("📊 Attente données Sierra Chart live...")
+                    return None
+            else:
+                # Mode fallback : Récupérer les dernières données unifiées
+                latest_data = self.sierra_connector.get_latest_unified_data()
+                if not latest_data:
+                    return None
+            
+            # Extraction adaptée au schéma unifié
+            bd = latest_data.get("basedata") or {}
+            tr = latest_data.get("trade") or {}
+            qt = latest_data.get("quote") or {}
+            
+            # Prix depuis basedata > trade > quote (midquote)
+            price = bd.get("c") or tr.get("px")
+            if not price and 'bid' in qt and 'ask' in qt:
+                price = 0.5 * (qt['bid'] + qt['ask'])
+            price = float(price or 4500.0)
             
             # Convertir en format market_data
             market_data = {
                 "symbol": latest_data.get("sym", "ES"),
-                "price": latest_data.get("close", latest_data.get("last", 4500.0)),
-                "volume": latest_data.get("volume", 1000.0),
+                "price": price,
+                "volume": bd.get("v", 1000.0),
                 "timestamp": pd.Timestamp.now(),
                 "sierra_data": latest_data,
-                "chart": latest_data.get("chart", 3),
-                "type": latest_data.get("type", "basedata"),
+                "basedata": bd if bd else None,
+                "quotes": qt if qt else None,
+                "menthorq": {
+                    "levels": latest_data.get("menthorq_levels", []),
+                    "alerts": latest_data.get("alerts")
+                },
                 "sierra_events": [latest_data]  # Pour le scoring bullish
             }
             
-            # Ajouter les données spécifiques selon le type
-            if latest_data.get("type") == "nbcv_footprint":
-                market_data.update({
-                    "ask_volume": latest_data.get("ask_volume", 0),
-                    "bid_volume": latest_data.get("bid_volume", 0),
-                    "delta": latest_data.get("delta", 0),
-                    "pressure": latest_data.get("pressure", 0),
-                    "pressure_bullish": latest_data.get("pressure_bullish", 0),
-                    "pressure_bearish": latest_data.get("pressure_bearish", 0),
-                    "cumulative_delta": latest_data.get("cumulative_delta", 0),
-                    "trades": latest_data.get("trades", 0)
-                })
-            elif latest_data.get("type") == "vva":
-                market_data.update({
-                    "vva_poc": latest_data.get("poc", 0),
-                    "vva_vah": latest_data.get("vah", 0),
-                    "vva_val": latest_data.get("val", 0)
-                })
-            elif latest_data.get("type") == "menthorq_levels":
-                market_data.update({
-                    "gamma_levels": latest_data.get("gamma_levels", []),
-                    "blind_spots": latest_data.get("blind_spots", []),
-                    "swing_levels": latest_data.get("swing_levels", [])
-                })
-            elif latest_data.get("type") == "basedata":
-                market_data.update({
-                    "high": latest_data.get("high", 0),
-                    "low": latest_data.get("low", 0),
-                    "open": latest_data.get("open", 0),
-                    "close": latest_data.get("close", 0),
-                    "volume": latest_data.get("volume", 0)
-                })
-            elif latest_data.get("type") == "depth":
-                market_data.update({
-                    "depth": latest_data
-                })
-            elif latest_data.get("type") == "trade":
-                market_data.update({
-                    "trade": latest_data
-                })
-            
-            # === CALCUL DES MÉTRIQUES AVANCÉES ===
+            # Calculer les métriques avancées
             advanced_metrics = self._calculate_advanced_metrics(market_data)
             market_data.update(advanced_metrics)
             
@@ -505,6 +821,22 @@ class MIAFinalSystem:
         Returns:
             Dict avec les métriques avancées calculées
         """
+        # Fallback si AdvancedMetrics n'est pas disponible
+        if not self.advanced_metrics_calculator:
+            return {
+                "quotes": {"speed_up": False},
+                "basedata": {"last_wick_ticks": 0},
+                "orderflow": {
+                    "delta_burst": False,
+                    "delta_flip": False,
+                    "cvd": 0.0,
+                    "stacked_imbalance": {"ask_rows": 0, "bid_rows": 0},
+                    "absorption": {"bid": False, "ask": False},
+                    "iceberg": False
+                },
+                "menthorq": {"gamma_flip_up": False, "gamma_flip_down": False}
+            }
+        
         try:
             # Préparer le tick pour AdvancedMetrics
             tick = {
@@ -583,11 +915,24 @@ class MIAFinalSystem:
     
     def get_system_status(self) -> Dict[str, Any]:
         """État complet du système final"""
+        if self.strategy_selector is None:
+            return {
+                "error": "Strategy Selector non initialisé", 
+                "status": "error",
+                "system_version": "4.0_final",
+                "total_strategies": 0,
+                "menthorq_strategies": 0,
+                "original_strategies": 0,
+                "deduplication_enabled": False,
+                "family_scoring_enabled": False,
+                "daily_signal_count": 0,
+                "max_daily_signals": 0
+            }
         status = self.strategy_selector.get_system_status()
         
         # Ajouter métriques finales
         status.update({
-            'system_version': '3.0_final',
+            'system_version': '4.0_final',
             'total_strategies': 16,
             'menthorq_strategies': 6,
             'original_strategies': 10,
@@ -618,7 +963,23 @@ class MIAFinalSystem:
     def get_performance_report(self) -> Dict[str, Any]:
         """Rapport de performance détaillé"""
         if self.metrics.total_analyses == 0:
-            return {"error": "Aucune analyse effectuée"}
+            return {
+                "error": "Aucune analyse effectuée",
+                "performance_summary": {
+                    "total_analyses": 0,
+                    "signal_generation_rate": "0.0%",
+                    "rejection_rate": "0.0%",
+                    "avg_processing_time_ms": 0.0,
+                    "daily_signals": 0
+                },
+                "top_strategies": [],
+                "top_families": [],
+                "system_health": {
+                    "processing_time_ok": True,
+                    "signal_rate_ok": True,
+                    "daily_limit_ok": True
+                }
+            }
         
         # Calculs de performance
         signal_rate = (self.metrics.signals_generated / self.metrics.total_analyses) * 100
@@ -724,12 +1085,12 @@ async def run_trading_loop(system: MIAFinalSystem):
     
     while True:
         try:
-            # === RÉCUPÉRATION DES DONNÉES SIERRA CHART ===
+            # === RÉCUPÉRATION DES DONNÉES SIERRA CHART LIVE ===
             # Le système récupère automatiquement les données depuis Sierra Chart
-            # via les 4 dumpers C++ (Charts 3, 4, 8, 10) et le unifier
+            # via les 3 dumpers C++ (Charts 3, 8, 10) et le unifier
             
-            # Analyse avec données Sierra Chart (ou fallback si indisponible)
-            result = await system.analyze_market()  # Pas de market_data = utilise Sierra Chart
+            # Analyse avec données Sierra Chart LIVE uniquement
+            result = await system.analyze_market()  # Mode live - pas de fallback
             
             # Traitement du signal si généré
             if result.get("signal"):
@@ -759,6 +1120,19 @@ async def run_trading_loop(system: MIAFinalSystem):
                     if mq.get('gamma_flip_down'):
                         logger.info(f"⚡ Gamma Flip DOWN détecté!")
                 
+                # === CLUSTER ALERTS LOGGING ===
+                if 'cluster_signals' in result:
+                    cs = result['cluster_signals']
+                    if cs.get('cluster_confluence'):
+                        logger.info(f"🎯 Cluster Confluence détecté!")
+                    if cs.get('cluster_strong'):
+                        logger.info(f"💪 Cluster Strong détecté!")
+                    if cs.get('cluster_touch'):
+                        logger.info(f"👆 Cluster Touch détecté!")
+                    strategy = cs.get('recommended_strategy')
+                    if strategy and strategy != "wait":
+                        logger.info(f"📊 Stratégie cluster recommandée: {strategy}")
+                
                 if 'quotes' in result and result['quotes'].get('speed_up'):
                     logger.info(f"🚀 Quotes Speed Up détecté!")
                 
@@ -768,12 +1142,12 @@ async def run_trading_loop(system: MIAFinalSystem):
                         logger.info(f"📏 Mèche importante: {bd['last_wick_ticks']:.1f} ticks")
                 
                 # Exécution du trade via Sierra Chart DTC
-                if self.trading_executor and self.risk_manager:
+                if system.trading_executor and system.risk_manager:
                     try:
                         # Vérification risk management
-                        if self.risk_manager.check_signal_risk(result['signal']):
+                        if system.risk_manager.check_signal_risk(result['signal']):
                             # Exécution via TradingExecutor
-                            execution_result = await self.trading_executor.execute_signal(result['signal'])
+                            execution_result = await system.trading_executor.execute_signal(result['signal'])
                             if execution_result.success:
                                 logger.info(f"✅ Trade exécuté avec succès: {execution_result.order_id}")
                             else:

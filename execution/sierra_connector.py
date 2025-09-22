@@ -181,7 +181,7 @@ class SierraConnector:
         # Trouver le fichier unifié le plus récent
         unified_file = self._find_latest_unified_file()
         if not unified_file:
-            raise FileNotFoundError("Aucun fichier mia_unified_*.jsonl trouvé")
+            raise FileNotFoundError("Aucun fichier unified_*.jsonl trouvé")
         
         logger.info(f"Sierra tailing '{unified_file}' from {self.file_tailer.backfill_mb}MB backfill")
         
@@ -199,7 +199,7 @@ class SierraConnector:
     def _find_latest_unified_file(self) -> Optional[Path]:
         """Trouve le fichier unifié le plus récent"""
         base_dir = Path("D:/MIA_IA_system")
-        pattern = "mia_unified_*.jsonl"
+        pattern = "unified_*.jsonl"
         
         files = list(base_dir.glob(pattern))
         if not files:
@@ -331,6 +331,85 @@ class SierraConnector:
             connection.connect()
         
         return connection
+    
+    def get_latest_unified_data(self) -> Optional[Dict[str, Any]]:
+        """Retourne les dernières données unifiées pour le lanceur"""
+        try:
+            if not self.market_snapshot_manager:
+                logger.warning("Market snapshot manager non disponible")
+                return None
+            
+            # Récupérer le snapshot le plus récent pour ES
+            snapshot = self.market_snapshot_manager.get("ES")
+            if not snapshot:
+                logger.debug("Aucun snapshot disponible pour ES")
+                return None
+            
+            # Construire les données dans le format attendu par le lanceur
+            latest_data = {
+                "sym": "ES",
+                "t": snapshot.ts_last_event
+            }
+            
+            # Basedata depuis M1
+            if snapshot.m1 and snapshot.m1.current_bar:
+                bar = snapshot.m1.current_bar
+                latest_data["basedata"] = {
+                    "c": bar.close,
+                    "o": bar.open,
+                    "h": bar.high,
+                    "l": bar.low,
+                    "v": bar.volume
+                }
+            
+            # Trade (utilise le prix de clôture)
+            if snapshot.m1 and snapshot.m1.current_bar:
+                latest_data["trade"] = {
+                    "px": snapshot.m1.current_bar.close
+                }
+            
+            # Quote (bid/ask simulés)
+            if snapshot.m1 and snapshot.m1.current_bar:
+                price = snapshot.m1.current_bar.close
+                latest_data["quote"] = {
+                    "bid": price - 0.25,
+                    "ask": price + 0.25
+                }
+            
+            # MenthorQ levels et alerts
+            if snapshot.menthorq:
+                latest_data["menthorq_levels"] = snapshot.menthorq.levels or []
+                latest_data["alerts"] = snapshot.menthorq.alerts or {}
+            else:
+                latest_data["menthorq_levels"] = []
+                latest_data["alerts"] = {}
+            
+            # VIX
+            if snapshot.vix:
+                latest_data["vix"] = {
+                    "value": snapshot.vix.last_value
+                }
+            
+            # VWAP
+            if snapshot.m1 and hasattr(snapshot.m1, 'vwap'):
+                latest_data["vwap"] = {
+                    "vwap": snapshot.m1.vwap
+                }
+            
+            # VVA
+            if snapshot.m1 and hasattr(snapshot.m1, 'vva'):
+                latest_data["vva"] = snapshot.m1.vva
+            
+            # NBCV/OrderFlow
+            if snapshot.m1 and hasattr(snapshot.m1, 'nbcv'):
+                latest_data["nbcv"] = snapshot.m1.nbcv
+            
+            logger.debug(f"Données unifiées récupérées: {len(latest_data)} champs")
+            return latest_data
+            
+        except Exception as e:
+            logger.error(f"Erreur récupération données unifiées: {e}")
+            return None
 
 # === CONNEXION DTC ===
 
@@ -441,6 +520,7 @@ class DTCConnection:
             logger.warning(f"Heartbeat échoué {self.symbol}: {e}")
             self.is_connected = False
             return False
+    
 
 # === INSTANCE GLOBALE ===
 

@@ -40,10 +40,10 @@
         "gex": 10
       },
       "mia": {
-        "gate_long": 0.00001,
-        "gate_short": -0.00001,
+        "gate_long": 0.20,
+        "gate_short": -0.20,
         "boost_abs": 0.35,
-        "description": "LONG si mia ≥ +0.00001 ; SHORT si mia ≤ −0.00001 (seuils ultra-bas pour permettre plus de signaux)"
+        "description": "LONG si mia ≥ +0.20 ; SHORT si mia ≤ −0.20 (seuils stricts pour signaux de qualité)"
       },
       "leadership": {
         "corr_min": {
@@ -64,12 +64,13 @@
           "HIGH": 0.60,
           "EXTREME": 0.75
         },
-        "description": "Veto contre-trend si |LS| ≥ seuil, bonus si |LS| ≥ seuil"
+        "veto_enabled": false,
+        "description": "PAS DE VETO BLOQUANT - Leadership informatif seulement (comme demandé par l'utilisateur)"
       }
     },
     
     "vix_regimes": {
-      "description": "Régime VIX (adaptation)",
+      "description": "Régime VIX (adaptation) - LOW < 15 → ×1.05, MID 15–22 → ×1.00, HIGH ≥ 22 → ×0.90, EXTREME ≥ 35 → ×0.85",
       "multipliers": {
         "LOW": 1.05,
         "MID": 1.00,
@@ -80,12 +81,11 @@
         "LOW": 15,
         "MID": 22,
         "HIGH": 35
-      },
-      "description": "LOW < 15 → ×1.05, MID 15–22 → ×1.00, HIGH ≥ 22 → ×0.90, EXTREME ≥ 35 → ×0.85"
+      }
     },
     
     "orderflow": {
-      "description": "Validation Orderflow (obligatoire)",
+      "description": "Validation Orderflow (obligatoire) - Confirmer via ≥ min OF parmi les confirmations disponibles",
       "confirmations": [
         "CVD directionnel",
         "stacked imbalance",
@@ -98,19 +98,17 @@
         "HIGH": 3,
         "EXTREME": 3
       },
-      "fallback_ok": true,
-      "description": "Confirmer via ≥ min OF parmi les confirmations disponibles"
+      "fallback_ok": true
     },
     
     "structure": {
-      "description": "Contexte Structurel",
+      "description": "Contexte Structurel - Éviter d'entrer sur VWAP/S±1 ou VAH/VAL/VPOC/HVN",
       "buffers": {
         "LOW": {"vwap": 1, "profile": 1},
         "MID": {"vwap": 1, "profile": 1},
         "HIGH": {"vwap": 2, "profile": 2},
         "EXTREME": {"vwap": 3, "profile": 3}
-      },
-      "description": "Éviter d'entrer sur VWAP/S±1 ou VAH/VAL/VPOC/HVN"
+      }
     },
     
     "execution": {

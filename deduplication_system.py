@@ -120,7 +120,7 @@ class MIADeduplicationSystem:
         # Patterns de fichiers à dédupliquer
         patterns = [
             f"chart_3_*_{date_str}.jsonl",
-            f"chart_4_*_{date_str}.jsonl", 
+            # f"chart_4_*_{date_str}.jsonl",  # Chart 4 désactivé 
             f"chart_8_*_{date_str}.jsonl",
             f"chart_10_*_{date_str}.jsonl"
         ]
@@ -184,7 +184,7 @@ class MIADeduplicationSystem:
         
         patterns = [
             f"chart_3_*_{date_str}.jsonl",
-            f"chart_4_*_{date_str}.jsonl",
+            # f"chart_4_*_{date_str}.jsonl",  # Chart 4 désactivé
             f"chart_8_*_{date_str}.jsonl", 
             f"chart_10_*_{date_str}.jsonl"
         ]
@@ -318,5 +318,6 @@ def main():
 
 if __name__ == "__main__":
     exit(main())
+
 
 

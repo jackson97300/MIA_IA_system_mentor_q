@@ -100,3 +100,42 @@ docker/
 # 📋 Fichiers de documentation temporaires
 docs/temp/
 docs/draft/
+
+# 🧪 Fichiers de test
+test_*.py
+tests/
+tests_old/
+tests_archive/
+*_test.py
+*_test_*.py
+
+# 📄 Fichiers temporaires et de documentation
+*.txt
+*.md
+!README.md
+!ARCHITECTURE.md
+!DOCUMENTATION_COMPLETE_METHODES_TRADING.md
+GUIDE_*.md
+AUDIT_*.md
+BILAN_*.md
+CONFIGURATION_*.md
+CORRECTIONS_*.md
+RAPPORT_*.md
+ETAT_*.md
+TODO_*.md
+CORRECTION_*.md
+MAPPING_*.md
+INTEGRATION_*.md
+LAUNCH_*.md
+STRATEGY_*.md
+MIA_*.cpp
+MIA_*.hpp
+*.whl
+*.zip
+
+# 🗂️ Dossiers temporaires
+temp/
+backups/
+archived_legacy/
+ancien_system/
+g3_validation_report.csv

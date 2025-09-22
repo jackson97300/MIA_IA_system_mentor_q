@@ -220,3 +220,4 @@ Vous avez maintenant **2 méthodes distinctes** prêtes pour la comparaison :
 2. **⚔️ Battle Navale V2** : Méthode pratique avec votre expérience
 
 **Prochaine étape** : Lancer les tests et comparer les performances pour choisir la meilleure approche ! 🚀
+

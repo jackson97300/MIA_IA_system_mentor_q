@@ -77,11 +77,11 @@ class MIADataReader:
     
     def get_latest_unified_file(self) -> Optional[Path]:
         """Trouve le fichier unifié le plus récent"""
-        pattern = "mia_unified_*.jsonl"
+        pattern = "unified_*.jsonl"
         files = list(self.data_dir.glob(pattern))
         
         if not files:
-            logger.warning("⚠️ Aucun fichier mia_unified_*.jsonl trouvé")
+            logger.warning("⚠️ Aucun fichier unified_*.jsonl trouvé")
             return None
         
         # Trier par date de modification

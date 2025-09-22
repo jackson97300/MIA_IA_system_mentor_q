@@ -119,6 +119,31 @@ class IBKRConfig:
 
 
 @dataclass
+class DTCConfig:
+    """Configuration DTC Protocol pour Sierra Chart"""
+    # Connexion
+    host: str = "127.0.0.1"
+    port: int = 11100  # 11099 pour live, 11100 pour paper
+    client_id: int = 1
+
+    # Options connexion
+    enable_connection: bool = True
+    auto_reconnect: bool = True
+    reconnect_attempts: int = 10
+    reconnect_delay: int = 30
+    connection_timeout: int = 30
+
+    # Trading
+    trading_enabled: bool = True
+    data_collection_enabled: bool = False
+    auto_connect: bool = True
+
+    # Rate limits
+    max_requests_per_second: int = 50
+    max_order_submissions: int = 100
+
+
+@dataclass
 class SierraChartConfig:
     """Configuration Sierra Chart pour exécution uniquement"""
     # Chemins - Utilise la fonction helper
@@ -323,8 +348,8 @@ class MonitoringConfig:
 
 
 @dataclass
-class SierraIBKRConfig:
-    """Configuration complète Sierra Chart + IBKR"""
+class SierraConfig:
+    """Configuration complète Sierra Chart"""
     # Metadata
     config_name: str = "default"
     environment: str = "development"  # development, staging, production
@@ -336,6 +361,7 @@ class SierraIBKRConfig:
 
     # Sub-configurations
     ibkr: IBKRConfig = field(default_factory=IBKRConfig)
+    dtc: DTCConfig = field(default_factory=DTCConfig)
     sierra_chart: SierraChartConfig = field(default_factory=SierraChartConfig)
     risk: RiskConfig = field(default_factory=RiskConfig)
     contracts: ContractsConfig = field(default_factory=ContractsConfig)
@@ -358,14 +384,14 @@ class SierraIBKRConfig:
             json.dump(self.to_dict(), f, indent=2)
 
     @classmethod
-    def load_from_file(cls, filepath: str) -> 'SierraIBKRConfig':
+    def load_from_file(cls, filepath: str) -> 'SierraConfig':
         """Charge depuis fichier JSON"""
         with open(filepath, 'r') as f:
             data = json.load(f)
         return cls.from_dict(data)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'SierraIBKRConfig':
+    def from_dict(cls, data: Dict[str, Any]) -> 'SierraConfig':
         """Crée instance depuis dictionnaire avec parsing sécurisé"""
         # Parser chaque sous-config
         config = cls()
@@ -421,7 +447,7 @@ class SierraIBKRConfig:
 # === VALIDATION ===
 
 
-def validate_config(config: SierraIBKRConfig) -> Dict[str, bool]:
+def validate_config(config: SierraConfig) -> Dict[str, bool]:
     """Valide la configuration complète"""
     validations = {}
 
@@ -459,17 +485,17 @@ def validate_config(config: SierraIBKRConfig) -> Dict[str, bool]:
 
 
 # Variable globale pour stocker la config active
-_active_config: Optional[SierraIBKRConfig] = None
+_active_config: Optional[SierraConfig] = None
 
 
-def set_sierra_config(config: SierraIBKRConfig) -> None:
+def set_sierra_config(config: SierraConfig) -> None:
     """Définit la configuration Sierra/IBKR active"""
     global _active_config
     _active_config = config
     logger.info(f"Configuration Sierra/IBKR activée: {config.config_name}")
 
 
-def get_sierra_config() -> SierraIBKRConfig:
+def get_sierra_config() -> SierraConfig:
     """Récupère la configuration Sierra/IBKR active"""
     global _active_config
     if _active_config is None:
@@ -477,14 +503,14 @@ def get_sierra_config() -> SierraIBKRConfig:
     return _active_config
 
 
-def create_default_config() -> SierraIBKRConfig:
+def create_default_config() -> SierraConfig:
     """Configuration par défaut (paper trading sécurisé)"""
     return create_paper_trading_config()
 
 
-def create_paper_trading_config() -> SierraIBKRConfig:
+def create_paper_trading_config() -> SierraConfig:
     """Crée une configuration pour paper trading"""
-    config = SierraIBKRConfig()
+    config = SierraConfig()
     config.config_name = "Paper Trading Config"
     config.environment = "paper"
 
@@ -510,9 +536,9 @@ def create_paper_trading_config() -> SierraIBKRConfig:
     return config
 
 
-def create_live_trading_config() -> SierraIBKRConfig:
+def create_live_trading_config() -> SierraConfig:
     """Crée une configuration pour live trading"""
-    config = SierraIBKRConfig()
+    config = SierraConfig()
     config.config_name = "Live Trading Config"
     config.environment = "production"
 
@@ -545,7 +571,7 @@ def create_live_trading_config() -> SierraIBKRConfig:
     return config
 
 
-def create_data_collection_config() -> SierraIBKRConfig:
+def create_data_collection_config() -> SierraConfig:
     """Crée une configuration pour collecte de données"""
     config = create_paper_trading_config()  # Base sur paper
     config.config_name = "Data Collection Config"
@@ -568,9 +594,9 @@ def create_data_collection_config() -> SierraIBKRConfig:
     return config
 
 
-def create_test_config() -> SierraIBKRConfig:
+def create_test_config() -> SierraConfig:
     """Configuration pour tests unitaires"""
-    config = SierraIBKRConfig()
+    config = SierraConfig()
     config.config_name = "Test Config"
     config.environment = "test"
 
@@ -588,7 +614,7 @@ def create_test_config() -> SierraIBKRConfig:
 # === VALIDATION HELPERS ===
 
 
-def validate_ibkr_connection(config: SierraIBKRConfig) -> bool:
+def validate_ibkr_connection(config: SierraConfig) -> bool:
     """Valide que la connexion IBKR est possible"""
     try:
         # Check basiques
@@ -606,7 +632,7 @@ def validate_ibkr_connection(config: SierraIBKRConfig) -> bool:
         return False
 
 
-def validate_sierra_dll(config: SierraIBKRConfig) -> bool:
+def validate_sierra_dll(config: SierraConfig) -> bool:
     """Valide que la DLL Sierra existe"""
     try:
         if not config.sierra_chart.enable_plugin:
@@ -625,7 +651,7 @@ def validate_sierra_dll(config: SierraIBKRConfig) -> bool:
 # === EXPORT FUNCTIONS ===
 
 
-def get_available_configs() -> Dict[str, SierraIBKRConfig]:
+def get_available_configs() -> Dict[str, SierraConfig]:
     """Retourne toutes les configurations disponibles"""
     return {
         'paper': create_paper_trading_config(),
@@ -635,7 +661,7 @@ def get_available_configs() -> Dict[str, SierraIBKRConfig]:
     }
 
 
-def load_config_by_name(name: str) -> SierraIBKRConfig:
+def load_config_by_name(name: str) -> SierraConfig:
     """Charge une configuration par son nom"""
     configs = get_available_configs()
     if name not in configs:
@@ -647,7 +673,7 @@ def load_config_by_name(name: str) -> SierraIBKRConfig:
 
 
 __all__ = [
-    'SierraIBKRConfig',
+    'SierraConfig',
     'IBKRConfig',
     'SierraChartConfig',
     'RiskConfig',

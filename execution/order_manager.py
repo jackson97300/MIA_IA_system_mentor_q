@@ -22,7 +22,6 @@ from enum import Enum
 class BrokerType(Enum):
     """Type de broker"""
     SIERRA_CHART = "sierra_chart"
-    IBKR = "ibkr"
     SIMULATED = "simulated"
 
 class OrderStatus(Enum):

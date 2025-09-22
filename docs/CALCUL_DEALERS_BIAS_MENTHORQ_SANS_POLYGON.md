@@ -363,3 +363,4 @@ def _calculate_dealers_bias(self, current_price, menthorq_levels):
 
 *Document créé pour MIA_IA_SYSTEM - Dealer's Bias MenthorQ*
 
+

@@ -425,3 +425,4 @@ Cette méthode **MenthorQ basée sur les distances** est :
 
 *Document créé pour MIA_IA_SYSTEM - Méthode MenthorQ Distance*
 
+

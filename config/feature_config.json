@@ -9,10 +9,6 @@
     "bin_ticks": 4,
     "lookback_minutes": 60
   },
-  "order_book_imbalance": {
-    "depth": 5,
-    "smoothing": 0.2
-  },
   "nbcv": {
     "min_volume": 60,
     "min_delta_ratio_pct": 7.5,
@@ -63,7 +59,6 @@
   "feature_weights": {
     "mtf_confluence_score": 0.25,
     "smart_money_strength": 0.20,
-    "order_book_imbalance": 0.15,
     "volume_profile_imbalance": 0.15,
     "vwap_deviation": 0.10,
     "vix_regime": 0.10,

@@ -20,14 +20,15 @@ logger = get_logger(__name__)
 
 # === CONSTANTES UNIFIÉES ===
 
-# Configuration des stops unifiés (7 ticks partout)
+# Configuration des stops unifiés (entrée 4 ticks, stop 7 ticks)
 UNIFIED_STOP_CONFIG = {
-    "fixed_stop_ticks": 7,
+    "entry_tolerance_ticks": 4,      # 4 ticks pour l'entrée
+    "fixed_stop_ticks": 7,           # 7 ticks pour le stop (inchangé)
     "fixed_stop_dollars": 7 * ES_TICK_VALUE,  # $87.50
     "risk_reward_ratio": 2.0,
-    "take_profit_ticks": 14,  # 2R
+    "take_profit_ticks": 14,  # 2R (inchangé)
     "take_profit_dollars": 14 * ES_TICK_VALUE,  # $175.00
-    "description": "7 ticks partout - Simple et cohérent"
+    "description": "Entrée 4 ticks, Stop 7 ticks - Simple et cohérent"
 }
 
 # === FONCTIONS UNIFIÉES ===
@@ -54,11 +55,11 @@ def calculate_unified_stops(
     """
     try:
         if use_fixed:
-            # === APPROCHE FIXE : 7 TICKS PARTOUT ===
-            stop_ticks = UNIFIED_STOP_CONFIG["fixed_stop_ticks"]
-            tp_ticks = UNIFIED_STOP_CONFIG["take_profit_ticks"]
+            # === APPROCHE FIXE : ENTRÉE 4 TICKS, STOP 7 TICKS ===
+            stop_ticks = UNIFIED_STOP_CONFIG["fixed_stop_ticks"]  # 7 ticks pour stop
+            tp_ticks = UNIFIED_STOP_CONFIG["take_profit_ticks"]   # 14 ticks pour TP
             
-            logger.debug(f"📊 Unified Stops: 7 ticks partout (entry={entry_price}, side={side})")
+            logger.debug(f"📊 Unified Stops: Entrée 4 ticks, Stop 7 ticks (entry={entry_price}, side={side})")
             
         else:
             # === APPROCHE VIX-ADAPTATIVE (DÉPRÉCIÉE) ===
@@ -106,7 +107,7 @@ def calculate_unified_stops(
             "reward_ticks": tp_ticks,
             "reward_dollars": tp_ticks * ES_TICK_VALUE,
             "risk_reward_ratio": tp_ticks / stop_ticks,
-            "method": "fixed_7_ticks" if use_fixed else "vix_adaptive"
+            "method": "entry_4_stop_7_ticks" if use_fixed else "vix_adaptive"
         }
         
         logger.info(f"✅ Unified Stops calculés: {side} @ {entry_price} → "
@@ -297,3 +298,4 @@ def test_unified_stops():
 
 if __name__ == "__main__":
     test_unified_stops()
+

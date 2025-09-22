@@ -71,7 +71,7 @@ class MenthorQRuntimeConfig:
         if self.chart_patterns is None:
             self.chart_patterns = {
                 3: "chart_3_{date}.jsonl",
-                4: "chart_4_{date}.jsonl", 
+                # 4: "chart_4_{date}.jsonl",  # Chart 4 désactivé 
                 8: "chart_8_{date}.jsonl",
                 10: "chart_10_{date}.jsonl"
             }
